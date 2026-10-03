@@ -1,10 +1,10 @@
-import { Button, Card, Section, SectionHeader } from "@retexia/ui";
+import { Button, Card, Section, SectionHeader, type PricingCardData } from "@retexia/ui";
 import { Icon } from "@retexia/ui/icon";
 import { getPackages, getProductBySlug } from "@/lib/content";
 import { formatPrice } from "@/lib/format";
 import { telHref, whatsappHref } from "@/lib/links";
 import { ContactForm } from "./contact-form";
-import { PricingTable, type PricingCard } from "./pricing-table";
+import { PricingTable } from "./pricing-table";
 import { headerProps, type SectionProps } from "./types";
 import { WaitlistForm } from "./waitlist-form";
 
@@ -17,7 +17,7 @@ export async function PricingSection({ section, content, ctx, isFirst }: Section
   if (!packages.length) return null;
   const { settings, t } = ctx;
 
-  const cards: PricingCard[] = packages.map((p) => {
+  const cards: PricingCardData[] = packages.map((p) => {
     const currency = p.currency ?? settings.currency_code;
     const fmt = (n: number) => formatPrice(n, currency, settings.currency_locale);
     const saving = p.price_yearly !== null ? p.price_monthly * 12 - p.price_yearly : 0;

@@ -1,11 +1,11 @@
 import "server-only";
 
 import type { Database, SupabaseClient, Tables } from "@retexia/supabase";
-import type { Answer } from "./forms/engine";
+import type { Answer } from "@retexia/forms";
 
 /** Every orders column a customer may read (admin_note is not granted). */
 const ORDER_COLUMNS =
-  "id, ref, status, status_note, billing_cycle, package_name, price_amount, setup_fee, currency, answers, form_version, product_id, package_id, created_at, updated_at, starts_at, renews_at, cancelled_at";
+  "id, ref, status, status_note, billing_cycle, package_name, price_amount, setup_fee, currency, answers, form_version, product_id, package_id, created_at, updated_at, starts_at, renews_at, cancelled_at, paused_at";
 
 export type CustomerOrder = Omit<Tables<"orders">, "admin_note" | "user_id" | "form_id" | "customer_note"> & {
   answers: Answer[];
@@ -45,4 +45,29 @@ export function orderGroup(status: string, isFinal: boolean): OrderGroup {
   if (isFinal) return "closed";
   if (status === "active") return "active";
   return "in_progress";
+}
+
+export type CustomerPayment = Pick<
+  Tables<"payments">,
+  "id" | "kind" | "amount" | "currency" | "method" | "reference" | "status" | "paid_at" | "receipt_number" | "period_start" | "period_end" | "created_at"
+>;
+
+/** The customer's payments for one request (RLS: own confirmed, refunded and pending). */
+export async function getOrderPayments(supabase: Client, orderId: string): Promise<CustomerPayment[]> {
+  const { data, error } = await supabase
+    .from("payments")
+    .select("id, kind, amount, currency, method, reference, status, paid_at, receipt_number, period_start, period_end, created_at")
+    .eq("order_id", orderId)
+    .order("created_at", { ascending: false });
+  if (error) console.error("[orders] payments failed:", error.message);
+  return data ?? [];
+}
+
+export type VisibleServiceField = { key: string; label: string; type: string; value: unknown };
+
+/** Setup values the team marked as visible to the customer (never secrets). */
+export async function getVisibleServiceFields(supabase: Client, orderId: string): Promise<VisibleServiceField[]> {
+  const { data, error } = await supabase.rpc("customer_order_service_fields", { p_order_id: orderId });
+  if (error) console.error("[orders] service fields failed:", error.message);
+  return Array.isArray(data) ? (data as VisibleServiceField[]) : [];
 }

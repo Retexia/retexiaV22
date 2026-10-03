@@ -1,23 +1,29 @@
 # Retexia
 
-The base website for [retexia.com](https://retexia.com): marketing pages, sign-in and the customer
-account area for Retexia's ready-made products (Retexia Lingo, Retexia Post, and more to come).
+The website for [retexia.com](https://retexia.com) (marketing pages, sign-in and the customer
+account area for Retexia's ready-made products: Retexia Lingo, Retexia Post, and more to come) and
+the team's admin panel at admin.retexia.com.
 
-Almost everything on the site is edited in Supabase: texts, pages, products, prices, form questions,
-theme colours. Adding a product means adding rows, not changing code.
+Everything is edited in the admin: requests, payments and receipts, customers, products and packages,
+onboarding forms, pages and sections, texts, theme colours and settings. Adding a product means
+adding rows (the admin's wizard does it), not changing code.
 
 ## What's inside
 
 ```
 apps/web               retexia.com (Next.js 16, App Router, Cache Components)
-packages/ui            Retexia design system: tokens, Tailwind v4 theme, React components
-packages/supabase      Supabase clients (browser / server / static / proxy), auth cookie config, DB types
+apps/admin             admin.retexia.com: the team's panel (Next.js 16, staff-only, two-step sign-in)
+packages/ui            Retexia design system: tokens, Tailwind v4 theme, React components (+ admin components)
+packages/content       page section schemas and the section catalog, list of interface text keys
+packages/forms         onboarding form engine (validation, conditions) and its React renderer
+packages/supabase      Supabase clients (browser / server / static / proxy / service role), roles, DB types
 packages/config        shared tsconfig and ESLint
-supabase/migrations    0001_init.sql: schema, RLS, functions, triggers, storage bucket
+supabase/migrations    0001 schema and RLS, 0002 API grants, 0003 admin (roles, payments, actions, audit)
 supabase/seed.sql      all site content (re-runnable)
-supabase/templates     new_product.sql: template for product #3, #4, …
-docs/                  EDITING_CONTENT.md, ADDING_A_PRODUCT.md, DEPLOY.md
-scripts/               test-db.mjs (database tests), extract-strings.mjs (UI strings → seed)
+supabase/templates     new_product.sql: SQL template for a new product
+docs/                  ADMIN_GUIDE.md, EDITING_CONTENT.md, ADDING_A_PRODUCT.md, DEPLOY.md, ADMIN_PLAN.md
+scripts/               database tests, type generation, string extraction, e2e Supabase stand-in
+e2e/                   Playwright tests for both apps
 ```
 
 ## Run it locally
@@ -26,10 +32,14 @@ Requirements: Node 20.9+ and pnpm (`corepack enable pnpm`).
 
 1. Create a Supabase project and run the migration and seed (see [docs/DEPLOY.md](docs/DEPLOY.md),
    step 1). A local Supabase (`supabase start`) works too.
-2. Copy the environment file and fill it in:
+2. Copy the environment files and fill them in:
 
 ```bash
 cp .env.example apps/web/.env.local
+```
+
+```bash
+cp apps/admin/.env.example apps/admin/.env.local
 ```
 
 3. Install and start:
@@ -42,19 +52,21 @@ pnpm install
 pnpm dev
 ```
 
-Open http://localhost:3000. The design system styleguide is at http://localhost:3000/_styleguide
-(development only).
+Open http://localhost:3000 for the website and http://localhost:3001 for the admin (make yourself
+the owner first, see [docs/DEPLOY.md](docs/DEPLOY.md), step 2). The design system styleguide is at
+http://localhost:3000/_styleguide (development only).
 
 ## Scripts
 
 | Command | What it does |
 |---|---|
-| `pnpm dev` | Start the site in development mode |
-| `pnpm build` | Production build |
+| `pnpm dev` | Start the website (3000) and the admin (3001) in development mode |
+| `pnpm build` | Production build of both apps |
 | `pnpm lint` | ESLint in every package |
 | `pnpm typecheck` | TypeScript in every package |
-| `pnpm db:test` | Run the migration and seed twice in an in-memory Postgres and test RLS, triggers and RPCs |
-| `pnpm db:types` | Regenerate `packages/supabase/src/database.types.ts` from a local Supabase |
+| `pnpm db:test` | Run the migrations and seed in an in-memory Postgres and test RLS, triggers and RPCs (website and admin) |
+| `pnpm db:types` | Regenerate `packages/supabase/src/database.types.ts` from the migrations (no Supabase needed) |
+| `pnpm e2e` | Playwright tests for both apps against a local Supabase stand-in (`npx playwright install chromium` once) |
 | `node scripts/extract-strings.mjs` | Collect every `t("key", "fallback")` in the app into `site_strings` in `seed.sql` |
 | `pnpm --filter @retexia/ui tokens` | Regenerate `packages/ui/src/tokens.css` from `tokens.ts` |
 
@@ -107,8 +119,25 @@ Where the spec left room, these are the choices made (simplest option that keeps
 - **Brand icons:** Lucide 1.x has no social-network logos, so footer social links are text.
 - **Seed ids:** rows without a natural key use `md5('retexia:…')::uuid`, so the seed updates the same
   rows each time it runs.
-- **Database types** in `packages/supabase/src/database.types.ts` were written to match the migration in
-  the `supabase gen types` format. Regenerate them with `pnpm db:types` once you have a project.
+- **Database types** in `packages/supabase/src/database.types.ts` are generated from the migrations by
+  `pnpm db:types` (in-memory Postgres). `pnpm db:types:supabase` uses the Supabase CLI instead.
+
+## The admin
+
+- **Access:** `apps/admin/proxy.ts` lets only team roles (support, editor, admin, owner) in and
+  requires two-step sign-in (TOTP, `aal2`). Every server action and route handler checks the role
+  again (`requireRole`), and the database checks it a third time (RLS and role-checked RPCs).
+- **Service role key:** only in `apps/admin` server code (`@retexia/supabase/admin`, `server-only`),
+  for the Auth admin API, private secrets and audit entries. Never in the website, never public.
+- **Generic by design:** product menus, hubs, forms, service fields and n8n actions all come from
+  the database. `apps/admin/products/registry.ts` exists for the rare product-specific screen.
+- **Audit:** database triggers log every change to admin-editable tables; the admin adds entries for
+  logins it manages, exports, secret reveals and n8n calls.
+- **n8n:** product actions are signed (`X-Retexia-Timestamp`, `X-Retexia-Signature`); callbacks to
+  `/api/n8n/callback` are verified, time-limited and idempotent. See [docs/DEPLOY.md](docs/DEPLOY.md).
+
+See [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) for how the team uses it and
+[docs/ADMIN_PLAN.md](docs/ADMIN_PLAN.md) for the design decisions.
 
 ## Before launch
 

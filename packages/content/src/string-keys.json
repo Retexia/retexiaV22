@@ -1,0 +1,1647 @@
+[
+  {
+    "key": "account.email_changed",
+    "fallback": "Your email address was updated.",
+    "file": "apps/web/app/(site)/account/page.tsx"
+  },
+  {
+    "key": "account.empty.action",
+    "fallback": "Browse products",
+    "file": "apps/web/app/(site)/account/page.tsx"
+  },
+  {
+    "key": "account.empty.text",
+    "fallback": "Pick a tool and we will set it up for you. It takes about ten minutes to get started.",
+    "file": "apps/web/app/(site)/account/page.tsx"
+  },
+  {
+    "key": "account.empty.title",
+    "fallback": "You have no products yet",
+    "file": "apps/web/app/(site)/account/page.tsx"
+  },
+  {
+    "key": "account.filter.active",
+    "fallback": "Active",
+    "file": "apps/web/components/account/orders-filter.tsx"
+  },
+  {
+    "key": "account.filter.all",
+    "fallback": "All",
+    "file": "apps/web/components/account/orders-filter.tsx"
+  },
+  {
+    "key": "account.filter.closed",
+    "fallback": "Closed",
+    "file": "apps/web/components/account/orders-filter.tsx"
+  },
+  {
+    "key": "account.filter.empty",
+    "fallback": "Nothing here right now.",
+    "file": "apps/web/app/(site)/account/products/page.tsx"
+  },
+  {
+    "key": "account.filter.in_progress",
+    "fallback": "In progress",
+    "file": "apps/web/components/account/orders-filter.tsx"
+  },
+  {
+    "key": "account.filter.label",
+    "fallback": "Filter requests",
+    "file": "apps/web/components/account/orders-filter.tsx"
+  },
+  {
+    "key": "account.help.text",
+    "fallback": "Message us any time. A real person will reply.",
+    "file": "apps/web/app/(site)/account/page.tsx"
+  },
+  {
+    "key": "account.help.title",
+    "fallback": "Need a hand?",
+    "file": "apps/web/app/(site)/account/page.tsx"
+  },
+  {
+    "key": "account.nav.browse",
+    "fallback": "Browse products",
+    "file": "apps/web/components/account/account-nav.tsx"
+  },
+  {
+    "key": "account.nav.label",
+    "fallback": "Account",
+    "file": "apps/web/components/account/account-nav.tsx"
+  },
+  {
+    "key": "account.nav.overview",
+    "fallback": "Overview",
+    "file": "apps/web/components/account/account-nav.tsx"
+  },
+  {
+    "key": "account.nav.products",
+    "fallback": "My products",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "account.nav.profile",
+    "fallback": "Profile",
+    "file": "apps/web/components/account/account-nav.tsx"
+  },
+  {
+    "key": "account.nav.security",
+    "fallback": "Security",
+    "file": "apps/web/components/account/account-nav.tsx"
+  },
+  {
+    "key": "account.overview.explore",
+    "fallback": "Explore more products",
+    "file": "apps/web/app/(site)/account/page.tsx"
+  },
+  {
+    "key": "account.overview.greeting",
+    "fallback": "Hello, {name}",
+    "file": "apps/web/app/(site)/account/page.tsx"
+  },
+  {
+    "key": "account.overview.subtitle",
+    "fallback": "Your products, requests and details in one place.",
+    "file": "apps/web/app/(site)/account/page.tsx"
+  },
+  {
+    "key": "account.overview.title",
+    "fallback": "Your account",
+    "file": "apps/web/app/(site)/account/page.tsx"
+  },
+  {
+    "key": "account.overview.your_products",
+    "fallback": "Your products",
+    "file": "apps/web/app/(site)/account/page.tsx"
+  },
+  {
+    "key": "account.password_updated",
+    "fallback": "Your password was updated.",
+    "file": "apps/web/app/(site)/account/actions.ts"
+  },
+  {
+    "key": "account.products.subtitle",
+    "fallback": "Every request and subscription, grouped by product.",
+    "file": "apps/web/app/(site)/account/products/page.tsx"
+  },
+  {
+    "key": "account.products.title",
+    "fallback": "My products",
+    "file": "apps/web/app/(site)/account/products/page.tsx"
+  },
+  {
+    "key": "account.profile_incomplete.action",
+    "fallback": "Add details",
+    "file": "apps/web/app/(site)/account/page.tsx"
+  },
+  {
+    "key": "account.profile_incomplete.text",
+    "fallback": "Add your phone number and business name so we can set things up faster.",
+    "file": "apps/web/app/(site)/account/page.tsx"
+  },
+  {
+    "key": "account.profile_incomplete.title",
+    "fallback": "Complete your profile",
+    "file": "apps/web/app/(site)/account/page.tsx"
+  },
+  {
+    "key": "account.profile.avatar_hint",
+    "fallback": "Your initials are used as your avatar.",
+    "file": "apps/web/components/account/profile-form.tsx"
+  },
+  {
+    "key": "account.profile.change_email",
+    "fallback": "Change email",
+    "file": "apps/web/app/(site)/account/profile/page.tsx"
+  },
+  {
+    "key": "account.profile.email_note",
+    "fallback": "You sign in with {email}.",
+    "file": "apps/web/app/(site)/account/profile/page.tsx"
+  },
+  {
+    "key": "account.profile.marketing",
+    "fallback": "Email me about new products and offers",
+    "file": "apps/web/components/account/profile-form.tsx"
+  },
+  {
+    "key": "account.profile.marketing_hint",
+    "fallback": "A few emails a year. Unsubscribe any time.",
+    "file": "apps/web/components/account/profile-form.tsx"
+  },
+  {
+    "key": "account.profile.save",
+    "fallback": "Save changes",
+    "file": "apps/web/components/account/profile-form.tsx"
+  },
+  {
+    "key": "account.profile.saved",
+    "fallback": "Your profile is saved.",
+    "file": "apps/web/app/(site)/account/actions.ts"
+  },
+  {
+    "key": "account.profile.subtitle",
+    "fallback": "We use these details to set up your products and reach you.",
+    "file": "apps/web/app/(site)/account/profile/page.tsx"
+  },
+  {
+    "key": "account.profile.title",
+    "fallback": "Profile",
+    "file": "apps/web/app/(site)/account/profile/page.tsx"
+  },
+  {
+    "key": "account.profile.whatsapp",
+    "fallback": "WhatsApp number",
+    "file": "apps/web/components/account/profile-form.tsx"
+  },
+  {
+    "key": "account.security.change_email",
+    "fallback": "Change email",
+    "file": "apps/web/components/account/security-forms.tsx"
+  },
+  {
+    "key": "account.security.change_password",
+    "fallback": "Change password",
+    "file": "apps/web/components/account/security-forms.tsx"
+  },
+  {
+    "key": "account.security.email_current",
+    "fallback": "You sign in with {email}.",
+    "file": "apps/web/components/account/security-forms.tsx"
+  },
+  {
+    "key": "account.security.email_sent",
+    "fallback": "Check both your old and new inbox. Open the links we sent to confirm the change.",
+    "file": "apps/web/app/(site)/account/actions.ts"
+  },
+  {
+    "key": "account.security.email_taken",
+    "fallback": "That email is already used by another account.",
+    "file": "apps/web/app/(site)/account/actions.ts"
+  },
+  {
+    "key": "account.security.email_title",
+    "fallback": "Email address",
+    "file": "apps/web/components/account/security-forms.tsx"
+  },
+  {
+    "key": "account.security.new_email",
+    "fallback": "New email",
+    "file": "apps/web/components/account/security-forms.tsx"
+  },
+  {
+    "key": "account.security.password_title",
+    "fallback": "Password",
+    "file": "apps/web/components/account/security-forms.tsx"
+  },
+  {
+    "key": "account.security.reauth",
+    "fallback": "For your safety, sign out and sign in again, then change your password.",
+    "file": "apps/web/app/(site)/account/actions.ts"
+  },
+  {
+    "key": "account.security.same_email",
+    "fallback": "That is already your email address",
+    "file": "apps/web/components/account/security-forms.tsx"
+  },
+  {
+    "key": "account.security.sessions_text",
+    "fallback": "Signed in on a shared or lost device? Sign out everywhere, including here.",
+    "file": "apps/web/components/account/security-forms.tsx"
+  },
+  {
+    "key": "account.security.sessions_title",
+    "fallback": "Devices",
+    "file": "apps/web/components/account/security-forms.tsx"
+  },
+  {
+    "key": "account.security.sign_out_all",
+    "fallback": "Sign out everywhere",
+    "file": "apps/web/components/account/security-forms.tsx"
+  },
+  {
+    "key": "account.security.sign_out_all_text",
+    "fallback": "You will need to sign in again on each device, including this one.",
+    "file": "apps/web/components/account/security-forms.tsx"
+  },
+  {
+    "key": "account.security.sign_out_all_title",
+    "fallback": "Sign out on every device?",
+    "file": "apps/web/components/account/security-forms.tsx"
+  },
+  {
+    "key": "account.security.signed_out",
+    "fallback": "You are signed out on every device.",
+    "file": "apps/web/app/(site)/account/actions.ts"
+  },
+  {
+    "key": "account.security.subtitle",
+    "fallback": "Your sign-in details and devices.",
+    "file": "apps/web/app/(site)/account/security/page.tsx"
+  },
+  {
+    "key": "account.security.title",
+    "fallback": "Security",
+    "file": "apps/web/app/(site)/account/security/page.tsx"
+  },
+  {
+    "key": "auth.back_to_site",
+    "fallback": "Back to site",
+    "file": "apps/web/app/(auth)/layout.tsx"
+  },
+  {
+    "key": "auth.confirm_password",
+    "fallback": "Confirm password",
+    "file": "apps/web/components/account/security-forms.tsx"
+  },
+  {
+    "key": "auth.email",
+    "fallback": "Email",
+    "file": "apps/web/components/auth/login-form.tsx"
+  },
+  {
+    "key": "auth.error.email_not_confirmed",
+    "fallback": "Please confirm your email first. Check your inbox for our link.",
+    "file": "apps/web/app/(auth)/actions.ts"
+  },
+  {
+    "key": "auth.error.generic",
+    "fallback": "Something went wrong. Please try again.",
+    "file": "apps/web/app/(auth)/actions.ts"
+  },
+  {
+    "key": "auth.error.invalid_credentials",
+    "fallback": "That email or password doesn't match. Try again or reset your password.",
+    "file": "apps/web/app/(auth)/actions.ts"
+  },
+  {
+    "key": "auth.error.link_expired",
+    "fallback": "That link has expired. Ask for a new one.",
+    "file": "apps/web/app/(auth)/actions.ts"
+  },
+  {
+    "key": "auth.error.link_invalid",
+    "fallback": "That link has expired or was already used. Please try again.",
+    "file": "apps/web/app/(auth)/login/page.tsx"
+  },
+  {
+    "key": "auth.error.name",
+    "fallback": "Enter your full name",
+    "file": "apps/web/components/account/profile-form.tsx"
+  },
+  {
+    "key": "auth.error.password_letters",
+    "fallback": "Use letters and numbers",
+    "file": "apps/web/components/account/security-forms.tsx"
+  },
+  {
+    "key": "auth.error.password_mismatch",
+    "fallback": "The passwords don't match",
+    "file": "apps/web/components/account/security-forms.tsx"
+  },
+  {
+    "key": "auth.error.password_required",
+    "fallback": "Enter your password",
+    "file": "apps/web/components/auth/login-form.tsx"
+  },
+  {
+    "key": "auth.error.password_short",
+    "fallback": "Use at least 8 characters",
+    "file": "apps/web/app/(site)/account/actions.ts"
+  },
+  {
+    "key": "auth.error.rate_limited",
+    "fallback": "Too many attempts. Please wait a minute and try again.",
+    "file": "apps/web/app/(auth)/actions.ts"
+  },
+  {
+    "key": "auth.error.same_password",
+    "fallback": "Your new password must be different from the old one.",
+    "file": "apps/web/app/(auth)/actions.ts"
+  },
+  {
+    "key": "auth.error.signup_disabled",
+    "fallback": "New sign-ups are paused right now. Please contact us.",
+    "file": "apps/web/app/(auth)/actions.ts"
+  },
+  {
+    "key": "auth.error.user_exists",
+    "fallback": "An account with this email already exists. Sign in instead.",
+    "file": "apps/web/app/(auth)/actions.ts"
+  },
+  {
+    "key": "auth.error.weak_password",
+    "fallback": "Choose a stronger password: at least 8 characters, with letters and numbers.",
+    "file": "apps/web/app/(auth)/actions.ts"
+  },
+  {
+    "key": "auth.forgot.back",
+    "fallback": "Back to sign in",
+    "file": "apps/web/app/(auth)/forgot-password/page.tsx"
+  },
+  {
+    "key": "auth.forgot.sent",
+    "fallback": "If that email has an account, we have sent a link to reset your password.",
+    "file": "apps/web/app/(auth)/actions.ts"
+  },
+  {
+    "key": "auth.forgot.submit",
+    "fallback": "Send reset link",
+    "file": "apps/web/components/auth/password-forms.tsx"
+  },
+  {
+    "key": "auth.forgot.subtitle",
+    "fallback": "Enter your email and we will send you a link to choose a new password.",
+    "file": "apps/web/app/(auth)/forgot-password/page.tsx"
+  },
+  {
+    "key": "auth.forgot.title",
+    "fallback": "Reset your password",
+    "file": "apps/web/app/(auth)/forgot-password/page.tsx"
+  },
+  {
+    "key": "auth.full_name",
+    "fallback": "Full name",
+    "file": "apps/web/components/account/profile-form.tsx"
+  },
+  {
+    "key": "auth.google",
+    "fallback": "Continue with Google",
+    "file": "apps/web/components/auth/google-button.tsx"
+  },
+  {
+    "key": "auth.login.create_account",
+    "fallback": "Create an account",
+    "file": "apps/web/app/(auth)/login/page.tsx"
+  },
+  {
+    "key": "auth.login.forgot",
+    "fallback": "Forgot your password?",
+    "file": "apps/web/components/auth/login-form.tsx"
+  },
+  {
+    "key": "auth.login.no_account",
+    "fallback": "New to {site}?",
+    "file": "apps/web/app/(auth)/login/page.tsx"
+  },
+  {
+    "key": "auth.login.setup_note",
+    "fallback": "Sign in to set up {name}",
+    "file": "apps/web/components/auth/auth-context.ts"
+  },
+  {
+    "key": "auth.login.submit",
+    "fallback": "Sign in",
+    "file": "apps/web/components/auth/login-form.tsx"
+  },
+  {
+    "key": "auth.login.subtitle",
+    "fallback": "Welcome back. Sign in to see your products and requests.",
+    "file": "apps/web/app/(auth)/login/page.tsx"
+  },
+  {
+    "key": "auth.login.title",
+    "fallback": "Sign in",
+    "file": "apps/web/app/(auth)/login/page.tsx"
+  },
+  {
+    "key": "auth.magic.back",
+    "fallback": "Use a different email",
+    "file": "apps/web/components/auth/login-form.tsx"
+  },
+  {
+    "key": "auth.magic.sent",
+    "fallback": "If that email has an account, a sign-in link is on its way. It works once and expires in an hour.",
+    "file": "apps/web/app/(auth)/actions.ts"
+  },
+  {
+    "key": "auth.magic.sent_title",
+    "fallback": "Check your email",
+    "file": "apps/web/components/auth/login-form.tsx"
+  },
+  {
+    "key": "auth.magic.submit",
+    "fallback": "Email me a sign-in link",
+    "file": "apps/web/components/auth/login-form.tsx"
+  },
+  {
+    "key": "auth.magic.switch",
+    "fallback": "Email me a sign-in link instead",
+    "file": "apps/web/components/auth/login-form.tsx"
+  },
+  {
+    "key": "auth.magic.switch_back",
+    "fallback": "Sign in with a password instead",
+    "file": "apps/web/components/auth/login-form.tsx"
+  },
+  {
+    "key": "auth.new_password",
+    "fallback": "New password",
+    "file": "apps/web/components/account/security-forms.tsx"
+  },
+  {
+    "key": "auth.or",
+    "fallback": "or",
+    "file": "apps/web/components/auth/login-form.tsx"
+  },
+  {
+    "key": "auth.password",
+    "fallback": "Password",
+    "file": "apps/web/components/auth/login-form.tsx"
+  },
+  {
+    "key": "auth.password_hint",
+    "fallback": "At least 8 characters, with letters and numbers.",
+    "file": "apps/web/components/account/security-forms.tsx"
+  },
+  {
+    "key": "auth.reset.expired",
+    "fallback": "Your reset link has expired. Ask for a new one.",
+    "file": "apps/web/app/(auth)/actions.ts"
+  },
+  {
+    "key": "auth.reset.request_new",
+    "fallback": "Send a new link",
+    "file": "apps/web/app/(auth)/reset-password/page.tsx"
+  },
+  {
+    "key": "auth.reset.submit",
+    "fallback": "Save new password",
+    "file": "apps/web/components/auth/password-forms.tsx"
+  },
+  {
+    "key": "auth.reset.subtitle",
+    "fallback": "For {email}",
+    "file": "apps/web/app/(auth)/reset-password/page.tsx"
+  },
+  {
+    "key": "auth.reset.title",
+    "fallback": "Choose a new password",
+    "file": "apps/web/app/(auth)/reset-password/page.tsx"
+  },
+  {
+    "key": "auth.signup.and",
+    "fallback": "and",
+    "file": "apps/web/components/auth/signup-form.tsx"
+  },
+  {
+    "key": "auth.signup.check_email",
+    "fallback": "Check your email",
+    "file": "apps/web/components/auth/signup-form.tsx"
+  },
+  {
+    "key": "auth.signup.check_email_text",
+    "fallback": "We sent a confirmation link to {email}. Open it to finish creating your account.",
+    "file": "apps/web/components/auth/signup-form.tsx"
+  },
+  {
+    "key": "auth.signup.have_account",
+    "fallback": "Already have an account?",
+    "file": "apps/web/app/(auth)/signup/page.tsx"
+  },
+  {
+    "key": "auth.signup.privacy",
+    "fallback": "Privacy policy",
+    "file": "apps/web/components/auth/signup-form.tsx"
+  },
+  {
+    "key": "auth.signup.setup_note",
+    "fallback": "Create an account to set up {name}",
+    "file": "apps/web/components/auth/auth-context.ts"
+  },
+  {
+    "key": "auth.signup.sign_in",
+    "fallback": "Sign in",
+    "file": "apps/web/app/(auth)/signup/page.tsx"
+  },
+  {
+    "key": "auth.signup.spam_hint",
+    "fallback": "No email after a few minutes? Check your spam folder.",
+    "file": "apps/web/components/auth/signup-form.tsx"
+  },
+  {
+    "key": "auth.signup.submit",
+    "fallback": "Create account",
+    "file": "apps/web/components/auth/signup-form.tsx"
+  },
+  {
+    "key": "auth.signup.subtitle",
+    "fallback": "One account for every {site} product.",
+    "file": "apps/web/app/(auth)/signup/page.tsx"
+  },
+  {
+    "key": "auth.signup.terms",
+    "fallback": "Terms",
+    "file": "apps/web/components/auth/signup-form.tsx"
+  },
+  {
+    "key": "auth.signup.terms_prefix",
+    "fallback": "By creating an account you agree to our",
+    "file": "apps/web/components/auth/signup-form.tsx"
+  },
+  {
+    "key": "auth.signup.title",
+    "fallback": "Create your account",
+    "file": "apps/web/app/(auth)/signup/page.tsx"
+  },
+  {
+    "key": "common.cancel",
+    "fallback": "Cancel",
+    "file": "apps/web/components/account/security-forms.tsx"
+  },
+  {
+    "key": "common.close",
+    "fallback": "Close",
+    "file": "apps/web/components/account/cancel-order.tsx"
+  },
+  {
+    "key": "common.no",
+    "fallback": "No",
+    "file": "apps/web/app/(site)/[slug]/get-started/actions.ts"
+  },
+  {
+    "key": "common.yes",
+    "fallback": "Yes",
+    "file": "apps/web/app/(site)/[slug]/get-started/actions.ts"
+  },
+  {
+    "key": "contact.address",
+    "fallback": "Address",
+    "file": "apps/web/components/sections/form-sections.tsx"
+  },
+  {
+    "key": "contact.business",
+    "fallback": "Business name",
+    "file": "apps/web/components/account/profile-form.tsx"
+  },
+  {
+    "key": "contact.details",
+    "fallback": "Contact details",
+    "file": "apps/web/components/sections/form-sections.tsx"
+  },
+  {
+    "key": "contact.email",
+    "fallback": "Email",
+    "file": "apps/web/components/sections/contact-form.tsx"
+  },
+  {
+    "key": "contact.error.message",
+    "fallback": "Tell us a little more (at least 5 characters)",
+    "file": "apps/web/app/(site)/actions.ts"
+  },
+  {
+    "key": "contact.hours",
+    "fallback": "Hours",
+    "file": "apps/web/components/sections/form-sections.tsx"
+  },
+  {
+    "key": "contact.message",
+    "fallback": "How can we help?",
+    "file": "apps/web/components/sections/contact-form.tsx"
+  },
+  {
+    "key": "contact.name",
+    "fallback": "Your name",
+    "file": "apps/web/components/sections/contact-form.tsx"
+  },
+  {
+    "key": "contact.phone",
+    "fallback": "Phone",
+    "file": "apps/web/components/account/profile-form.tsx"
+  },
+  {
+    "key": "contact.reply_time",
+    "fallback": "We reply within one working day.",
+    "file": "apps/web/components/sections/contact-form.tsx"
+  },
+  {
+    "key": "contact.send_another",
+    "fallback": "Send another message",
+    "file": "apps/web/components/sections/contact-form.tsx"
+  },
+  {
+    "key": "contact.sent_title",
+    "fallback": "Message sent",
+    "file": "apps/web/components/sections/contact-form.tsx"
+  },
+  {
+    "key": "contact.submit",
+    "fallback": "Send message",
+    "file": "apps/web/components/sections/contact-form.tsx"
+  },
+  {
+    "key": "contact.success",
+    "fallback": "Thank you. We will reply within one working day.",
+    "file": "apps/web/app/(site)/actions.ts"
+  },
+  {
+    "key": "contact.whatsapp_button",
+    "fallback": "Message us on WhatsApp",
+    "file": "apps/web/app/(site)/account/page.tsx"
+  },
+  {
+    "key": "contact.whatsapp_text",
+    "fallback": "Message us and a real person will reply.",
+    "file": "apps/web/components/sections/form-sections.tsx"
+  },
+  {
+    "key": "contact.whatsapp_title",
+    "fallback": "Prefer WhatsApp?",
+    "file": "apps/web/components/sections/form-sections.tsx"
+  },
+  {
+    "key": "error.404.contact",
+    "fallback": "Contact us",
+    "file": "apps/web/components/not-found-content.tsx"
+  },
+  {
+    "key": "error.404.eyebrow",
+    "fallback": "Page not found",
+    "file": "apps/web/components/not-found-content.tsx"
+  },
+  {
+    "key": "error.404.home",
+    "fallback": "Go to the home page",
+    "file": "apps/web/app/error.tsx"
+  },
+  {
+    "key": "error.404.text",
+    "fallback": "The link may be old or mistyped. Let's get you back on track.",
+    "file": "apps/web/components/not-found-content.tsx"
+  },
+  {
+    "key": "error.404.title_highlight",
+    "fallback": "day off",
+    "file": "apps/web/components/not-found-content.tsx"
+  },
+  {
+    "key": "error.404.title_start",
+    "fallback": "This page took a",
+    "file": "apps/web/components/not-found-content.tsx"
+  },
+  {
+    "key": "error.500.eyebrow",
+    "fallback": "Something went wrong",
+    "file": "apps/web/app/error.tsx"
+  },
+  {
+    "key": "error.500.retry",
+    "fallback": "Try again",
+    "file": "apps/web/app/error.tsx"
+  },
+  {
+    "key": "error.500.text",
+    "fallback": "Please try again. If it keeps happening, message us and we will sort it out.",
+    "file": "apps/web/app/error.tsx"
+  },
+  {
+    "key": "error.500.title",
+    "fallback": "We hit a small bump",
+    "file": "apps/web/app/error.tsx"
+  },
+  {
+    "key": "faq.contact_link",
+    "fallback": "Talk to us",
+    "file": "apps/web/app/(site)/[slug]/get-started/page.tsx"
+  },
+  {
+    "key": "faq.more_questions",
+    "fallback": "Still have a question?",
+    "file": "apps/web/components/sections/content-sections.tsx"
+  },
+  {
+    "key": "footer.company",
+    "fallback": "Company",
+    "file": "apps/web/components/site/site-footer.tsx"
+  },
+  {
+    "key": "footer.label",
+    "fallback": "Footer",
+    "file": "apps/web/components/site/site-footer.tsx"
+  },
+  {
+    "key": "footer.legal",
+    "fallback": "Legal",
+    "file": "apps/web/components/site/site-footer.tsx"
+  },
+  {
+    "key": "footer.products",
+    "fallback": "Products",
+    "file": "apps/web/components/site/site-footer.tsx"
+  },
+  {
+    "key": "form.back",
+    "fallback": "Back",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "form.choose",
+    "fallback": "Choose one",
+    "file": "packages/forms/src/form-field.tsx"
+  },
+  {
+    "key": "form.edit",
+    "fallback": "Edit",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "form.error.choose_at_least",
+    "fallback": "Choose at least {n}",
+    "file": "packages/forms/src/messages.ts"
+  },
+  {
+    "key": "form.error.choose_at_most",
+    "fallback": "Choose at most {n}",
+    "file": "packages/forms/src/messages.ts"
+  },
+  {
+    "key": "form.error.email",
+    "fallback": "Enter a valid email address",
+    "file": "apps/web/app/(auth)/actions.ts"
+  },
+  {
+    "key": "form.error.fix_fields",
+    "fallback": "Please check the highlighted fields",
+    "file": "apps/web/app/(auth)/actions.ts"
+  },
+  {
+    "key": "form.error.generic",
+    "fallback": "Something went wrong. Please try again, or message us on WhatsApp.",
+    "file": "apps/web/app/(site)/[slug]/get-started/actions.ts"
+  },
+  {
+    "key": "form.error.invalid_option",
+    "fallback": "Choose one of the options",
+    "file": "packages/forms/src/messages.ts"
+  },
+  {
+    "key": "form.error.number",
+    "fallback": "Enter a number",
+    "file": "packages/forms/src/messages.ts"
+  },
+  {
+    "key": "form.error.phone",
+    "fallback": "Enter a valid phone number, like +94 77 123 4567",
+    "file": "apps/web/components/account/profile-form.tsx"
+  },
+  {
+    "key": "form.error.rate_limited",
+    "fallback": "Too many messages. Please wait a few minutes and try again.",
+    "file": "apps/web/app/(site)/actions.ts"
+  },
+  {
+    "key": "form.error.required",
+    "fallback": "Please fill this in",
+    "file": "apps/web/app/(site)/actions.ts"
+  },
+  {
+    "key": "form.error.too_large",
+    "fallback": "Enter {n} or less",
+    "file": "packages/forms/src/messages.ts"
+  },
+  {
+    "key": "form.error.too_long",
+    "fallback": "Use at most {n} characters",
+    "file": "packages/forms/src/messages.ts"
+  },
+  {
+    "key": "form.error.too_short",
+    "fallback": "Use at least {n} characters",
+    "file": "packages/forms/src/messages.ts"
+  },
+  {
+    "key": "form.error.too_small",
+    "fallback": "Enter {n} or more",
+    "file": "packages/forms/src/messages.ts"
+  },
+  {
+    "key": "form.error.url",
+    "fallback": "Enter a full link, like https://example.com",
+    "file": "packages/forms/src/messages.ts"
+  },
+  {
+    "key": "form.next",
+    "fallback": "Next",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "form.optional",
+    "fallback": "Optional",
+    "file": "apps/web/components/account/cancel-order.tsx"
+  },
+  {
+    "key": "form.review",
+    "fallback": "Review answers",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "hero.chat_customer",
+    "fallback": "Customer",
+    "file": "apps/web/components/sections/content-sections.tsx"
+  },
+  {
+    "key": "hero.chat_label",
+    "fallback": "Example WhatsApp conversation",
+    "file": "apps/web/components/sections/content-sections.tsx"
+  },
+  {
+    "key": "maintenance.text",
+    "fallback": "We are making a few improvements. Please check back soon.",
+    "file": "apps/web/app/maintenance/page.tsx"
+  },
+  {
+    "key": "maintenance.title",
+    "fallback": "We'll be right back",
+    "file": "apps/web/app/maintenance/page.tsx"
+  },
+  {
+    "key": "nav.account",
+    "fallback": "Account",
+    "file": "apps/web/components/site/user-menu.tsx"
+  },
+  {
+    "key": "nav.account_menu",
+    "fallback": "Account menu",
+    "file": "apps/web/components/site/user-menu.tsx"
+  },
+  {
+    "key": "nav.all_products",
+    "fallback": "All products",
+    "file": "apps/web/components/site/site-header.tsx"
+  },
+  {
+    "key": "nav.close_menu",
+    "fallback": "Close menu",
+    "file": "apps/web/components/site/site-header.tsx"
+  },
+  {
+    "key": "nav.home",
+    "fallback": "{site} home",
+    "file": "apps/web/app/(auth)/layout.tsx"
+  },
+  {
+    "key": "nav.main",
+    "fallback": "Main",
+    "file": "apps/web/components/site/site-header.tsx"
+  },
+  {
+    "key": "nav.my_products",
+    "fallback": "My products",
+    "file": "apps/web/components/site/user-menu.tsx"
+  },
+  {
+    "key": "nav.open_menu",
+    "fallback": "Open menu",
+    "file": "apps/web/components/site/site-header.tsx"
+  },
+  {
+    "key": "nav.profile",
+    "fallback": "Profile",
+    "file": "apps/web/components/site/user-menu.tsx"
+  },
+  {
+    "key": "nav.sign_in",
+    "fallback": "Sign in",
+    "file": "apps/web/components/site/user-menu.tsx"
+  },
+  {
+    "key": "nav.sign_out",
+    "fallback": "Sign out",
+    "file": "apps/web/components/account/account-nav.tsx"
+  },
+  {
+    "key": "nav.skip",
+    "fallback": "Skip to content",
+    "file": "apps/web/app/(site)/layout.tsx"
+  },
+  {
+    "key": "onboarding.billed_monthly",
+    "fallback": "Billed monthly",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.billed_yearly",
+    "fallback": "Billed yearly",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.change_package",
+    "fallback": "Change package",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.change_package_text",
+    "fallback": "Your answers stay as they are.",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.error.cycle",
+    "fallback": "Yearly billing is not available for this package.",
+    "file": "apps/web/app/(site)/[slug]/get-started/actions.ts"
+  },
+  {
+    "key": "onboarding.error.package",
+    "fallback": "That package is not available. Please choose another.",
+    "file": "apps/web/app/(site)/[slug]/get-started/actions.ts"
+  },
+  {
+    "key": "onboarding.error.signed_out",
+    "fallback": "Your session has ended. Please sign in again.",
+    "file": "apps/web/app/(site)/[slug]/get-started/actions.ts"
+  },
+  {
+    "key": "onboarding.error.unavailable",
+    "fallback": "This product cannot be ordered right now.",
+    "file": "apps/web/app/(site)/[slug]/get-started/actions.ts"
+  },
+  {
+    "key": "onboarding.existing_text",
+    "fallback": "Request {ref} is still open. You can view it, or continue below to start another.",
+    "file": "apps/web/app/(site)/[slug]/get-started/page.tsx"
+  },
+  {
+    "key": "onboarding.existing_title",
+    "fallback": "You already have a {name} request",
+    "file": "apps/web/app/(site)/[slug]/get-started/page.tsx"
+  },
+  {
+    "key": "onboarding.existing_view",
+    "fallback": "View it",
+    "file": "apps/web/app/(site)/[slug]/get-started/page.tsx"
+  },
+  {
+    "key": "onboarding.meta_title",
+    "fallback": "Set up {name}",
+    "file": "apps/web/app/(site)/[slug]/get-started/page.tsx"
+  },
+  {
+    "key": "onboarding.no_payment_now",
+    "fallback": "No payment now. We review your request first and send you the payment details.",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.not_answered",
+    "fallback": "Not answered",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.not_ready_text",
+    "fallback": "Online sign-up for {name} opens soon. Talk to us and we will set it up for you.",
+    "file": "apps/web/app/(site)/[slug]/get-started/page.tsx"
+  },
+  {
+    "key": "onboarding.not_ready_title",
+    "fallback": "Almost ready",
+    "file": "apps/web/app/(site)/[slug]/get-started/page.tsx"
+  },
+  {
+    "key": "onboarding.package_changed",
+    "fallback": "Package updated",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.pay_yearly",
+    "fallback": "Pay yearly",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.progress",
+    "fallback": "Form progress",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.restored_text",
+    "fallback": "We restored the answers you saved on this device.",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.restored_title",
+    "fallback": "Welcome back",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.review_step",
+    "fallback": "Review and submit",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.review_text",
+    "fallback": "Make sure everything is right, then send your request.",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.review_title",
+    "fallback": "Check your answers",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.selected_package",
+    "fallback": "Selected package",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.start_over",
+    "fallback": "Start over",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.step_of",
+    "fallback": "Step {n} of {total}",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.submit",
+    "fallback": "Submit request",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.summary",
+    "fallback": "Your package",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.use_package",
+    "fallback": "Use this package",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "order.answers",
+    "fallback": "Your answers",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.billing",
+    "fallback": "Billing",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.cancel.button",
+    "fallback": "Cancel request",
+    "file": "apps/web/components/account/cancel-order.tsx"
+  },
+  {
+    "key": "order.cancel.confirm",
+    "fallback": "Request {ref} will be closed. You can always start a new one.",
+    "file": "apps/web/components/account/cancel-order.tsx"
+  },
+  {
+    "key": "order.cancel.done",
+    "fallback": "Your request was cancelled.",
+    "file": "apps/web/app/(site)/account/actions.ts"
+  },
+  {
+    "key": "order.cancel.keep",
+    "fallback": "Keep request",
+    "file": "apps/web/components/account/cancel-order.tsx"
+  },
+  {
+    "key": "order.cancel.not_allowed",
+    "fallback": "This request can no longer be cancelled. Message us and we will help.",
+    "file": "apps/web/app/(site)/account/actions.ts"
+  },
+  {
+    "key": "order.cancel.reason",
+    "fallback": "Reason",
+    "file": "apps/web/components/account/cancel-order.tsx"
+  },
+  {
+    "key": "order.cancel.submit",
+    "fallback": "Yes, cancel it",
+    "file": "apps/web/components/account/cancel-order.tsx"
+  },
+  {
+    "key": "order.cancel.title",
+    "fallback": "Cancel this request?",
+    "file": "apps/web/components/account/cancel-order.tsx"
+  },
+  {
+    "key": "order.closed_note",
+    "fallback": "Message from the team",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.none",
+    "fallback": "None",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.open_panel",
+    "fallback": "Open {name} panel",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.package",
+    "fallback": "Package",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.panel_pending",
+    "fallback": "Your panel opens when setup is finished.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.paused_note",
+    "fallback": "Why it is paused",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.paused_since",
+    "fallback": "Paused since",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.pay.amount",
+    "fallback": "Amount due now: {amount} (setup fee and first period).",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.pay.no_instructions",
+    "fallback": "We have sent the payment details to your email and WhatsApp.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.pay.title",
+    "fallback": "How to pay",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.payment.confirmed",
+    "fallback": "Paid",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.payment.other",
+    "fallback": "Payment",
+    "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
+  },
+  {
+    "key": "order.payment.pending",
+    "fallback": "Being checked",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.payment.receipt",
+    "fallback": "Receipt {number}",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.payment.refund",
+    "fallback": "Refund",
+    "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
+  },
+  {
+    "key": "order.payment.refunded",
+    "fallback": "Refunded",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.payment.setup",
+    "fallback": "Setup and first period",
+    "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
+  },
+  {
+    "key": "order.payment.subscription",
+    "fallback": "Subscription",
+    "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
+  },
+  {
+    "key": "order.payments",
+    "fallback": "Payments",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.price",
+    "fallback": "Price",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.proof.change",
+    "fallback": "Choose another file",
+    "file": "apps/web/components/account/payment-proof-form.tsx"
+  },
+  {
+    "key": "order.proof.checking",
+    "fallback": "Thank you. We are checking your payment from {date} and will confirm it soon.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.proof.choose",
+    "fallback": "Choose a photo or PDF of your payment slip.",
+    "file": "apps/web/components/account/payment-proof-form.tsx"
+  },
+  {
+    "key": "order.proof.done",
+    "fallback": "Thank you. We will check your payment and confirm it soon.",
+    "file": "apps/web/app/(site)/account/actions.ts"
+  },
+  {
+    "key": "order.proof.file",
+    "fallback": "Payment slip or screenshot",
+    "file": "apps/web/components/account/payment-proof-form.tsx"
+  },
+  {
+    "key": "order.proof.hint",
+    "fallback": "JPG, PNG, WebP, HEIC or PDF, up to 5 MB.",
+    "file": "apps/web/components/account/payment-proof-form.tsx"
+  },
+  {
+    "key": "order.proof.none",
+    "fallback": "No file chosen",
+    "file": "apps/web/components/account/payment-proof-form.tsx"
+  },
+  {
+    "key": "order.proof.not_waiting",
+    "fallback": "This request is not waiting for a payment any more.",
+    "file": "apps/web/app/(site)/account/actions.ts"
+  },
+  {
+    "key": "order.proof.note",
+    "fallback": "Note for us",
+    "file": "apps/web/components/account/payment-proof-form.tsx"
+  },
+  {
+    "key": "order.proof.pick",
+    "fallback": "Choose file",
+    "file": "apps/web/components/account/payment-proof-form.tsx"
+  },
+  {
+    "key": "order.proof.received",
+    "fallback": "Payment proof received",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.proof.reference",
+    "fallback": "Payment reference",
+    "file": "apps/web/components/account/payment-proof-form.tsx"
+  },
+  {
+    "key": "order.proof.size",
+    "fallback": "The file must be 5 MB or smaller.",
+    "file": "apps/web/app/(site)/account/actions.ts"
+  },
+  {
+    "key": "order.proof.submit",
+    "fallback": "Send payment proof",
+    "file": "apps/web/components/account/payment-proof-form.tsx"
+  },
+  {
+    "key": "order.proof.title",
+    "fallback": "Already paid? Send us the slip",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.proof.too_many",
+    "fallback": "Too many uploads. Please try again later.",
+    "file": "apps/web/app/(site)/account/actions.ts"
+  },
+  {
+    "key": "order.proof.type",
+    "fallback": "Upload a photo (JPG, PNG, WebP, HEIC) or a PDF.",
+    "file": "apps/web/app/(site)/account/actions.ts"
+  },
+  {
+    "key": "order.ref",
+    "fallback": "Ref",
+    "file": "apps/web/components/account/order-card.tsx"
+  },
+  {
+    "key": "order.renews",
+    "fallback": "Next payment due",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.setup",
+    "fallback": "Your setup",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.setup_fee",
+    "fallback": "Setup fee",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.started",
+    "fallback": "Live since",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.submitted",
+    "fallback": "Submitted",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.success.next",
+    "fallback": "What happens next",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.success.ref",
+    "fallback": "Your reference is",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.success.text",
+    "fallback": "Thank you. We will review your details and message you within one working day.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.success.title",
+    "fallback": "Request received",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.success.whatsapp",
+    "fallback": "Message us about {ref}",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.summary",
+    "fallback": "Summary",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.timeline",
+    "fallback": "Timeline",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.view_details",
+    "fallback": "View details",
+    "file": "apps/web/components/account/order-card.tsx"
+  },
+  {
+    "key": "order.whatsapp_message",
+    "fallback": "Hi, I have a question about my request {ref}.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "pricing.billing",
+    "fallback": "Billing",
+    "file": "apps/web/components/sections/pricing-table.tsx"
+  },
+  {
+    "key": "pricing.choose",
+    "fallback": "Choose {name}",
+    "file": "apps/web/components/sections/form-sections.tsx"
+  },
+  {
+    "key": "pricing.included",
+    "fallback": "Included:",
+    "file": "apps/web/components/sections/pricing-table.tsx"
+  },
+  {
+    "key": "pricing.monthly",
+    "fallback": "Monthly",
+    "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
+  },
+  {
+    "key": "pricing.monthly_only",
+    "fallback": "Monthly billing only",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "pricing.no_setup_fee",
+    "fallback": "No setup fee",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "pricing.not_included",
+    "fallback": "Not included:",
+    "file": "apps/web/components/sections/pricing-table.tsx"
+  },
+  {
+    "key": "pricing.per_month",
+    "fallback": "/ month",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "pricing.per_year",
+    "fallback": "/ year",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "pricing.plans",
+    "fallback": "Plans",
+    "file": "apps/web/components/sections/pricing-table.tsx"
+  },
+  {
+    "key": "pricing.setup_fee",
+    "fallback": "+ {amount} one-time setup",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "pricing.unavailable",
+    "fallback": "Not available right now",
+    "file": "apps/web/components/sections/pricing-table.tsx"
+  },
+  {
+    "key": "pricing.yearly",
+    "fallback": "Yearly",
+    "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
+  },
+  {
+    "key": "pricing.yearly_badge",
+    "fallback": "2 months free",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "pricing.yearly_saving",
+    "fallback": "You save {amount} a year",
+    "file": "apps/web/components/sections/form-sections.tsx"
+  },
+  {
+    "key": "product.from_price",
+    "fallback": "From {price} a month",
+    "file": "apps/web/components/sections/content-sections.tsx"
+  },
+  {
+    "key": "product.join_waitlist",
+    "fallback": "Join the waitlist",
+    "file": "apps/web/app/(site)/account/page.tsx"
+  },
+  {
+    "key": "product.learn_more",
+    "fallback": "Learn more",
+    "file": "apps/web/app/(site)/account/page.tsx"
+  },
+  {
+    "key": "product.status.coming_soon",
+    "fallback": "Coming soon",
+    "file": "apps/web/app/(site)/account/page.tsx"
+  },
+  {
+    "key": "product.status.live",
+    "fallback": "Available now",
+    "file": "apps/web/components/sections/content-sections.tsx"
+  },
+  {
+    "key": "receipt.amount",
+    "fallback": "Amount",
+    "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
+  },
+  {
+    "key": "receipt.back",
+    "fallback": "Back to {ref}",
+    "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
+  },
+  {
+    "key": "receipt.billed_to",
+    "fallback": "Billed to",
+    "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
+  },
+  {
+    "key": "receipt.date",
+    "fallback": "Date paid",
+    "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
+  },
+  {
+    "key": "receipt.item",
+    "fallback": "Description",
+    "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
+  },
+  {
+    "key": "receipt.method",
+    "fallback": "Payment method",
+    "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
+  },
+  {
+    "key": "receipt.number",
+    "fallback": "Receipt number",
+    "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
+  },
+  {
+    "key": "receipt.paid",
+    "fallback": "Paid",
+    "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
+  },
+  {
+    "key": "receipt.print",
+    "fallback": "Print or save as PDF",
+    "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
+  },
+  {
+    "key": "receipt.reference",
+    "fallback": "Reference",
+    "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
+  },
+  {
+    "key": "receipt.refunded",
+    "fallback": "Refunded",
+    "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
+  },
+  {
+    "key": "receipt.request",
+    "fallback": "Request",
+    "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
+  },
+  {
+    "key": "receipt.title",
+    "fallback": "Receipt",
+    "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
+  },
+  {
+    "key": "receipt.total",
+    "fallback": "Total paid",
+    "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
+  },
+  {
+    "key": "services.cta_link",
+    "fallback": "Tell us about it",
+    "file": "apps/web/components/sections/content-sections.tsx"
+  },
+  {
+    "key": "services.cta_text",
+    "fallback": "Have something in mind?",
+    "file": "apps/web/components/sections/content-sections.tsx"
+  },
+  {
+    "key": "theme.dark",
+    "fallback": "Dark theme",
+    "file": "apps/web/app/(auth)/layout.tsx"
+  },
+  {
+    "key": "theme.light",
+    "fallback": "Light theme",
+    "file": "apps/web/app/(auth)/layout.tsx"
+  },
+  {
+    "key": "theme.switch",
+    "fallback": "Switch theme",
+    "file": "apps/web/app/(auth)/layout.tsx"
+  },
+  {
+    "key": "theme.system",
+    "fallback": "System theme",
+    "file": "apps/web/app/(auth)/layout.tsx"
+  },
+  {
+    "key": "waitlist.already",
+    "fallback": "You're already on the list. We will email you when it opens.",
+    "file": "apps/web/app/(site)/actions.ts"
+  },
+  {
+    "key": "waitlist.email_label",
+    "fallback": "Email address",
+    "file": "apps/web/components/sections/waitlist-form.tsx"
+  },
+  {
+    "key": "waitlist.placeholder",
+    "fallback": "you@business.lk",
+    "file": "apps/web/components/sections/waitlist-form.tsx"
+  },
+  {
+    "key": "waitlist.privacy",
+    "fallback": "One email when it launches. No spam.",
+    "file": "apps/web/components/sections/waitlist-form.tsx"
+  },
+  {
+    "key": "waitlist.submit",
+    "fallback": "Join the waitlist",
+    "file": "apps/web/components/sections/waitlist-form.tsx"
+  },
+  {
+    "key": "waitlist.success",
+    "fallback": "You're on the list. We will email you when it opens.",
+    "file": "apps/web/app/(site)/actions.ts"
+  }
+]

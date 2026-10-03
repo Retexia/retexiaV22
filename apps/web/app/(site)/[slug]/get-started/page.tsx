@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { OnboardingFlow, type OnboardingPackage } from "@/components/onboarding/onboarding-flow";
 import { requireUser } from "@/lib/auth";
 import { getForm, getPackages, getProductByPageSlug, getSiteSettings } from "@/lib/content";
-import { initialValues } from "@/lib/forms/engine";
+import { initialValues } from "@retexia/forms";
 import { formatPrice } from "@/lib/format";
 import { getT } from "@/lib/strings.server";
 

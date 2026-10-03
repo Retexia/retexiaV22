@@ -55,6 +55,7 @@
   --radius-full: 9999px;
 
   --container-page: var(--rx-container);
+  --container-wide: var(--rx-container-wide);
   --container-content: var(--rx-content);
   --container-measure: var(--rx-measure);
 

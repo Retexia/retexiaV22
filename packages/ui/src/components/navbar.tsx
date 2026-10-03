@@ -18,7 +18,14 @@ export type NavProduct = {
   icon?: ReactNode;
 };
 
-export type NavLinkSpec = { kind: "link" | "button"; label: string; href: string; newTab?: boolean };
+export type NavLinkSpec = {
+  kind: "link" | "button";
+  label: string;
+  href: string;
+  newTab?: boolean;
+  /** Buttons only: shown instead when the visitor is signed in (e.g. "My account" → /account). */
+  signedIn?: { label: string; href: string } | null;
+};
 export type NavProductsMenuSpec = {
   kind: "products_menu";
   label: string;
@@ -211,6 +218,7 @@ export function NavBar({
   items,
   actions,
   mobileActions,
+  signedIn = false,
   labels = { openMenu: "Open menu", closeMenu: "Close menu", main: "Main" },
 }: {
   brand: ReactNode;
@@ -219,6 +227,8 @@ export function NavBar({
   actions?: ReactNode;
   /** Bottom of the mobile sheet (sign in / account links). */
   mobileActions?: ReactNode;
+  /** Swaps buttons to their `signedIn` label and link. */
+  signedIn?: boolean;
   labels?: { openMenu: string; closeMenu: string; main: string };
 }) {
   const [scrolled, setScrolled] = useState(false);
@@ -241,7 +251,9 @@ export function NavBar({
   }, [menuOpen]);
 
   const links = items.filter((i) => i.kind !== "button");
-  const buttons = items.filter((i): i is NavLinkSpec => i.kind === "button");
+  const buttons = items
+    .filter((i): i is NavLinkSpec => i.kind === "button")
+    .map((b) => (signedIn && b.signedIn ? { ...b, label: b.signedIn.label, href: b.signedIn.href } : b));
   const closeMenu = () => setMenuOpen(false);
 
   return (

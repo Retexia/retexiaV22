@@ -11,7 +11,8 @@ import { useT } from "@/lib/strings-context";
 
 type AuthState = { status: "loading" } | { status: "anon" } | { status: "user"; user: User };
 
-function useAuthUser(): AuthState {
+/** Signed-in state from the browser session (the header is cached, so this runs client-side). */
+export function useAuthUser(): AuthState {
   const [state, setState] = useState<AuthState>({ status: "loading" });
   useEffect(() => {
     if (!supabaseEnv().configured) {

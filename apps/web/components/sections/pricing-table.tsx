@@ -1,28 +1,8 @@
 "use client";
 
-import { Badge, Button, Card, cn } from "@retexia/ui";
-import { Check, Info, X } from "lucide-react";
+import { PricingCard, cn, type PricingCardData, type PricingCardLabels } from "@retexia/ui";
 import { useId, useState } from "react";
 import { useT } from "@/lib/strings-context";
-
-export type PricingCard = {
-  id: string;
-  slug: string;
-  name: string;
-  tagline: string | null;
-  description: string | null;
-  badge: string | null;
-  featured: boolean;
-  active: boolean;
-  ctaLabel: string;
-  priceNote: string | null;
-  monthly: string;
-  yearly: string | null;
-  /** e.g. "Save LKR 29,800 a year". */
-  yearlySaving: string | null;
-  setupFee: string | null;
-  features: { label: string; included: boolean; tooltip: string | null }[];
-};
 
 /** Package cards with a monthly / yearly switch. */
 export function PricingTable({
@@ -32,7 +12,7 @@ export function PricingTable({
   finePrint,
   note,
 }: {
-  packages: PricingCard[];
+  packages: PricingCardData[];
   /** e.g. "/lingo/get-started" */
   getStartedBase: string;
   showYearlyToggle: boolean;
@@ -43,6 +23,16 @@ export function PricingTable({
   const [cycle, setCycle] = useState<"monthly" | "yearly">("monthly");
   const anyYearly = packages.some((p) => p.yearly);
   const groupId = useId();
+  const labels: PricingCardLabels = {
+    perMonth: t("pricing.per_month", "/ month"),
+    perYear: t("pricing.per_year", "/ year"),
+    monthlyOnly: t("pricing.monthly_only", "Monthly billing only"),
+    setupFee: (amount) => t("pricing.setup_fee", "+ {amount} one-time setup", { amount }),
+    noSetupFee: t("pricing.no_setup_fee", "No setup fee"),
+    unavailable: t("pricing.unavailable", "Not available right now"),
+    included: t("pricing.included", "Included:"),
+    notIncluded: t("pricing.not_included", "Not included:"),
+  };
 
   return (
     <div className="flex flex-col items-center gap-8">
@@ -79,86 +69,16 @@ export function PricingTable({
         className="-mx-gutter flex w-[calc(100%_+_2_*_var(--rx-gutter))] snap-x snap-mandatory gap-4 overflow-x-auto px-gutter pt-3 pb-4 md:mx-0 md:grid md:w-full md:grid-cols-3 md:overflow-visible md:px-0 md:pb-0"
         aria-label={t("pricing.plans", "Plans")}
       >
-        {packages.map((p) => {
-          const yearly = cycle === "yearly" && p.yearly;
-          const price = yearly ? p.yearly : p.monthly;
-          const effectiveCycle = yearly ? "yearly" : "monthly";
-          return (
-            <Card
-              as="li"
-              key={p.id}
-              className={cn(
-                "relative flex w-[85%] max-w-[340px] shrink-0 snap-center flex-col gap-6 sm:w-[60%] md:w-auto md:max-w-none",
-                p.featured && "border-brand! bg-brand-soft/40! ring-1 ring-brand",
-              )}
-            >
-              {p.badge ? (
-                <Badge tone="brand" className={cn("absolute -top-3 left-6", p.featured && "bg-brand! text-on-brand!")}>
-                  {p.badge}
-                </Badge>
-              ) : null}
-              <div className="flex flex-col gap-1">
-                <h3 className="type-h2 text-ink">{p.name}</h3>
-                {p.tagline ? <p className="type-body text-ink-muted">{p.tagline}</p> : null}
-              </div>
-              <div className="flex flex-col gap-1">
-                <p className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="font-display text-[30px] leading-[38px] font-light tracking-[-0.015em] text-ink">{price}</span>
-                  <span className="type-body text-ink-muted">
-                    {yearly ? t("pricing.per_year", "/ year") : t("pricing.per_month", "/ month")}
-                  </span>
-                </p>
-                {cycle === "yearly" && !p.yearly ? (
-                  <p className="type-small text-ink-muted">{t("pricing.monthly_only", "Monthly billing only")}</p>
-                ) : null}
-                {yearly && p.yearlySaving ? <p className="type-small text-success">{p.yearlySaving}</p> : null}
-                <p className="type-small text-ink-muted">
-                  {p.setupFee
-                    ? t("pricing.setup_fee", "+ {amount} one-time setup", { amount: p.setupFee })
-                    : t("pricing.no_setup_fee", "No setup fee")}
-                </p>
-                {p.priceNote ? <p className="type-small text-ink-muted">{p.priceNote}</p> : null}
-              </div>
-              {p.active ? (
-                <Button
-                  href={`${getStartedBase}?package=${encodeURIComponent(p.slug)}&cycle=${effectiveCycle}`}
-                  variant={p.featured ? "primary" : "secondary"}
-                  fullWidth
-                >
-                  {p.ctaLabel}
-                </Button>
-              ) : (
-                <Button disabled variant="secondary" fullWidth>
-                  {t("pricing.unavailable", "Not available right now")}
-                </Button>
-              )}
-              {p.description ? <p className="type-body text-ink-muted">{p.description}</p> : null}
-              <ul className="flex flex-col gap-3 border-t border-line pt-6">
-                {p.features.map((f) => (
-                  <li key={f.label} className={cn("flex items-start gap-3 type-body", f.included ? "text-ink" : "text-ink-muted")}>
-                    {f.included ? (
-                      <Check aria-hidden size={18} strokeWidth={1.75} className="mt-0.5 shrink-0 text-brand" />
-                    ) : (
-                      <X aria-hidden size={18} strokeWidth={1.5} className="mt-0.5 shrink-0 text-line-strong" />
-                    )}
-                    <span>
-                      <span className="sr-only">
-                        {f.included ? t("pricing.included", "Included:") : t("pricing.not_included", "Not included:")}{" "}
-                      </span>
-                      {f.label}
-                      {f.tooltip ? (
-                        <span className="ml-1 inline-flex align-middle text-ink-muted" title={f.tooltip}>
-                          <Info aria-hidden size={14} strokeWidth={1.5} />
-                          <span className="sr-only">({f.tooltip})</span>
-                        </span>
-                      ) : null}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          );
-        })}
+        {packages.map((p) => (
+          <PricingCard
+            key={p.id}
+            pkg={p}
+            cycle={cycle}
+            href={`${getStartedBase}?package=${encodeURIComponent(p.slug)}&cycle=${cycle === "yearly" && p.yearly ? "yearly" : "monthly"}`}
+            labels={labels}
+            className="w-[85%] max-w-[340px] shrink-0 snap-center sm:w-[60%] md:w-auto md:max-w-none"
+          />
+        ))}
       </ul>
 
       {note || finePrint.length ? (

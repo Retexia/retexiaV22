@@ -1,8 +1,9 @@
-import { Logo, NavBar, Skeleton, ThemeToggle, type NavItem } from "@retexia/ui";
+import { Logo, Skeleton, ThemeToggle, type NavItem } from "@retexia/ui";
 import { Icon } from "@retexia/ui/icon";
 import { Suspense } from "react";
 import { getNavigation, getProducts, getSiteSettings, productHref } from "@/lib/content";
 import { getT } from "@/lib/strings.server";
+import { SiteNavBar } from "./site-navbar";
 import { MobileUserLinks, UserMenu } from "./user-menu";
 
 export async function SiteHeader() {
@@ -31,11 +32,19 @@ export async function SiteHeader() {
           : [];
       }
       if (!n.href) return [];
-      return [{ kind: n.kind === "button" ? "button" : "link", label: n.label, href: n.href, newTab: n.open_in_new_tab }];
+      return [
+        {
+          kind: n.kind === "button" ? "button" : "link",
+          label: n.label,
+          href: n.href,
+          newTab: n.open_in_new_tab,
+          signedIn: n.kind === "button" && n.signed_in_label ? { label: n.signed_in_label, href: n.signed_in_href || "/account" } : null,
+        },
+      ];
     });
 
   return (
-    <NavBar
+    <SiteNavBar
       brand={
         <Logo
           name={settings.site_name}

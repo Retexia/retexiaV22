@@ -3,7 +3,7 @@ import "server-only";
 import type { Tables } from "@retexia/supabase";
 import { createStaticClient } from "@retexia/supabase/static";
 import { cacheLife, cacheTag } from "next/cache";
-import { parseForm, type FormDef } from "./forms/engine";
+import { parseForm, type FormDef } from "@retexia/forms";
 
 /**
  * Public content, read with the anonymous client (no cookies) and cached with
@@ -80,6 +80,12 @@ export const FALLBACK_SETTINGS: SiteSettings = {
   auth_magic_link_enabled: true,
   maintenance_mode: false,
   maintenance_message: null,
+  payment_instructions: null,
+  invoice_business_name: null,
+  invoice_address: null,
+  invoice_footer: null,
+  invoice_logo_url: null,
+  receipt_prefix: "RCT",
   created_at: new Date(0).toISOString(),
   updated_at: new Date(0).toISOString(),
 };

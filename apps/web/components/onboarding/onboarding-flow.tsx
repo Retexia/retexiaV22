@@ -6,19 +6,18 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
-import { submitOrder } from "@/app/(site)/[slug]/get-started/actions";
 import {
-  buildSchema,
   displayValue,
   sanitizeValues,
   stripMarkdown,
   visibleFields,
   type FormDef,
   type FormValues,
-} from "@/lib/forms/engine";
-import { validationMessages } from "@/lib/forms/messages";
+  validationMessages,
+} from "@retexia/forms";
+import { FormStepFields, validateFormStep } from "@retexia/forms/react";
+import { submitOrder } from "@/app/(site)/[slug]/get-started/actions";
 import { useT } from "@/lib/strings-context";
-import { FormField, fieldDomId } from "./form-field";
 
 export type OnboardingPackage = {
   slug: string;
@@ -121,27 +120,8 @@ function OnboardingForm({ userId, product, packages, initialPackage, initialCycl
     });
   };
 
-  const validateCurrent = (index: number) => {
-    const current = form.steps[index];
-    if (!current) return true;
-    const all = getValues();
-    const fields = visibleFields(current, all);
-    const result = buildSchema(fields, messages).safeParse(all);
-    clearErrors();
-    if (result.success) return true;
-    let first: string | null = null;
-    for (const issue of result.error.issues) {
-      const name = String(issue.path[0]);
-      first ??= name;
-      setError(name, { type: "validate", message: issue.message });
-    }
-    if (first) {
-      const el = document.getElementById(fieldDomId(first));
-      el?.focus();
-      el?.scrollIntoView({ block: "center", behavior: "smooth" });
-    }
-    return false;
-  };
+  const validateCurrent = (index: number) =>
+    validateFormStep(form.steps[index], getValues(), messages, setError, clearErrors);
 
   const onNext = () => {
     if (step === "review") return;
@@ -261,7 +241,8 @@ function OnboardingForm({ userId, product, packages, initialPackage, initialCycl
         />
 
         {currentStep ? (
-          <form method="post"
+          <form
+            method="post"
             noValidate
             onSubmit={(e) => {
               e.preventDefault();
@@ -275,19 +256,14 @@ function OnboardingForm({ userId, product, packages, initialPackage, initialCycl
               </h2>
               {currentStep.description ? <p className="type-body-lg text-ink-muted">{currentStep.description}</p> : null}
             </div>
-            <div className="grid gap-6 sm:grid-cols-2">
-              {visibleFields(currentStep, values).map((field) => (
-                <FormField
-                  key={field.id}
-                  field={field}
-                  control={control}
-                  error={formState.errors[field.key]?.message as string | undefined}
-                  onEdited={(name) => {
-                    if (formState.errors[name]) clearErrors(name);
-                  }}
-                />
-              ))}
-            </div>
+            <FormStepFields
+              step={currentStep}
+              values={values}
+              control={control}
+              errors={formState.errors}
+              clearErrors={clearErrors}
+              t={t}
+            />
             <div className="flex flex-col-reverse gap-3 border-t border-line pt-6 sm:flex-row sm:justify-between">
               {step !== 0 ? (
                 <Button variant="ghost" onClick={onBack} icon={<ArrowLeft aria-hidden size={16} strokeWidth={1.5} />}>

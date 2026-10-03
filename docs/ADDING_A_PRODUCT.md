@@ -1,9 +1,41 @@
 # Adding a product
 
-A product is data: one row in `products`, its packages, a marketing page made of sections, FAQs and
-an onboarding form. Adding product #3 needs no code change on the main site.
+A product is data: one row in `products`, its packages, a marketing page made of sections, FAQs, an
+onboarding form, the service fields your team fills in during setup, and optional n8n actions. Adding
+product #3 needs no code change, on the website or in the admin.
 
-The fastest way is the template: [`supabase/templates/new_product.sql`](../supabase/templates/new_product.sql).
+## The easy way: the admin wizard
+
+In **admin.retexia.com → Products → New product** (admins and owners):
+
+1. **Basics:** name ("Retexia Books"); the short name, web address (`books`) and request code (`BOO`)
+   fill in automatically and can be changed. Pick an icon.
+2. **Colour:** four colours with a live preview. The wizard warns when a pair is below 4.5:1 contrast
+   or the hue is too close to the brand blue or another product (rules below).
+3. **Packages:** name, prices, setup fee, badge and feature list, with a live preview of the pricing
+   card. Or tick "No packages yet" for a waitlist-only product.
+4. **Page and form:** a product page is created with hero, features, how it works, pricing (or
+   waitlist), FAQs and a call to action. Start the onboarding form simple, or copy another product's
+   form (its service fields come along).
+5. **Review** and **Create product**. It starts **hidden**.
+
+Then, on the product's hub:
+
+- edit the page sections (**Page** → Edit page) and the form questions (**Onboarding form**);
+- add **Service fields** (what the team records during setup) and **Actions** (n8n workflows);
+- add **FAQs**;
+- follow the **go-live checklist** on the Overview tab, then set the status to **Coming soon** or
+  **Live** under **Details**.
+
+The product appears in the admin menu as soon as it exists, with its own requests, waitlist and
+revenue. Nothing in the admin is written for a particular product.
+
+**Duplicate** on the Products page copies an existing product (packages, page, form, service fields,
+actions) as a hidden starting point.
+
+## The SQL way: the template
+
+For bulk edits or a scripted setup, use [`supabase/templates/new_product.sql`](../supabase/templates/new_product.sql).
 
 ## 1. Prepare the template
 
@@ -77,16 +109,17 @@ Each product gets its own app for its day-to-day panel (chat history, settings, 
 3. Deploy it as its own Vercel project with root directory `apps/<slug>`, on `<slug>.retexia.com`,
    with the same environment variables (including `NEXT_PUBLIC_COOKIE_DOMAIN=.retexia.com`).
    Customers who signed in on retexia.com are already signed in there.
-4. Its backend is its own n8n workflow, triggered by a Database Webhook on `orders`
-   (see [DEPLOY.md, step 6](DEPLOY.md#6-connecting-n8n-later-product-backends)).
-5. When the panel is ready, set on the product:
-
-```sql
-update products
-   set panel_url = 'https://books.retexia.com/account',
-       panel_live = true
- where slug = 'books';
-```
+4. Its backend is its own n8n workflow, started from the request page with a product action
+   (see [DEPLOY.md, step 8](DEPLOY.md#8-n8n-product-actions)).
+5. When the panel is ready, set **Customer panel URL** and turn on **Panel is live** in the product's
+   **Details** tab (or `update products set panel_url = …, panel_live = true where slug = 'books';`).
 
 The "Open Books panel" button then turns on for customers whose order is `active`. Until then they
 see "Your panel opens when setup is finished".
+
+## 6. Product-specific admin screens (rarely needed)
+
+If a product needs an admin screen the generic tools can't express (for example a live usage chart
+from its own API), register it in [`apps/admin/products/registry.ts`](../apps/admin/products/registry.ts):
+extra tabs on the product hub and extra cards on a request's Setup tab, keyed by product slug. The
+registry is empty today; every current product works without it.

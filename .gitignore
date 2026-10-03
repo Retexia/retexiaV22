@@ -13,3 +13,4 @@ supabase/.branches
 supabase/.temp
 next-env.d.ts
 .claude/
+scripts/e2e/.mock/

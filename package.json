@@ -10,11 +10,17 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "db:test": "node scripts/test-db.mjs",
-    "db:types": "supabase gen types typescript --local > packages/supabase/src/database.types.ts"
+    "db:test": "node scripts/test-db.mjs && node scripts/test-admin-db.mjs",
+    "db:types": "node scripts/gen-types.mjs",
+    "db:types:supabase": "supabase gen types typescript --local > packages/supabase/src/database.types.ts",
+    "e2e": "playwright test -c e2e/playwright.config.ts",
+    "e2e:mock": "node scripts/e2e/mock-supabase.mjs"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22.20.4",
     "turbo": "^2.6.0",
-    "@electric-sql/pglite": "^0.5.8"
+    "typescript": "^5.9.3"
   }
 }

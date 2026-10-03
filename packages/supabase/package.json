@@ -10,7 +10,9 @@
     "./static": "./src/static.ts",
     "./proxy": "./src/proxy.ts",
     "./redirect": "./src/redirect.ts",
-    "./types": "./src/database.types.ts"
+    "./types": "./src/database.types.ts",
+    "./admin": "./src/admin.ts",
+    "./roles": "./src/roles.ts"
   },
   "scripts": {
     "lint": "eslint .",

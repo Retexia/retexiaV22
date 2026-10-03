@@ -1,0 +1,12 @@
+@import "tailwindcss";
+@import "@retexia/ui/theme.css";
+
+@source "../../../packages/ui/src";
+@source "../../../packages/forms/src";
+
+@media print {
+  @page {
+    size: A4;
+    margin: 16mm;
+  }
+}

@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import type { PageSection } from "@/lib/content";
-import { isSectionType, sectionSchemas, type SectionType } from "@/lib/sections/schemas";
+import { isSectionType, sectionSchemas, type SectionType } from "@retexia/content";
 import {
   AboutSection,
   CtaSection,

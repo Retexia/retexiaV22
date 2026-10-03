@@ -10,3 +10,13 @@ export type {
   SupabaseClient,
   User,
 } from "@supabase/supabase-js";
+export {
+  STAFF_ROLES,
+  capabilities,
+  can,
+  isStaffRole,
+  roleLabels,
+  type Capability,
+  type Role,
+  type StaffRole,
+} from "./roles";

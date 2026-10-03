@@ -3,6 +3,7 @@
 import { createServerClient } from "@retexia/supabase/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { rateLimit } from "@/lib/rate-limit";
 import { requestOrigin } from "@/lib/site-url";
 import { getT } from "@/lib/strings.server";
 
@@ -119,4 +120,57 @@ export async function cancelOrder(input: { orderId: string; reason?: string }): 
   }
   revalidatePath("/account", "layout");
   return { ok: true, message: t("order.cancel.done", "Your request was cancelled.") };
+}
+
+const PROOF_TYPES: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "image/heic": "heic",
+  "application/pdf": "pdf",
+};
+const PROOF_MAX_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Upload a bank slip / transfer screenshot for a request that is awaiting
+ * payment. Type and size are checked here and again by the storage bucket;
+ * the file goes to the customer's own private folder.
+ */
+export async function submitPaymentProof(formData: FormData): Promise<AccountResult> {
+  const t = await getT();
+  const generic = t("form.error.generic", "Something went wrong. Please try again, or message us on WhatsApp.");
+  if (!(await rateLimit("payment-proof", 10, 60 * 60 * 1000))) return { ok: false, message: t("order.proof.too_many", "Too many uploads. Please try again later.") };
+  const parsed = z
+    .object({ orderId: z.uuid(), reference: z.string().trim().max(200), note: z.string().trim().max(1000) })
+    .safeParse({ orderId: formData.get("orderId"), reference: formData.get("reference") ?? "", note: formData.get("note") ?? "" });
+  const file = formData.get("file");
+  if (!parsed.success || !(file instanceof File)) return { ok: false, message: generic };
+  const ext = PROOF_TYPES[file.type];
+  if (!ext) return { ok: false, message: t("order.proof.type", "Upload a photo (JPG, PNG, WebP, HEIC) or a PDF.") };
+  if (file.size > PROOF_MAX_BYTES) return { ok: false, message: t("order.proof.size", "The file must be 5 MB or smaller.") };
+
+  const supabase = await createServerClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { ok: false, message: generic };
+  const path = `${auth.user.id}/${parsed.data.orderId}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
+  const { error: uploadError } = await supabase.storage.from("payment-proofs").upload(path, file, { contentType: file.type, upsert: false });
+  if (uploadError) {
+    console.error("[payment proof] upload failed:", uploadError.message);
+    return { ok: false, message: generic };
+  }
+  const { error } = await supabase.rpc("customer_submit_payment_proof", {
+    p_order_id: parsed.data.orderId,
+    p_proof_path: path,
+    p_reference: parsed.data.reference,
+    p_note: parsed.data.note,
+  });
+  if (error) {
+    await supabase.storage.from("payment-proofs").remove([path]);
+    return {
+      ok: false,
+      message: error.code === "P0001" ? t("order.proof.not_waiting", "This request is not waiting for a payment any more.") : generic,
+    };
+  }
+  revalidatePath("/account", "layout");
+  return { ok: true, message: t("order.proof.done", "Thank you. We will check your payment and confirm it soon.") };
 }

@@ -3,3 +3,4 @@
 
 /* Scan the shared component package for class names. */
 @source "../../../packages/ui/src";
+@source "../../../packages/forms/src";

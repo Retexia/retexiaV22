@@ -1,4 +1,4 @@
-import { supabaseEnv } from "@retexia/supabase";
+import { isStaffRole, supabaseEnv } from "@retexia/supabase";
 import { updateSession, withSessionCookies } from "@retexia/supabase/proxy";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -7,7 +7,7 @@ import { NextResponse, type NextRequest } from "next/server";
  * 1. refreshes the Supabase session cookie,
  * 2. sends signed-out visitors from /account/** and /<product>/get-started
  *    to /login?next=<url>,
- * 3. shows the maintenance page to everyone except admins when
+ * 3. shows the maintenance page to everyone except the Retexia team when
  *    site_settings.maintenance_mode is on (flag cached for 60 seconds).
  */
 
@@ -50,12 +50,12 @@ export async function proxy(request: NextRequest) {
   }
 
   if (!MAINTENANCE_EXEMPT.test(pathname) && (await maintenanceMode())) {
-    let admin = false;
+    let staff = false;
     if (claims?.sub && supabase) {
       const { data } = await supabase.from("profiles").select("role").eq("id", claims.sub).maybeSingle();
-      admin = data?.role === "admin";
+      staff = isStaffRole(data?.role);
     }
-    if (!admin) {
+    if (!staff) {
       const target = request.nextUrl.clone();
       target.pathname = "/maintenance";
       target.search = "";

@@ -1,6 +1,6 @@
 import type { SectionHeaderProps } from "@retexia/ui";
 import type { Page, PageSection, Product, SiteSettings } from "@/lib/content";
-import type { SectionContent, SectionType } from "@/lib/sections/schemas";
+import type { SectionContent, SectionType } from "@retexia/content";
 import type { Translate } from "@/lib/strings";
 
 export type RenderContext = {

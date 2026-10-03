@@ -55,6 +55,8 @@ export const lengthTokens = {
   "radius-md": "12px",
   "radius-lg": "20px",
   container: "1040px",
+  /** Admin and product panels only: wider work area. */
+  "container-wide": "1280px",
   content: "720px",
   measure: "480px",
   gutter: "24px",

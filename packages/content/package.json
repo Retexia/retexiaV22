@@ -1,0 +1,24 @@
+{
+  "name": "@retexia/content",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./string-keys.json": "./src/string-keys.json"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.3.0"
+  },
+  "devDependencies": {
+    "@retexia/config": "workspace:*",
+    "@types/node": "^22.20.0",
+    "eslint": "^9.39.0",
+    "typescript": "^5.9.3"
+  }
+}

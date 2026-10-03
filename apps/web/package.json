@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.0",
+    "@retexia/content": "workspace:*",
+    "@retexia/forms": "workspace:*",
     "@retexia/supabase": "workspace:*",
     "@retexia/ui": "workspace:*",
     "lucide-react": "^1.0.0",
