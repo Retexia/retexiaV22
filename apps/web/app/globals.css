@@ -1,0 +1,5 @@
+@import "tailwindcss";
+@import "@retexia/ui/theme.css";
+
+/* Scan the shared component package for class names. */
+@source "../../../packages/ui/src";

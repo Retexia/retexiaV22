@@ -1,0 +1,60 @@
+/* Generated from tokens.ts by scripts/build-tokens.ts. Do not edit by hand. */
+:root {
+  --rx-surface:#ffffff;
+  --rx-surface-raised:#ffffff;
+  --rx-surface-sunk:#f4f7fc;
+  --rx-line:#e4ebf5;
+  --rx-line-strong:#7d8dab;
+  --rx-ink:#16264a;
+  --rx-ink-muted:#5a6884;
+  --rx-brand:#2a68d9;
+  --rx-brand-hover:#1f55b8;
+  --rx-brand-soft:#eaf1fd;
+  --rx-brand-halo:#dbe7fb;
+  --rx-on-brand:#ffffff;
+  --rx-link:#2a68d9;
+  --rx-success:#1d7338;
+  --rx-success-soft:#dcf2e3;
+  --rx-warning:#855600;
+  --rx-warning-soft:#fbebc8;
+  --rx-danger:#b42318;
+  --rx-danger-soft:#fde2df;
+  --rx-on-danger:#ffffff;
+  --rx-shadow-sm:0 1px 2px #16264a0a, 0 10px 30px -12px #2a68d926;
+  --rx-shadow-lg:0 30px 60px -20px #2a68d940, 0 6px 16px -6px #16264a14;
+  --rx-focus-ring:0 0 0 2px #ffffff, 0 0 0 4px #2a68d9;
+  --rx-radius-sm:6px;
+  --rx-radius-md:12px;
+  --rx-radius-lg:20px;
+  --rx-container:1040px;
+  --rx-content:720px;
+  --rx-measure:480px;
+  --rx-gutter:24px;
+  color-scheme:light;
+}
+.dark {
+  --rx-surface:#0c1322;
+  --rx-surface-raised:#131c30;
+  --rx-surface-sunk:#090e1a;
+  --rx-line:#232f48;
+  --rx-line-strong:#6e7d9c;
+  --rx-ink:#e7edf9;
+  --rx-ink-muted:#9daac3;
+  --rx-brand:#7aaeff;
+  --rx-brand-hover:#a1c5ff;
+  --rx-brand-soft:#14254a;
+  --rx-brand-halo:#16274a;
+  --rx-on-brand:#0c1322;
+  --rx-link:#7aaeff;
+  --rx-success:#5fd38a;
+  --rx-success-soft:#11301c;
+  --rx-warning:#f2c14e;
+  --rx-warning-soft:#33270a;
+  --rx-danger:#ff8a80;
+  --rx-danger-soft:#3b1512;
+  --rx-on-danger:#0c1322;
+  --rx-shadow-sm:0 1px 2px #00000066, 0 10px 30px -12px #00000099;
+  --rx-shadow-lg:0 30px 60px -20px #000000cc, 0 6px 16px -6px #00000080;
+  --rx-focus-ring:0 0 0 2px #0c1322, 0 0 0 4px #7aaeff;
+  color-scheme:dark;
+}

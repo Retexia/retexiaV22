@@ -1,0 +1,8 @@
+{
+  "extends": "@retexia/config/tsconfig.react-library.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src", "scripts"]
+}

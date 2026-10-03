@@ -1,0 +1,360 @@
+/*
+ * Retexia Tailwind theme. Import after "tailwindcss" in an app's global CSS:
+ *
+ *   @import "tailwindcss";
+ *   @import "@retexia/ui/theme.css";
+ *   @source "../../../packages/ui/src";
+ *
+ * Utilities read the --rx-* variables, which <ThemeStyle /> (or tokens.css)
+ * defines for light and dark, so the theme can change at runtime.
+ */
+@import "./tokens.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  --color-surface: var(--rx-surface);
+  --color-surface-raised: var(--rx-surface-raised);
+  --color-surface-sunk: var(--rx-surface-sunk);
+  --color-line: var(--rx-line);
+  --color-line-strong: var(--rx-line-strong);
+  --color-ink: var(--rx-ink);
+  --color-ink-muted: var(--rx-ink-muted);
+  --color-brand: var(--rx-brand);
+  --color-brand-hover: var(--rx-brand-hover);
+  --color-brand-soft: var(--rx-brand-soft);
+  --color-brand-halo: var(--rx-brand-halo);
+  --color-on-brand: var(--rx-on-brand);
+  --color-link: var(--rx-link);
+  --color-success: var(--rx-success);
+  --color-success-soft: var(--rx-success-soft);
+  --color-warning: var(--rx-warning);
+  --color-warning-soft: var(--rx-warning-soft);
+  --color-danger: var(--rx-danger);
+  --color-danger-soft: var(--rx-danger-soft);
+  --color-on-danger: var(--rx-on-danger);
+  /* Accent: the product colour on product pages, brand blue elsewhere. */
+  --color-accent: var(--accent, var(--rx-brand));
+  --color-accent-soft: var(--accent-soft, var(--rx-brand-soft));
+
+  --font-*: initial;
+  --font-display: var(--font-outfit), var(--font-sinhala), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-dm-sans), var(--font-sinhala), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-dm-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-*: initial;
+  --radius-sm: var(--rx-radius-sm);
+  --radius-md: var(--rx-radius-md);
+  --radius-lg: var(--rx-radius-lg);
+  --radius-full: 9999px;
+
+  --container-page: var(--rx-container);
+  --container-content: var(--rx-content);
+  --container-measure: var(--rx-measure);
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ---------------------------------------------------------------- type --- */
+
+@utility type-display-xl {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 36px;
+  line-height: 44px;
+  letter-spacing: -0.02em;
+  @media (width >= 48rem) {
+    font-size: 52px;
+    line-height: 60px;
+  }
+}
+@utility type-display {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 30px;
+  line-height: 38px;
+  letter-spacing: -0.015em;
+  @media (width >= 48rem) {
+    font-size: 36px;
+    line-height: 44px;
+  }
+}
+@utility type-h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 26px;
+  line-height: 34px;
+  letter-spacing: -0.01em;
+}
+@utility type-h2 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 26px;
+}
+@utility type-h3 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 20px;
+}
+@utility type-body-lg {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 26px;
+}
+@utility type-body {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 22px;
+}
+@utility type-label {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 20px;
+}
+@utility type-small {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 18px;
+}
+@utility type-eyebrow {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+@utility type-caption {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+@utility type-code {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* ------------------------------------------------------- depth / focus --- */
+
+@utility shadow-soft {
+  box-shadow: var(--rx-shadow-sm);
+}
+@utility shadow-float {
+  box-shadow: var(--rx-shadow-lg);
+}
+@utility focus-ring {
+  outline: none;
+  box-shadow: var(--rx-focus-ring);
+}
+
+/* ------------------------------------------------------------- layout --- */
+
+@utility px-gutter {
+  padding-inline: var(--rx-gutter);
+}
+
+/* ----------------------------------------------------------- motion --- */
+
+@utility transition-hover {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-timing-function: var(--ease-out);
+  transition-duration: 140ms;
+}
+@utility transition-ui {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-timing-function: var(--ease-out);
+  transition-duration: 220ms;
+}
+
+/* --------------------------------------------------------------- base --- */
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
+    scroll-padding-top: 88px;
+  }
+  body {
+    background-color: var(--rx-surface);
+    color: var(--rx-ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 22px;
+  }
+  ::selection {
+    background-color: var(--rx-brand-soft);
+    color: var(--rx-ink);
+  }
+  /* Visible focus ring on every focusable control; never removed. */
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--rx-focus-ring);
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* ---------------------------------------------------------- prose --- */
+/* Long-form markdown (rich_text sections, legal pages, FAQ answers). */
+
+@layer components {
+  .rx-prose {
+    color: var(--rx-ink);
+    font-size: 16px;
+    line-height: 26px;
+  }
+  .rx-prose > * + * {
+    margin-top: 16px;
+  }
+  .rx-prose h2 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 22px;
+    line-height: 30px;
+    letter-spacing: -0.01em;
+    margin-top: 48px;
+  }
+  .rx-prose h3 {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 18px;
+    line-height: 26px;
+    margin-top: 32px;
+  }
+  .rx-prose h2 + *,
+  .rx-prose h3 + * {
+    margin-top: 12px;
+  }
+  .rx-prose p,
+  .rx-prose li {
+    color: var(--rx-ink-muted);
+  }
+  .rx-prose strong {
+    color: var(--rx-ink);
+    font-weight: 600;
+  }
+  .rx-prose a {
+    color: var(--rx-link);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+  }
+  .rx-prose a:hover {
+    color: var(--rx-brand-hover);
+  }
+  .rx-prose ul,
+  .rx-prose ol {
+    padding-left: 24px;
+  }
+  .rx-prose ul {
+    list-style: disc;
+  }
+  .rx-prose ol {
+    list-style: decimal;
+  }
+  .rx-prose li + li {
+    margin-top: 8px;
+  }
+  .rx-prose li::marker {
+    color: var(--rx-line-strong);
+  }
+  .rx-prose code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: var(--rx-surface-sunk);
+    border-radius: 6px;
+    padding: 2px 6px;
+  }
+  .rx-prose blockquote {
+    border-left: 2px solid var(--rx-line);
+    padding-left: 16px;
+  }
+  .rx-prose hr {
+    border-color: var(--rx-line);
+    margin: 32px 0;
+  }
+  .rx-prose table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .rx-prose th,
+  .rx-prose td {
+    border-bottom: 1px solid var(--rx-line);
+    padding: 8px 12px;
+    text-align: left;
+  }
+  .rx-prose th {
+    background: var(--rx-surface-sunk);
+    font-weight: 600;
+  }
+  .rx-prose-sm {
+    font-size: 14px;
+    line-height: 22px;
+  }
+  .rx-prose-sm > * + * {
+    margin-top: 12px;
+  }
+}
+
+@keyframes rx-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes rx-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes rx-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}

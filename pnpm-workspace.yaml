@@ -1,0 +1,10 @@
+packages:
+  - apps/*
+  - packages/*
+
+fetchTimeout: 600000
+fetchRetries: 6
+networkConcurrency: 8
+
+allowBuilds:
+  unrs-resolver: true

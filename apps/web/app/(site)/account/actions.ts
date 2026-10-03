@@ -1,0 +1,122 @@
+"use server";
+
+import { createServerClient } from "@retexia/supabase/server";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { requestOrigin } from "@/lib/site-url";
+import { getT } from "@/lib/strings.server";
+
+export type AccountResult = { ok: true; message: string } | { ok: false; message: string };
+
+const phone = z
+  .string()
+  .trim()
+  .max(40)
+  .refine((v) => v === "" || /^\+?[0-9][0-9\s().-]{6,19}$/.test(v));
+
+const profileSchema = z.object({
+  full_name: z.string().trim().min(2).max(120),
+  phone,
+  whatsapp: phone,
+  business_name: z.string().trim().max(200),
+  marketing_opt_in: z.boolean(),
+});
+
+export async function updateProfile(input: z.input<typeof profileSchema>): Promise<AccountResult> {
+  const t = await getT();
+  const parsed = profileSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: t("form.error.fix_fields", "Please check the highlighted fields") };
+  const supabase = await createServerClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { ok: false, message: t("onboarding.error.signed_out", "Your session has ended. Please sign in again.") };
+  const d = parsed.data;
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      full_name: d.full_name,
+      phone: d.phone || null,
+      whatsapp: d.whatsapp || null,
+      business_name: d.business_name || null,
+      marketing_opt_in: d.marketing_opt_in,
+    })
+    .eq("id", auth.user.id);
+  if (error) return { ok: false, message: t("form.error.generic", "Something went wrong. Please try again, or message us on WhatsApp.") };
+  await supabase.auth.updateUser({ data: { full_name: d.full_name } });
+  revalidatePath("/account", "layout");
+  return { ok: true, message: t("account.profile.saved", "Your profile is saved.") };
+}
+
+export async function changeEmail(input: { email: string }): Promise<AccountResult> {
+  const t = await getT();
+  const parsed = z.email().trim().max(320).safeParse(input.email);
+  if (!parsed.success) return { ok: false, message: t("form.error.email", "Enter a valid email address") };
+  const supabase = await createServerClient();
+  const origin = await requestOrigin();
+  const { error } = await supabase.auth.updateUser(
+    { email: parsed.data },
+    { emailRedirectTo: `${origin}/auth/confirm?next=/account/security` },
+  );
+  if (error) {
+    return {
+      ok: false,
+      message:
+        error.code === "email_exists"
+          ? t("account.security.email_taken", "That email is already used by another account.")
+          : t("auth.error.generic", "Something went wrong. Please try again."),
+    };
+  }
+  return {
+    ok: true,
+    message: t("account.security.email_sent", "Check both your old and new inbox. Open the links we sent to confirm the change."),
+  };
+}
+
+export async function changePassword(input: { password: string }): Promise<AccountResult> {
+  const t = await getT();
+  const parsed = z.string().min(8).max(72).safeParse(input.password);
+  if (!parsed.success) return { ok: false, message: t("auth.error.password_short", "Use at least 8 characters") };
+  const supabase = await createServerClient();
+  const { error } = await supabase.auth.updateUser({ password: parsed.data });
+  if (error) {
+    return {
+      ok: false,
+      message:
+        error.code === "same_password"
+          ? t("auth.error.same_password", "Your new password must be different from the old one.")
+          : error.code === "reauthentication_needed"
+            ? t("account.security.reauth", "For your safety, sign out and sign in again, then change your password.")
+            : t("auth.error.weak_password", "Choose a stronger password: at least 8 characters, with letters and numbers."),
+    };
+  }
+  return { ok: true, message: t("account.password_updated", "Your password was updated.") };
+}
+
+export async function signOutEverywhere(): Promise<AccountResult> {
+  const t = await getT();
+  const supabase = await createServerClient();
+  const { error } = await supabase.auth.signOut({ scope: "global" });
+  if (error) return { ok: false, message: t("auth.error.generic", "Something went wrong. Please try again.") };
+  return { ok: true, message: t("account.security.signed_out", "You are signed out on every device.") };
+}
+
+export async function cancelOrder(input: { orderId: string; reason?: string }): Promise<AccountResult> {
+  const t = await getT();
+  const parsed = z.object({ orderId: z.uuid(), reason: z.string().max(500).optional() }).safeParse(input);
+  if (!parsed.success) return { ok: false, message: t("form.error.generic", "Something went wrong. Please try again, or message us on WhatsApp.") };
+  const supabase = await createServerClient();
+  const { error } = await supabase.rpc("cancel_order", {
+    p_order_id: parsed.data.orderId,
+    p_reason: parsed.data.reason ?? "",
+  });
+  if (error) {
+    return {
+      ok: false,
+      message:
+        error.code === "P0001"
+          ? t("order.cancel.not_allowed", "This request can no longer be cancelled. Message us and we will help.")
+          : t("form.error.generic", "Something went wrong. Please try again, or message us on WhatsApp."),
+    };
+  }
+  revalidatePath("/account", "layout");
+  return { ok: true, message: t("order.cancel.done", "Your request was cancelled.") };
+}

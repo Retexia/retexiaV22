@@ -1,0 +1,34 @@
+{
+  "name": "@retexia/supabase",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./browser": "./src/browser.ts",
+    "./server": "./src/server.ts",
+    "./static": "./src/static.ts",
+    "./proxy": "./src/proxy.ts",
+    "./redirect": "./src/redirect.ts",
+    "./types": "./src/database.types.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.12.0",
+    "@supabase/supabase-js": "^2.117.0",
+    "server-only": "^0.0.1"
+  },
+  "peerDependencies": {
+    "next": ">=16"
+  },
+  "devDependencies": {
+    "@retexia/config": "workspace:*",
+    "@types/node": "^22.20.0",
+    "eslint": "^9.39.0",
+    "next": "16.3.8",
+    "typescript": "^5.9.3"
+  }
+}
