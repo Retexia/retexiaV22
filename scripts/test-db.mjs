@@ -1,15 +1,20 @@
-// Runs supabase/migrations/0001_init.sql and supabase/seed.sql twice against an
+// Runs every supabase/migrations/*.sql file and supabase/seed.sql twice against an
 // in-memory Postgres (PGlite) that mimics Supabase's auth/storage schemas and
 // API roles, then checks the security rules (RLS, triggers, RPCs).
 //
 //   pnpm db:test
 //
 // This is a fast safety net. The real thing is still `supabase db reset`.
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 
 const root = new URL("../", import.meta.url);
-const migration = readFileSync(new URL("supabase/migrations/0001_init.sql", root), "utf8");
+const migrationsDir = new URL("supabase/migrations/", root);
+const migration = readdirSync(migrationsDir)
+  .filter((f) => f.endsWith(".sql"))
+  .sort()
+  .map((f) => readFileSync(new URL(f, migrationsDir), "utf8"))
+  .join("\n");
 const seed = readFileSync(new URL("supabase/seed.sql", root), "utf8");
 const template = readFileSync(new URL("supabase/templates/new_product.sql", root), "utf8");
 
@@ -21,9 +26,8 @@ await db.exec(`
   create role authenticated nologin noinherit;
   create role service_role nologin noinherit bypassrls;
   grant usage on schema public to anon, authenticated, service_role;
-  alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
-  alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
-  alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+  -- No default privileges: like newer Supabase projects, the migrations must grant access explicitly.
+  alter default privileges in schema public revoke execute on functions from public;
 
   create schema auth;
   grant usage on schema auth to anon, authenticated, service_role;
@@ -272,8 +276,15 @@ await expectError(
 );
 
 await as("anon", null, `insert into public.contact_messages (name, email, message, source_path) values ('Kasun', 'KASUN@example.com', 'Hello', '/contact')`);
-const anonMsgs = await as("anon", null, `select id from public.contact_messages`);
-ok(anonMsgs.rows.length === 0, "anon can send a message but not read messages");
+{
+  let readable = 0;
+  try {
+    readable = (await as("anon", null, `select id from public.contact_messages`)).rows.length;
+  } catch {
+    readable = 0; // permission denied is fine too
+  }
+  ok(readable === 0, "anon can send a message but not read messages");
+}
 ok((await db.query(`select email from public.contact_messages`)).rows[0].email === "kasun@example.com", "contact email stored lowercase");
 
 await as("anon", null, `insert into public.waitlist (product_id, email) values ($1, 'Nuwan@Example.com')`, [ids.post_id]);
