@@ -1,0 +1,781 @@
+{
+  "name": "Retexia — Photo post (generate + publish)",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Retexia — New photo post",
+        "formDescription": "Describe the post. AI writes the captions, designs the image with all the text, then publishes to Facebook + Instagram. Takes ~1-2 minutes; check n8n Executions.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Prompt",
+              "fieldType": "textarea",
+              "placeholder": "e.g. Weekend offer: 20% off all chocolate cakes, this Saturday and Sunday only",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Publish now",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Yes"
+                  },
+                  {
+                    "option": "No - save as draft"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Business ID (optional)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7a3bb32f-714f-4bf5-bab9-9124b250456c",
+      "name": "Form: new post",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        2128,
+        544
+      ],
+      "webhookId": "d8c83f44-1121-49d9-9613-1e0b8e34095f"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "retexia-photo-post",
+        "options": {}
+      },
+      "id": "76da5f68-db82-4911-ad8f-41c8b67db6b9",
+      "name": "Webhook: photo post",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        2128,
+        768
+      ],
+      "webhookId": "fa996b3b-c47e-4d0f-972f-7ffc7426c36d"
+    },
+    {
+      "parameters": {
+        "jsCode": "// EDIT only the values marked EDIT. API keys live in n8n credentials.\nconst CONFIG = {\n  businessId: 'e296b1d9-c477-4691-9b52-9af252a2755f', // EDIT: id from setup.sql step 1 (used when none is sent)\n  facebookPageId: '1046597695204235', // fallback if social_accounts has no connected facebook row\n  instagramUserId: '17841444731611565', // fallback if social_accounts has no connected instagram row\n  supabaseUrl: 'https://vhrssbakozzdpxlipsos.supabase.co',\n  graphVersion: 'v26.0',\n\n  openaiBase: 'https://api.openai.com/v1',\n  textModel: 'gpt-6-luna',\n  imageModel: 'gpt-image-2.5-flare', // new design from text\n  imageEditModel: 'gpt-image-2.5-sunburst', // design that includes the brand logo\n  imageQuality: 'medium', // 'high' = sharper text on the design, costs more\n  size: '1088x1360', // 4:5 feed\n  designTextLanguage: 'en', // 'en' = text on the design always English (most reliable); 'same' = same language as the caption\n  useLogo: true, // put brand.logo_path on the design when the business has one\n  costs: { text: 0.002, image: 0.04, imageEdit: 0.05 }, // USD, only for usage_monthly\n};\n\n// Accepts the form, or a webhook body: { \"prompt\": \"...\", \"publish\": true, \"business_id\": \"uuid\" }\nconst input = $input.first().json;\nconst body = input.body || input;\nconst prompt = String(body.prompt || body.Prompt || '').trim();\nif (prompt.length < 3) throw new Error('Send a prompt describing the post.');\n\nconst rawPublish = body.publish ?? body['Publish now'] ?? true;\nconst publish = rawPublish === true || /^(yes|true|1)/i.test(String(rawPublish));\n\nconst businessId = String(body.business_id || body['Business ID (optional)'] || CONFIG.businessId).trim().toLowerCase();\nif (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(businessId)) {\n  throw new Error('Set businessId in Config (setup.sql step 1 shows it). Got: ' + businessId);\n}\nreturn [{ json: { ...CONFIG, businessId, prompt: prompt.slice(0, 1500), publish } }];\n"
+      },
+      "id": "b8201d41-113a-48e9-b800-d8a5b9c2deb4",
+      "name": "Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2368,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Everything the AI needs to understand the business. #1 = business id\nselect to_jsonb(b) as business,\n  (select coalesce(jsonb_agg(x), '[]'::jsonb) from (\n     select name, price, currency, left(description, 80) as description\n       from products where business_id = b.id and active\n      order by created_at desc limit 15) x) as products,\n  (select coalesce(jsonb_agg(x), '[]'::jsonb) from (\n     select id, platform, external_id\n       from social_accounts\n      where business_id = b.id and enabled and status = 'connected') x) as accounts,\n  (select coalesce(jsonb_agg(left(r.caption, 140)), '[]'::jsonb) from (\n     select caption from posts\n      where business_id = b.id and caption is not null\n      order by created_at desc limit 3) r) as recent\nfrom (select id, name, category, country, languages, brand, brand_brief\n        from businesses where id = $1::uuid) b;\n",
+        "options": {
+          "queryReplacement": "={{ [ $json.businessId ] }}"
+        }
+      },
+      "id": "9162b3c8-c1b9-45a6-b34a-e7ae4d1073bd",
+      "name": "Load business",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2608,
+        640
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "7WXuOi0d08vPAtmW",
+          "name": "Postgres account(Isuru_personal)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// One text call writes the captions AND the design brief (with the exact text for the image).\nconst cfg = $('Config').first().json;\nconst job = $input.first().json;\nif (!job.business) throw new Error('Business not found: ' + cfg.businessId);\nconst b = job.business;\nconst brand = b.brand || {};\nconst LANG = { en: 'English', si: 'Sinhala', ta: 'Tamil' };\nconst langs = (b.languages && b.languages.length ? b.languages : ['en']).map((l) => LANG[l] || l);\nconst money = (p) => (p.price == null ? 'no price' : `${p.currency || ''} ${Number(p.price).toLocaleString('en-US')}`.trim());\n\nconst facts = [\n  `Business: ${b.name}${b.category ? ` (${b.category})` : ''}${b.country ? `, ${b.country}` : ''}`,\n  b.brand_brief && `About: ${b.brand_brief}`,\n  brand.tone && `Tone: ${typeof brand.tone === 'string' ? brand.tone : JSON.stringify(brand.tone)}`,\n  brand.emoji === false ? 'Emoji: none' : 'Emoji: a few are fine',\n  (brand.always_words || []).length && `Words the brand likes: ${brand.always_words.join(', ')}`,\n  (brand.never_words || []).length && `NEVER use: ${brand.never_words.join(', ')}`,\n  brand.contact && `Contact: ${JSON.stringify(brand.contact)}`,\n  (job.products || []).length &&\n    `Products: ${job.products.map((p) => `${p.name} = ${money(p)}${p.description ? ` (${p.description})` : ''}`).join('; ')}`,\n].filter(Boolean);\n\nconst captionLang =\n  `the language of the REQUEST; if the REQUEST is in English use ${langs[0]}` +\n  (langs[1] ? ` and add one short line in ${langs[1]}` : '');\nconst designLang = cfg.designTextLanguage === 'same' ? 'same language as caption_instagram' : 'English';\n\nconst instructions = [\n  'You are a senior social media designer and copywriter for small businesses.',\n  'Turn the REQUEST into one 4:5 feed post: a designed graphic (banner style, with text on it) plus captions.',\n  'Use ONLY the FACTS and the REQUEST. Never invent prices, discounts, dates, phone numbers, addresses, links, awards, reviews, or health/income claims. If unsure, leave it out.',\n  `caption_instagram (${captionLang}): hook in the first line, 2-4 short lines, one call to action, no hashtags.`,\n  'caption_facebook: same language and idea, slightly more conversational, no hashtags.',\n  'hashtags: 3-8, without #, mix local and topic tags.',\n  `Text on the design, in ${designLang}: headline max 6 words (the big message); subline max 12 words or \"\"; ` +\n    'price_text only a price/discount stated in FACTS or REQUEST, else \"\"; cta max 4 words or \"\"; ' +\n    'footer: one phone/website/handle copied exactly from Contact, else \"\".',\n  'design_prompt: one paragraph of art direction for an image model: a style that fits this business and its audience, ' +\n    'the main visual (subject, setting, light), layout (where HEADLINE, SUBLINE, PRICE, CTA, FOOTER sit), colours, ' +\n    'typography feel and mood. Refer to the texts only by those labels, do not write them out.',\n  'alt_text: one plain sentence describing the image.',\n].join('\\n');\n\nconst recent = (job.recent || []).map((c) => '- ' + String(c).replace(/\\s+/g, ' '));\nconst userText = [\n  `REQUEST: ${cfg.prompt}`,\n  '',\n  'FACTS:',\n  ...facts.map((f) => '- ' + f),\n  recent.length ? '\\nRecent posts (do not repeat their openings):\\n' + recent.join('\\n') : '',\n].filter((x) => x !== '').join('\\n');\n\nconst str = { type: 'string' };\nconst schema = {\n  type: 'object',\n  additionalProperties: false,\n  required: ['headline', 'subline', 'price_text', 'cta', 'footer', 'design_prompt',\n             'caption_instagram', 'caption_facebook', 'hashtags', 'alt_text'],\n  properties: {\n    headline: str, subline: str, price_text: str, cta: str, footer: str, design_prompt: str,\n    caption_instagram: str, caption_facebook: str, hashtags: { type: 'array', items: str }, alt_text: str,\n  },\n};\n\nreturn [{\n  json: {\n    factsText: facts.join('\\n') + '\\n' + cfg.prompt,\n    body: {\n      model: cfg.textModel,\n      instructions,\n      input: [{ role: 'user', content: [{ type: 'input_text', text: userText }] }],\n      text: { format: { type: 'json_schema', name: 'post_design', strict: true, schema } },\n      max_output_tokens: 4000,\n    },\n  },\n}];\n"
+      },
+      "id": "3361099f-d547-42e6-97b9-f12b637cad75",
+      "name": "Build copy request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2848,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.openaiBase }}/responses",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "dc645a3e-bb0f-47c7-88d6-4b22f7ba1c67",
+      "name": "OpenAI: write post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3088,
+        640
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "rxEZjpwMzTTE6mkH",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabaseUrl }}/storage/v1/object/sign/media/{{ ($('Load business').first().json.business.brand || {}).logo_path || 'no-logo' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"expiresIn\": 900}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "32eefcc3-5413-4785-b978-af9da0cecc25",
+      "name": "Sign logo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3328,
+        640
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "FAwULRjyWYGUT6gf",
+          "name": "Supabase account (Isuru_personal)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Read the copy, drop any on-image text with numbers not found in the facts, build the image prompt.\nconst cfg = $('Config').first().json;\nconst job = $('Load business').first().json;\nconst req = $('Build copy request').first().json;\nconst res = $('OpenAI: write post').first().json;\nconst logoSigned = $input.first().json.signedURL;\nconst b = job.business;\nconst brand = b.brand || {};\n\nlet text = res.output_text;\nif (!text) {\n  for (const o of res.output || []) for (const c of o.content || []) {\n    if (c.type === 'output_text') text = c.text;\n    if (c.type === 'refusal') throw new Error('OpenAI refused: ' + c.refusal);\n  }\n}\nlet copy;\ntry { copy = JSON.parse(text); } catch (e) { throw new Error('Bad JSON from OpenAI: ' + String(text).slice(0, 300)); }\n\n// Accuracy guard: every number on the design must appear in the facts or the prompt.\nconst blob = req.factsText.replace(/,/g, '');\nconst nums = (s) => (String(s).match(/\\d[\\d.,]*/g) || []).map((n) => n.replace(/[.,]+$/, '').replace(/,/g, ''));\nconst verified = (s) => nums(s).every((n) => blob.includes(n));\nconst dropped = [];\nfor (const k of ['headline', 'subline', 'price_text', 'cta', 'footer']) {\n  copy[k] = String(copy[k] || '').trim();\n  if (copy[k] && !verified(copy[k])) { dropped.push(`${k}: ${copy[k]}`); copy[k] = ''; }\n}\nif (!copy.headline) copy.headline = b.name;\n\nconst lines = [\n  ['HEADLINE (largest, boldest)', copy.headline],\n  ['SUBLINE', copy.subline],\n  ['PRICE (badge or tag)', copy.price_text],\n  ['CTA (button style)', copy.cta],\n  ['FOOTER (small)', copy.footer],\n].filter(([, v]) => v).map(([k, v]) => `- ${k}: \"${v}\"`);\n\nconst useLogo = !!(cfg.useLogo && logoSigned);\nconst prompt = [\n  `A finished, professional social media post design (4:5 feed) for \"${b.name}\"${b.category ? `, a ${b.category} business` : ''}${b.country ? ` in ${b.country}` : ''}.`,\n  copy.design_prompt,\n  (brand.colors || []).length ? `Brand colours: ${brand.colors.join(', ')}.` : '',\n  brand.font ? `Typography in the style of: ${brand.font}.` : '',\n  'TEXT ON THE DESIGN - render exactly as written, perfectly spelled, and no other words:',\n  ...lines,\n  useLogo ? 'Place the attached logo small in a top corner, exactly as it is.' : 'Do not draw any logo or brand mark.',\n  'Clear hierarchy, high contrast, crisp typography, keep all text away from the outer edges. No watermarks, no extra text.',\n].filter(Boolean).join('\\n');\n\nconst body = {\n  model: useLogo ? cfg.imageEditModel : cfg.imageModel,\n  prompt,\n  size: cfg.size,\n  quality: cfg.imageQuality,\n  output_format: 'jpeg',\n  output_compression: 90,\n  n: 1,\n};\nif (useLogo) body.images = [{ image_url: cfg.supabaseUrl + '/storage/v1' + logoSigned }];\n\nconst tags = (copy.hashtags || [])\n  .map((t) => '#' + String(t).replace(/^#+/, '').replace(/[^\\p{L}\\p{N}_]/gu, ''))\n  .filter((t) => t.length > 1)\n  .slice(0, 8);\nconst ig = String(copy.caption_instagram).trim();\n\nreturn [{\n  json: {\n    endpoint: useLogo ? 'edits' : 'generations',\n    body,\n    caption: ig,\n    variants: {\n      facebook: { caption: String(copy.caption_facebook).trim() },\n      instagram: { caption: ig + (tags.length ? '\\n\\n' + tags.join(' ') : ''), hashtags: tags },\n    },\n    altText: String(copy.alt_text || '').trim(),\n    brief: {\n      prompt: cfg.prompt,\n      headline: copy.headline, subline: copy.subline, price_text: copy.price_text, cta: copy.cta, footer: copy.footer,\n      design_prompt: copy.design_prompt, alt_text: copy.alt_text, dropped_text: dropped, logo: useLogo,\n    },\n  },\n}];\n"
+      },
+      "id": "397ae1be-e06a-4dec-8b1f-3ddad1d8fd70",
+      "name": "Build image request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3568,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.openaiBase }}/images/{{ $json.endpoint }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 240000
+        }
+      },
+      "id": "7f1bedee-0c39-4c36-b377-5bc4f9d95600",
+      "name": "OpenAI: create image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3808,
+        640
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "rxEZjpwMzTTE6mkH",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $input.first().json;\nconst cfg = $('Config').first().json;\nconst b64 = res && res.data && res.data[0] && res.data[0].b64_json;\nif (!b64) throw new Error('OpenAI returned no image: ' + JSON.stringify(res).slice(0, 300));\nconst fileName = `post-${Date.now()}.jpg`;\nconst bytes = Math.floor((b64.length * 3) / 4) - (b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0);\nreturn [{\n  json: { storage_path: `${cfg.businessId}/ai/${fileName}`, bytes },\n  binary: { data: { data: b64, mimeType: 'image/jpeg', fileName, fileExtension: 'jpg' } },\n}];\n"
+      },
+      "id": "8f1f3f88-bde3-4b17-a43e-3c16a1b906cc",
+      "name": "Image to file",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4048,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabaseUrl }}/storage/v1/object/media/{{ $json.storage_path }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "image/jpeg"
+            },
+            {
+              "name": "x-upsert",
+              "value": "true"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "b5a40286-4bbc-4239-8c0b-8fbaeb21470f",
+      "name": "Upload image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4288,
+        640
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "FAwULRjyWYGUT6gf",
+          "name": "Supabase account (Isuru_personal)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Save the image + post and count usage. The post takes the first free (date, slot) from today.\n-- #1 business, #2 storage path, #3 bytes, #4 alt text, #5 caption, #6 variants, #7 brief,\n-- #8 status ('publishing' or 'ready'), #9 image cost, #10 text cost\nwith m as (\n  insert into media (business_id, kind, source, storage_path, bytes, description)\n  values ($1::uuid, 'photo', 'ai', $2, $3::int, $4)\n  returning id\n), s as (\n  select (now() at time zone b.timezone)::date + d as local_date, sl::smallint as slot\n    from businesses b, generate_series(0, 60) d, generate_series(1, 3) sl\n   where b.id = $1::uuid\n     and not exists (select 1 from posts x\n                      where x.business_id = $1::uuid and not x.is_story and x.slot = sl\n                        and x.local_date = (now() at time zone b.timezone)::date + d)\n   order by 1, 2\n   limit 1\n), u1 as (select bump_usage($1::uuid, 'images', 1, $9::numeric)),\n   u2 as (select bump_usage($1::uuid, 'text_calls', 1, $10::numeric))\ninsert into posts (business_id, local_date, slot, format, scheduled_at, status, source, brief, caption, variants, media_id)\nselect $1::uuid, s.local_date, s.slot, 'photo',\n       case when $8::post_status = 'ready' then now() + interval '1 day' else now() end,\n       $8::post_status, 'manual', $7::jsonb, $5, $6::jsonb, m.id\n  from m, s, u1, u2\nreturning id as post_id, status::text as status, local_date, slot;\n",
+        "options": {
+          "queryReplacement": "={{ [ $('Config').first().json.businessId, $('Image to file').first().json.storage_path, $('Image to file').first().json.bytes, $('Build image request').first().json.altText, $('Build image request').first().json.caption, JSON.stringify($('Build image request').first().json.variants), JSON.stringify($('Build image request').first().json.brief), $('Config').first().json.publish ? 'publishing' : 'ready', $('Build image request').first().json.endpoint === 'edits' ? $('Config').first().json.costs.imageEdit : $('Config').first().json.costs.image, $('Config').first().json.costs.text ] }}"
+        }
+      },
+      "id": "22a3d2f3-ea0f-4c40-bb3a-5d3eb5c0f61e",
+      "name": "Save post",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        4528,
+        640
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "7WXuOi0d08vPAtmW",
+          "name": "Postgres account(Isuru_personal)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 2,
+        "output": "={{ $('Config').first().json.publish ? 0 : 1 }}"
+      },
+      "id": "bf6d4574-1122-4a9d-b72e-9a6be3701846",
+      "name": "Publish now?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        4768,
+        640
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "4836ce22-7e7e-4602-b8e1-f5bd0de6987e",
+      "name": "Saved as draft (status ready)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        5008,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabaseUrl }}/storage/v1/object/sign/media/{{ $('Image to file').first().json.storage_path }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"expiresIn\": 3600}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "aea7ade2-7764-4549-9698-df362ce97d04",
+      "name": "Sign image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5008,
+        640
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "FAwULRjyWYGUT6gf",
+          "name": "Supabase account (Isuru_personal)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('Config').first().json;\nconst job = $('Load business').first().json;\nconst copy = $('Build image request').first().json;\nconst saved = $('Save post').first().json;\nconst signed = $input.first().json.signedURL;\nif (!saved.post_id) throw new Error('Post was not saved');\nif (!signed) throw new Error('Supabase did not return signedURL: ' + JSON.stringify($input.first().json).slice(0, 300));\n\nconst base = String(cfg.supabaseUrl).replace(/\\/$/, '');\nconst accounts = job.accounts || [];\nconst fb = accounts.find((a) => a.platform === 'facebook');\nconst ig = accounts.find((a) => a.platform === 'instagram');\n\nreturn [{\n  json: {\n    post_id: saved.post_id,\n    image_url: signed.startsWith('http') ? signed : base + '/storage/v1' + signed,\n    facebook_caption: copy.variants.facebook.caption,\n    instagram_caption: copy.variants.instagram.caption,\n    facebook_page_id: fb ? fb.external_id : cfg.facebookPageId,\n    instagram_user_id: ig ? ig.external_id : cfg.instagramUserId,\n    facebook_account_id: fb ? fb.id : null,\n    instagram_account_id: ig ? ig.id : null,\n    graph_version: cfg.graphVersion,\n  },\n}];\n"
+      },
+      "id": "e9bb35eb-2ac8-4a1c-9fd6-968c37827a6b",
+      "name": "Prepare publish",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5248,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $('Prepare publish').first().json.graph_version }}/{{ $('Prepare publish').first().json.facebook_page_id }}/photos",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ $('Prepare publish').first().json.image_url }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $('Prepare publish').first().json.facebook_caption }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "9d753891-efa4-4de8-9991-b14d733d0189",
+      "name": "Publish Facebook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5488,
+        640
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "75ao4wT6nqcewMjB",
+          "name": "Retexia Facebook Page Token"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $('Prepare publish').first().json.graph_version }}/{{ $('Prepare publish').first().json.instagram_user_id }}/media",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "image_url",
+              "value": "={{ $('Prepare publish').first().json.image_url }}"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $('Prepare publish').first().json.instagram_caption }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "2d1a6559-39c0-4e18-b36a-27110fe18cd7",
+      "name": "Instagram create media",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5728,
+        640
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "G5UIlDXmu6IfxiuY",
+          "name": "Meta Page Token"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "id": "1fe5fed9-bd1f-41e1-bba6-97347b43b114",
+      "name": "Wait 10 seconds",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        5968,
+        640
+      ],
+      "webhookId": "80e7d495-869f-4828-94da-203154d27e91"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $('Prepare publish').first().json.graph_version }}/{{ $('Prepare publish').first().json.instagram_user_id }}/media_publish",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "creation_id",
+              "value": "={{ $('Instagram create media').first().json.id }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "677f5b21-dfcd-4027-9453-41c3eb49d8c9",
+      "name": "Instagram publish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6208,
+        640
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "G5UIlDXmu6IfxiuY",
+          "name": "Meta Page Token"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const p = $('Prepare publish').first().json;\nconst fb = $('Publish Facebook').first().json;\nconst igCreate = $('Instagram create media').first().json;\nconst ig = $('Instagram publish').first().json;\nconst err = (r) => {\n  if (!r || !r.error) return null;\n  const e = r.error;\n  return (typeof e === 'string' ? e : e.message || JSON.stringify(e)).slice(0, 500);\n};\nconst results = [\n  { platform: 'facebook', account_id: p.facebook_account_id, ok: !fb.error && !!(fb.post_id || fb.id),\n    external_id: fb.post_id || fb.id || null, error: err(fb) },\n  { platform: 'instagram', account_id: p.instagram_account_id, ok: !ig.error && !!ig.id,\n    external_id: ig.id || null, error: err(igCreate) || err(ig) },\n];\nreturn [{ json: { post_id: p.post_id, results } }];\n"
+      },
+      "id": "6a539e83-5dfe-4b8d-8c50-da0eebe1d1e4",
+      "name": "Collect results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6448,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- #1 post id, #2 results [{platform, account_id, ok, external_id, error}]\nwith r as (\n  select * from jsonb_to_recordset($2::jsonb)\n    as x(platform text, account_id uuid, ok boolean, external_id text, error text)\n), pub as (\n  insert into publications (post_id, social_account_id, status, attempts, external_id, error_kind, last_error, published_at)\n  select $1::uuid, account_id,\n         (case when ok then 'published' else 'failed' end)::pub_status, 1, external_id,\n         case when ok then null else 'temporary' end, error, case when ok then now() end\n    from r where account_id is not null\n  on conflict (post_id, social_account_id) do nothing\n  returning id\n), up as (\n  update posts\n     set status = (case when exists (select 1 from r where ok) then 'published' else 'failed' end)::post_status\n   where id = $1::uuid\n  returning business_id, status\n), ev as (\n  insert into events (business_id, type, payload)\n  select business_id, case when status = 'published' then 'published' else 'publish_failed' end,\n         jsonb_build_object('post_id', $1::uuid::text, 'results', $2::jsonb)\n    from up\n  returning id\n)\nselect $1::uuid as post_id, (select status::text from up) as status,\n       (select count(*) from pub) as publications, $2::jsonb as results;\n",
+        "options": {
+          "queryReplacement": "={{ [ $json.post_id, JSON.stringify($json.results) ] }}"
+        }
+      },
+      "id": "562b4270-a56d-4ef3-93e4-45d7e65f325c",
+      "name": "Save results",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        6688,
+        640
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "7WXuOi0d08vPAtmW",
+          "name": "Postgres account(Isuru_personal)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Retexia — Photo post (generate + publish)\n**Test:** open *Form: new post* → copy the Test URL → *Execute workflow* → fill the form.\n\nPrompt → 1 text call (captions + design brief) → 1 image call (design with all text) → Supabase (media + posts) → Facebook + Instagram → publications.\n\nEdit **Config** for business id, models, image quality, design text language.\nWebhook: `POST /webhook/retexia-photo-post` `{\"prompt\":\"...\",\"publish\":true,\"business_id\":\"uuid\"}`",
+        "height": 260,
+        "width": 560
+      },
+      "id": "bfedebff-a9ce-45b0-a229-d5b51263a198",
+      "name": "About",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2128,
+        240
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Form: new post": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: photo post": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Load business",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load business": {
+      "main": [
+        [
+          {
+            "node": "Build copy request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build copy request": {
+      "main": [
+        [
+          {
+            "node": "OpenAI: write post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI: write post": {
+      "main": [
+        [
+          {
+            "node": "Sign logo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sign logo": {
+      "main": [
+        [
+          {
+            "node": "Build image request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build image request": {
+      "main": [
+        [
+          {
+            "node": "OpenAI: create image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI: create image": {
+      "main": [
+        [
+          {
+            "node": "Image to file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Image to file": {
+      "main": [
+        [
+          {
+            "node": "Upload image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload image": {
+      "main": [
+        [
+          {
+            "node": "Save post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save post": {
+      "main": [
+        [
+          {
+            "node": "Publish now?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish now?": {
+      "main": [
+        [
+          {
+            "node": "Sign image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Saved as draft (status ready)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sign image": {
+      "main": [
+        [
+          {
+            "node": "Prepare publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare publish": {
+      "main": [
+        [
+          {
+            "node": "Publish Facebook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish Facebook": {
+      "main": [
+        [
+          {
+            "node": "Instagram create media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instagram create media": {
+      "main": [
+        [
+          {
+            "node": "Wait 10 seconds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 10 seconds": {
+      "main": [
+        [
+          {
+            "node": "Instagram publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instagram publish": {
+      "main": [
+        [
+          {
+            "node": "Collect results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect results": {
+      "main": [
+        [
+          {
+            "node": "Save results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "d851adfe-1618-440f-b7db-6950ef89ede7",
+  "meta": {
+    "instanceId": "de6eda717186e702616e1da1fc41332fb22fd532667d0c54056d17627731f41c"
+  },
+  "nodeGroups": [],
+  "id": "7BvuPmmsAC0wkjl9",
+  "tags": []
+}
