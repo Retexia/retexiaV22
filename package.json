@@ -10,7 +10,7 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "db:test": "node scripts/test-db.mjs && node scripts/test-admin-db.mjs",
+    "db:test": "node scripts/test-db.mjs && node scripts/test-admin-db.mjs && node scripts/test-products-db.mjs",
     "db:types": "node scripts/gen-types.mjs",
     "db:types:supabase": "supabase gen types typescript --local > packages/supabase/src/database.types.ts",
     "e2e": "playwright test -c e2e/playwright.config.ts",

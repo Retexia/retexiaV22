@@ -307,7 +307,7 @@ const created = (
     )
   )[0];
   ok(counts.pk === 1 && counts.pf === 2 && counts.sec === 2, "packages, features and page sections created");
-  ok(counts.fields === 24 && counts.sf === 6, "form and service fields cloned from Lingo");
+  ok(counts.fields === 24 && counts.sf === 7, "form and service fields cloned from Lingo");
   ok((await as("anon", null, `select id from public.products where slug = 'test-product'`)).rows.length === 0, "hidden product is not public");
   await as("authenticated", admin, `update public.products set status = 'live' where id = $1`, [created]);
   ok((await as("anon", null, `select id from public.products where slug = 'test-product'`)).rows.length === 1, "going live makes it public");

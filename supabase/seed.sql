@@ -1019,3 +1019,13 @@ select p.id, 'start_setup', 'Start setup in n8n',
 from public.products p
 where p.slug = 'lingo'
 on conflict (product_id, key) do nothing;
+
+-- Lingo: link to the bot account for the customer panel (see 0004_lingo_panel.sql).
+insert into public.product_service_fields
+  (product_id, key, label, type, help_text, visible_to_customer, required_for_status, sort_order)
+select p.id, 'lingo_account_id', 'Lingo account ID', 'number',
+       'lingo_users.id of this business in the Lingo database. Links the customer''s panel (lingo.retexia.com) to their bot.',
+       true, null, 0
+from public.products p
+where p.slug = 'lingo'
+on conflict (product_id, key) do nothing;
