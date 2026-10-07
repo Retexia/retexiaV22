@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   const state = crypto.randomUUID();
   const res = NextResponse.redirect(`${webUrl()}/auth/panel?to=${encodeURIComponent(`${self}${next}`)}&state=${state}`);
   const secure = proto === "https";
-  res.cookies.set(STATE_COOKIE, state, { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: 600 });
+  res.cookies.set(STATE_COOKIE, state, { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: 1800 });
   // Old host-only session cookies (from before the .retexia.com cookie) would hide the shared one.
   for (const c of request.cookies.getAll()) {
     if (secure && c.name.startsWith("sb-")) res.headers.append("set-cookie", `${c.name}=; Path=/; Max-Age=0; SameSite=Lax${secure ? "; Secure" : ""}`);

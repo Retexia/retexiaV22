@@ -21,7 +21,15 @@ export async function proxy(request: NextRequest) {
   const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
   const panel = panelForHost(host);
 
-  // Account pages live on retexia.com (/account, /login, ...): send them there.
+  // An old or mistyped panel link (https://lingo.retexia.com/account): the panel's home is "/".
+  if (/^\/account\/?$/.test(pathname)) {
+    const home = request.nextUrl.clone();
+    home.pathname = "/";
+    home.search = "";
+    return withSessionCookies(response, NextResponse.redirect(home));
+  }
+
+  // Other retexia.com pages (/login, /signup, /account/...): send them there.
   if (WEB_PATHS.test(pathname)) return withSessionCookies(response, NextResponse.redirect(`${webUrl()}${pathname}${search}`));
 
   // Sign-in hand-off pages and the setup check work without a session and are not per-panel.

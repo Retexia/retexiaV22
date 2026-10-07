@@ -1,6 +1,7 @@
 import { isStaffRole, safeNext, supabaseEnv } from "@retexia/supabase";
 import { updateSession, withSessionCookies } from "@retexia/supabase/proxy";
 import { NextResponse, type NextRequest } from "next/server";
+import { RESUME_COOKIE, handoffPath, readResume } from "@/lib/panel-handoff";
 
 /**
  * Runs before every page request:
@@ -49,6 +50,26 @@ export async function proxy(request: NextRequest) {
     const next = safeNext(request.nextUrl.searchParams.get("next"));
     const target = next.startsWith("/") ? new URL(next, request.nextUrl.origin) : new URL(next);
     return withSessionCookies(response, NextResponse.redirect(target));
+  }
+
+  // Supabase sends sign-ins to the Site URL when a redirect address isn't on its
+  // allow list: finish them at /auth/callback instead of dropping the code.
+  if (pathname === "/" && request.nextUrl.searchParams.has("code")) {
+    const cb = request.nextUrl.clone();
+    cb.pathname = "/auth/callback";
+    return withSessionCookies(response, NextResponse.redirect(cb));
+  }
+
+  // Signed in on the way to a product panel: whatever route sign-in took
+  // (Google, an email link, the default /account), continue to the panel.
+  if (claims && (pathname === "/account" || pathname === "/")) {
+    const pending = readResume(request.cookies.get(RESUME_COOKIE)?.value);
+    if (pending) {
+      const res = NextResponse.redirect(new URL(handoffPath(pending.to, pending.state), request.nextUrl.origin));
+      res.cookies.delete(RESUME_COOKIE);
+      // Last: withSessionCookies adds raw Set-Cookie headers that later cookie edits would drop.
+      return withSessionCookies(response, res);
+    }
   }
 
   if (!claims && isProtected(pathname)) {

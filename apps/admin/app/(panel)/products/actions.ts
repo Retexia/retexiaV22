@@ -125,7 +125,10 @@ export async function updateProduct(input: { id: string; changes: Record<string,
           .strict(),
       })
       .parse(input);
-    const changes = { ...d.changes, panel_url: d.changes.panel_url === "" ? null : d.changes.panel_url };
+    // A panel URL is the panel's address only (https://lingo.retexia.com): a path such as /account
+    // would point at retexia.com pages, which the panel forwards away.
+    const panelUrl = d.changes.panel_url ? new URL(d.changes.panel_url).origin : d.changes.panel_url;
+    const changes = { ...d.changes, panel_url: panelUrl === "" ? null : panelUrl };
     if (changes.panel_url === undefined) delete changes.panel_url;
     const { error } = await supabase.from("products").update(changes).eq("id", d.id);
     if (error) return { ok: false, message: dbMessage(error) };
