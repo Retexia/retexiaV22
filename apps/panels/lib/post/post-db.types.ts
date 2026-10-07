@@ -161,6 +161,9 @@ export type EventRow = {
   created_at: string;
 };
 
+/** Retexia's global switches (0007), read-only for the panel. */
+export type SystemSettingsRow = { id: number; generation_paused: boolean; publishing_paused: boolean; note: string | null; updated_at: string; updated_by: string | null };
+
 export type PostDatabase = {
   post: {
     Tables: {
@@ -173,6 +176,7 @@ export type PostDatabase = {
       publications: Table<PublicationRow, "post_id" | "social_account_id">;
       usage_monthly: Table<UsageRow, "business_id" | "period">;
       events: Table<EventRow, "type">;
+      system_settings: Table<SystemSettingsRow, never>;
     };
     Views: { [_ in never]: never };
     Functions: {

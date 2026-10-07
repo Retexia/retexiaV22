@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 import type { StaffContext } from "@/lib/auth";
+import { LingoAccountsTab } from "./lingo/accounts-tab";
 import { LingoRequestPanel } from "./lingo/request-panel";
+import { PostBusinessesTab } from "./post/businesses-tab";
+import { PostRequestPanel } from "./post/request-panel";
 
 /**
  * Optional product-specific admin code.
@@ -32,7 +35,12 @@ export type ProductExtension = {
 
 export const productExtensions: Record<string, ProductExtension> = {
   lingo: {
+    hubTabs: [{ key: "accounts", label: "Bot accounts", render: (ctx) => <LingoAccountsTab {...ctx} /> }],
     requestPanels: [{ key: "lingo-account", render: (ctx) => <LingoRequestPanel {...ctx} /> }],
+  },
+  post: {
+    hubTabs: [{ key: "businesses", label: "Businesses", render: (ctx) => <PostBusinessesTab {...ctx} /> }],
+    requestPanels: [{ key: "post-business", render: (ctx) => <PostRequestPanel {...ctx} /> }],
   },
 };
 

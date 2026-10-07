@@ -38,9 +38,9 @@ What the customer sees and controls (no chat transcripts):
   delivery days).
 
 How a customer is linked to their bot: `lingo.lingo_users.owner_id` is their
-Retexia login. The team can also fill **Lingo account ID** on the request's
-Setup tab in the admin; the account then links itself on the customer's first
-visit. Until linked, the panel shows "almost ready".
+Retexia login. Connect it in the admin: the request's **Setup** tab → *Lingo bot
+account* (connect an existing bot or create one), or **Products → Lingo → Bot
+accounts**. Until linked, the panel shows "almost ready".
 
 ## Post (post.retexia.com)
 
@@ -49,6 +49,31 @@ posts, calendar, new post (n8n photo workflow), library, products, week plan
 and offers, brand, accounts, schedule, activity. New posts call
 `N8N_PHOTO_POST_URL` with `X-Retexia-Key: N8N_POST_KEY`; set the n8n webhook
 node to Header Auth with that header.
+
+## Control from the admin (admin.retexia.com)
+
+- **Products → Lingo → Bot accounts:** every bot with its customer, on/off,
+  messages, orders and sales (30 days). Each account page: bot settings, the
+  WhatsApp (Evolution) connection with a *Check connection* button (the API key
+  is write-only), connect/disconnect the customer, latest orders, products.
+- **Products → Post → Businesses:** every business with plan, accounts,
+  published/failed/blocked posts, AI usage against the plan and cost. Global
+  switches stop all publishing or all nightly AI posts at once. Each business
+  page: pause (vacation mode), plan and subscription, accounts on/off, token
+  expiry, failed publishes with Meta's error, upcoming posts, activity.
+- A request's **Setup** tab shows the product's card (Lingo bot / Post business).
+
+Needs `supabase/migrations/0007_product_controls.sql`.
+
+## n8n workflows
+
+- **Lingo v6:** needs 0007 (its *Save Incoming* step relies on a unique
+  WhatsApp message id). Postgres credential: user `lingo_n8n.<project-ref>`.
+- **Photo post:** in the *Config* node set `supabaseUrl` to the Retexia project
+  URL (not the old Post project), and protect *Webhook: photo post* with Header
+  Auth `X-Retexia-Key` = `N8N_POST_KEY`, otherwise anyone who finds the URL can
+  post for your customers. Postgres credential: user `post_n8n.<project-ref>`;
+  Supabase credential: the Retexia project.
 
 ## Environment
 

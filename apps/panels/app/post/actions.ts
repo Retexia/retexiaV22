@@ -458,6 +458,8 @@ export async function createPost(input: { prompt: string; publish: boolean }): P
     const url = process.env.N8N_PHOTO_POST_URL;
     if (!url) return { ok: false, message: "Post creation is not connected yet. Please message Retexia." };
     if (d.publish && settings.paused) return { ok: false, message: "Publishing is paused (Settings). Save it as a draft, or turn publishing back on." };
+    const { data: sys } = await db.from("system_settings").select("publishing_paused").eq("id", 1).maybeSingle();
+    if (d.publish && sys?.publishing_paused) return { ok: false, message: "Publishing is paused by Retexia for a short while. Save it as a draft; it can go out later." };
     const period = `${localDate(business.timezone).slice(0, 7)}-01`;
     const { data: usage } = await db.from("usage_monthly").select("images").eq("business_id", business.id).eq("period", period).maybeSingle();
     const limit = PLAN_LIMITS[business.plan].images;

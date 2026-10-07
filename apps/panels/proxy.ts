@@ -3,6 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { webUrl } from "@/lib/env";
 import { panelForHost } from "@/lib/panel";
 
+const WEB_PATHS = /^\/(account|login|signup|forgot-password|reset-password|logout|pricing|contact)(\/|$)/;
+
 /**
  * One app, one subdomain per product: post.retexia.com is served from
  * app/post, lingo.retexia.com from app/lingo (internal rewrite, the URL stays
@@ -16,6 +18,9 @@ export async function proxy(request: NextRequest) {
 
   const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
   const panel = panelForHost(host);
+
+  // Account pages live on retexia.com (/account, /login, ...): send them there.
+  if (WEB_PATHS.test(pathname)) return withSessionCookies(response, NextResponse.redirect(`${webUrl()}${pathname}${search}`));
 
   if (!claims?.sub) {
     const web = webUrl();

@@ -19,7 +19,9 @@
     "RESEND_API_KEY",
     "EMAIL_FROM",
     "EMAIL_REPLY_TO",
-    "OUTBOX_WEBHOOK_SECRET"
+    "OUTBOX_WEBHOOK_SECRET",
+    "NEXT_PUBLIC_LINGO_URL",
+    "NEXT_PUBLIC_POST_URL"
   ],
   "tasks": {
     "build": {

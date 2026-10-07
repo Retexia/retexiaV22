@@ -61,4 +61,21 @@ const stats = await q(`select * from lingo.panel_customer_stats($1)`, [lu]);
 ok(stats.length === 1 && Number(stats[0].user_messages) === 1 && Number(stats[0].spent) === 3350, "customer stats add up");
 ok((await q(`select count(*)::int n from lingo.panel_daily_stats($1, 7)`, [lu]))[0].n === 7, "daily stats return one row per day");
 
+console.log("Admin controls (0007)");
+await q(`insert into lingo.messages (lingo_user_id, customer_id, role, content, wa_message_id) values ($1, $2, 'user', 'hello', 'WA-1') on conflict (lingo_user_id, wa_message_id) do nothing`, [lu, cust]);
+await q(`insert into lingo.messages (lingo_user_id, customer_id, role, content, wa_message_id) values ($1, $2, 'user', 'hello', 'WA-1') on conflict (lingo_user_id, wa_message_id) do nothing`, [lu, cust]);
+ok((await q(`select count(*)::int n from lingo.messages where wa_message_id = 'WA-1'`))[0].n === 1, "a WhatsApp message delivered twice is saved once (Lingo v6)");
+const lo = (await q(`select * from lingo.admin_overview() where lingo_user_id = $1`, [lu]))[0];
+ok(Number(lo.customers) === 1 && Number(lo.open_orders) === 1 && Number(lo.sales_30d) === 3350, "Lingo admin overview adds up");
+await expectError(() => as("authenticated", support, `select lingo.admin_overview()`), "admin overview is server-only", /permission denied/);
+await q(`update post.businesses set onboarding_done = true, subscription_status = 'active'`);
+await q(`insert into post.posts (business_id, local_date, slot, format, scheduled_at, status) values ($1, current_date, 2, 'photo', now() - interval '1 minute', 'approved')`, [biz]);
+await q(`update post.system_settings set publishing_paused = true`);
+ok((await q(`select count(*)::int n from post.claim_due_posts()`))[0].n === 0, "the global switch stops all publishing");
+await q(`update post.system_settings set publishing_paused = false`);
+ok((await q(`select count(*)::int n from post.claim_due_posts()`))[0].n === 1, "publishing resumes when switched back on");
+await expectError(() => as("authenticated", amaya, `select * from post.system_settings`), "customers can't read the global switches", /permission denied/);
+const po = (await q(`select * from post.admin_overview() where business_id = $1`, [biz]))[0];
+ok(Number(po.images) === 2, "Post admin overview shows this month's usage");
+
 summary();
