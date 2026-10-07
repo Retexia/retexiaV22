@@ -1,4 +1,4 @@
-import { isStaffRole, supabaseEnv } from "@retexia/supabase";
+import { isStaffRole, safeNext, supabaseEnv } from "@retexia/supabase";
 import { updateSession, withSessionCookies } from "@retexia/supabase/proxy";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -41,6 +41,15 @@ const MAINTENANCE_EXEMPT = /^\/(maintenance|login|auth|api|forgot-password|reset
 export async function proxy(request: NextRequest) {
   const { response, claims, supabase } = await updateSession(request);
   const { pathname, search } = request.nextUrl;
+
+  // Already signed in: skip the sign-in pages and go where the visitor was heading.
+  // (Not when a product panel just sent them here: that panel couldn't see the
+  // session, so bouncing back would loop.)
+  if (claims && /^\/(login|signup)\/?$/.test(pathname) && request.nextUrl.searchParams.get("from") !== "panel") {
+    const next = safeNext(request.nextUrl.searchParams.get("next"));
+    const target = next.startsWith("/") ? new URL(next, request.nextUrl.origin) : new URL(next);
+    return withSessionCookies(response, NextResponse.redirect(target));
+  }
 
   if (!claims && isProtected(pathname)) {
     const login = request.nextUrl.clone();

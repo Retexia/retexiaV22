@@ -2,7 +2,7 @@ import "server-only";
 
 import { createServerClient as createSsrServerClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { cookieOptions } from "./cookies";
 import type { Database } from "./database.types";
 import { requireSupabaseEnv } from "./env";
@@ -14,10 +14,11 @@ import { requireSupabaseEnv } from "./env";
 export async function createServerClient(): Promise<SupabaseClient<Database>> {
   // Read cookies first: during prerendering this is where the route becomes dynamic.
   const cookieStore = await cookies();
+  const h = await headers();
   const { url, anonKey } = requireSupabaseEnv();
 
   return createSsrServerClient<Database>(url, anonKey, {
-    cookieOptions: cookieOptions(),
+    cookieOptions: cookieOptions(h.get("x-forwarded-host") ?? h.get("host")),
     cookies: {
       getAll() {
         return cookieStore.getAll();

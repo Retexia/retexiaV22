@@ -22,7 +22,7 @@ export async function updateSession(request: NextRequest): Promise<SessionResult
   if (!configured) return { response, claims: null, supabase: null };
 
   const supabase = createSsrServerClient<Database>(url, anonKey, {
-    cookieOptions: cookieOptions(),
+    cookieOptions: cookieOptions(request.headers.get("x-forwarded-host") ?? request.headers.get("host")),
     cookies: {
       getAll() {
         return request.cookies.getAll();

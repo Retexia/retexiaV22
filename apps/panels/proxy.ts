@@ -1,5 +1,6 @@
 import { updateSession, withSessionCookies } from "@retexia/supabase/proxy";
 import { NextResponse, type NextRequest } from "next/server";
+import { webUrl } from "@/lib/env";
 import { panelForHost } from "@/lib/panel";
 
 /**
@@ -17,10 +18,10 @@ export async function proxy(request: NextRequest) {
   const panel = panelForHost(host);
 
   if (!claims?.sub) {
-    const web = (process.env.NEXT_PUBLIC_WEB_URL || "http://localhost:3000").replace(/\/+$/, "");
+    const web = webUrl();
     const proto = request.headers.get("x-forwarded-proto") ?? request.nextUrl.protocol.replace(":", "");
     const self = `${proto}://${host ?? request.nextUrl.host}`;
-    return withSessionCookies(response, NextResponse.redirect(`${web}/login?next=${encodeURIComponent(`${self}${pathname}${search}`)}`));
+    return withSessionCookies(response, NextResponse.redirect(`${web}/login?next=${encodeURIComponent(`${self}${pathname}${search}`)}&from=panel`));
   }
 
   const url = request.nextUrl.clone();

@@ -12,6 +12,6 @@ let client: SupabaseClient<Database> | undefined;
 export function createBrowserClient(): SupabaseClient<Database> {
   if (client) return client;
   const { url, anonKey } = requireSupabaseEnv();
-  client = createSsrBrowserClient<Database>(url, anonKey, { cookieOptions: cookieOptions() });
+  client = createSsrBrowserClient<Database>(url, anonKey, { cookieOptions: cookieOptions(typeof window === "undefined" ? null : window.location.hostname) });
   return client;
 }
