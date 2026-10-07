@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { dbMessage, run, type ActionResult } from "@/lib/action";
+import { requestDesign } from "@/lib/post/n8n";
 import { PLAN_LIMITS } from "@/lib/post/plans";
 import { postDb } from "@/lib/post/post-db";
 import type { Brand, Json, PostFormat, Settings, Variants } from "@/lib/post/post-db.types";
@@ -46,11 +47,14 @@ export async function createBusiness(input: z.input<typeof basics>): Promise<Act
     const d = basics.parse(input);
     const existing = await listBusinesses(customer.id);
     if (existing.length) return { ok: true, message: "Welcome back" };
+    // Plan and subscription come from the customer's Retexia order (kept in step by a database trigger).
+    const { data: plan } = await postDb().rpc("plan_for_owner", { p_owner: customer.id });
     const { data, error } = await postDb()
       .from("businesses")
       .insert({
         owner_id: customer.id,
         ...d,
+        ...(plan?.[0] ? { plan: plan[0].plan, subscription_status: plan[0].subscription_status } : {}),
         category: d.category || null,
         // Sensitive industries always need the owner's approval (product spec).
         settings: { ...DEFAULT_SETTINGS, auto_publish: !SENSITIVE.includes(d.category) } as unknown as Json,
@@ -344,7 +348,7 @@ export async function approveDay(input: { date: string }): Promise<ActionResult>
 
 export async function denyPost(input: { id: string; reason: "caption" | "image" | "both" | "wrong_product" }): Promise<ActionResult> {
   return run(async () => {
-    const { db, post } = await ownPost(input.id);
+    const { db, post, business } = await ownPost(input.id);
     const reason = z.enum(["caption", "image", "both", "wrong_product"]).parse(input.reason);
     if (!post) return { ok: false, message: "Post not found." };
     if (!["ready", "approved"].includes(post.status)) return { ok: false, message: "This post can't be sent back right now." };
@@ -359,7 +363,27 @@ export async function denyPost(input: { id: string; reason: "caption" | "image" 
       .select("id");
     if (error) return { ok: false, message: dbMessage(error) };
     if (!data?.length) return { ok: false, message: "This post is locked for publishing." };
-    return done(out ? "No new versions left for this post. Edit it, pick your own photo, or skip it." : `Making a new version (${9 - post.regen_count} left after this one).`);
+    if (out) return done("No new versions left for this post. Edit it, pick your own photo, or skip it.");
+    // Ask n8n for a new version in the same slot (the monthly redo allowance counts here).
+    const period = `${localDate(business.timezone).slice(0, 7)}-01`;
+    const { data: usage } = await db.from("usage_monthly").select("regenerations").eq("business_id", business.id).eq("period", period).maybeSingle();
+    if ((usage?.regenerations ?? 0) >= PLAN_LIMITS[business.plan].regenerations) {
+      await db.from("posts").update({ status: "needs_manual" }).eq("id", post.id);
+      return done("You've used this month's redos. Edit this post, pick your own photo, or skip it.");
+    }
+    const brief = (post.brief ?? {}) as { prompt?: string };
+    const feedback = { caption: "Write a different caption.", image: "Make a different image.", both: "Make a different image and caption.", wrong_product: "It showed the wrong product; follow the request exactly." }[reason];
+    const r = await requestDesign({
+      business_id: business.id,
+      prompt: `${brief.prompt ?? post.caption ?? "A post for the business"}\n\nThe owner rejected the last version. ${feedback}`.slice(0, 1500),
+      publish: false,
+    });
+    if (!r.ok) {
+      await db.from("posts").update({ status: "needs_manual" }).eq("id", post.id);
+      return done("We couldn't make a new version right now. Edit this post or skip it.");
+    }
+    await db.rpc("bump_usage", { p_business: business.id, p_field: "regenerations", p_amount: 1, p_cost: 0 });
+    return done(`Making a new version; it appears in your next free time slot in about a minute (${9 - post.regen_count} left after this one).`);
   });
 }
 
@@ -455,8 +479,7 @@ export async function createPost(input: { prompt: string; publish: boolean }): P
   return run(async () => {
     const { db, business, settings } = await requireBusiness();
     const d = z.object({ prompt: z.string().trim().min(10, "Tell us a bit more (at least 10 characters)").max(1500), publish: z.boolean() }).parse(input);
-    const url = process.env.N8N_PHOTO_POST_URL;
-    if (!url) return { ok: false, message: "Post creation is not connected yet. Please message Retexia." };
+    if (!process.env.N8N_PHOTO_POST_URL) return { ok: false, message: "Post creation is not connected yet. Please message Retexia." };
     if (d.publish && settings.paused) return { ok: false, message: "Publishing is paused (Settings). Save it as a draft, or turn publishing back on." };
     const { data: sys } = await db.from("system_settings").select("publishing_paused").eq("id", 1).maybeSingle();
     if (d.publish && sys?.publishing_paused) return { ok: false, message: "Publishing is paused by Retexia for a short while. Save it as a draft; it can go out later." };
@@ -464,16 +487,16 @@ export async function createPost(input: { prompt: string; publish: boolean }): P
     const { data: usage } = await db.from("usage_monthly").select("images").eq("business_id", business.id).eq("period", period).maybeSingle();
     const limit = PLAN_LIMITS[business.plan].images;
     if ((usage?.images ?? 0) >= limit) return { ok: false, message: `You've used all ${limit} AI designs this month. Use a library photo instead, or upgrade.` };
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json", ...(process.env.N8N_POST_KEY ? { "x-retexia-key": process.env.N8N_POST_KEY } : {}) },
-      body: JSON.stringify({ prompt: d.prompt, publish: d.publish, business_id: business.id }),
-      signal: AbortSignal.timeout(15_000),
-      cache: "no-store",
-    }).catch(() => null);
-    if (!res?.ok) return { ok: false, message: "We couldn't start the design right now. Please try again in a minute." };
+    const r = await requestDesign({ business_id: business.id, prompt: d.prompt, publish: d.publish });
+    if (!r.ok) return { ok: false, message: "We couldn't start the design right now. Please try again in a minute." };
     await db.from("events").insert({ business_id: business.id, type: "post_requested", payload: { prompt: d.prompt, publish: d.publish } });
-    return done(d.publish ? "Designing your post. It is published in about 2 minutes." : "Designing your post. It appears as a draft in about 2 minutes.");
+    return done(
+      d.publish
+        ? "Designing your post. It is published in about 2 minutes."
+        : settings.auto_publish
+          ? "Designing your post. It goes into your next free time slot and is published then, unless you change or deny it."
+          : "Designing your post. It goes into your next free time slot and waits for your approval.",
+    );
   });
 }
 

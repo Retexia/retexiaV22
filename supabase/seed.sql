@@ -108,14 +108,14 @@ insert into public.products (
     'Your WhatsApp answers customers in seconds',
     'Lingo answers your customers on WhatsApp, day and night. It knows your prices, stock and opening hours, speaks English, Sinhala, Tamil and Singlish, and hands the chat to you when a person is needed.',
     'message-circle', '#0b7565', '#3fd3bc', '#d7f1ec', '#0f2f2a',
-    'live', 'lingo', 'https://lingo.retexia.com/account', false, 1
+    'live', 'lingo', 'https://lingo.retexia.com', true, 1
   ),
   (
     'post', 'PST', 'Retexia Post', 'Post',
-    'Your social media posts, planned and published for you',
-    'Post publishes your Facebook and Instagram posts on time, from a plan you make once a month. Your page stays active while you run the shop.',
+    'Your social media runs itself',
+    'Every day Post prepares posts in your brand for Facebook and Instagram. Edit or skip anything you like; the rest is published on time.',
     'calendar-clock', '#ad2a5e', '#ff7fae', '#f8dde8', '#3a1424',
-    'coming_soon', 'post', 'https://post.retexia.com/account', false, 2
+    'live', 'post', 'https://post.retexia.com', true, 2
   )
 on conflict (slug) do update set
   code = excluded.code,
@@ -143,10 +143,7 @@ join (values
   ('lingo', 3, 'hand-helping', 'Hands hard chats to you', 'When a chat needs a person, Lingo lets the customer know and passes it to you.'),
   ('lingo', 4, 'clock', 'Works 24/7', 'Late-night questions get answered too, so you wake up to orders instead of unread messages.'),
   ('lingo', 5, 'clipboard-list', 'Captures orders and leads', 'Names, numbers and what each customer wants are saved for you to follow up.'),
-  ('lingo', 6, 'wrench', 'Set up by us', 'Tell us about your business. We build it, test it and switch it on. No tech skills needed.'),
-  ('post', 1, 'calendar-clock', 'Plan a month in one sitting', 'Line up your Facebook and Instagram posts once, and they go out on time.'),
-  ('post', 2, 'images', 'Posts that look like you', 'Your logo, colours and products in ready-made templates for offers and new stock.'),
-  ('post', 3, 'chart-line', 'See what works', 'A simple monthly report of which posts brought messages and sales.')
+  ('lingo', 6, 'wrench', 'Set up by us', 'Tell us about your business. We build it, test it and switch it on. No tech skills needed.')
 ) as f (slug, n, icon, title, description) on f.slug = p.slug
 on conflict (id) do update set
   icon = excluded.icon,
@@ -427,7 +424,7 @@ on conflict (id) do update set
 insert into public.pages (slug, title, seo_title, seo_description, product_id, is_published, show_in_sitemap) values
   ('', 'Home', 'Retexia · Simple tools for busy businesses', 'Ready-made tools for Sri Lankan small businesses, set up for you. Your WhatsApp answers customers by itself, and we build websites, apps and automations too.', null, true, true),
   ('lingo', 'Retexia Lingo', 'Retexia Lingo · Your WhatsApp answers customers in seconds', 'Lingo answers your customers on WhatsApp, day and night, in English, Sinhala, Tamil and Singlish. Set up for you. Plans from LKR 6,900 a month.', (select id from public.products where slug = 'lingo'), true, true),
-  ('post', 'Retexia Post', 'Retexia Post · Your social media, posted for you', 'Plan your Facebook and Instagram posts once a month and let Post publish them on time. Coming soon. Join the waitlist.', (select id from public.products where slug = 'post'), true, true),
+  ('post', 'Retexia Post', 'Retexia Post · Your social media runs itself', 'Post prepares posts in your brand for Facebook and Instagram every day and publishes them on time. Plans from LKR 5,900 a month.', (select id from public.products where slug = 'post'), true, true),
   ('products', 'Products', null, 'Ready-made tools for small businesses, set up by the Retexia team.', null, true, true),
   ('contact', 'Contact', null, 'Talk to the Retexia team about a product, a custom project or a quote. We reply within one working day.', null, true, true),
   ('privacy', 'Privacy policy', null, 'How Retexia collects, uses and protects your information.', null, true, true),
@@ -581,28 +578,6 @@ from (values
     'Let your WhatsApp do the talking', 'do the talking',
     'Pick a plan today. We will be in touch within one working day.',
     '{"primary_cta": {"label": "Choose a plan", "href": "#pricing"}, "secondary_cta": {"label": "Message us on WhatsApp", "href": "whatsapp:"}}'),
-
-  -- Post ------------------------------------------------------------------
-  ('post', 1, 'hero', null, 'surface',
-    'Retexia Post',
-    'Your social media, posted for you', 'posted for you',
-    'Plan your Facebook and Instagram posts once a month. Post publishes them on time, so your page never goes quiet.',
-    '{"badge": "Coming soon", "visual": "none", "show_halo": false, "primary_cta": {"label": "Join the waitlist", "href": "#waitlist"}, "secondary_cta": {"label": "Talk to us", "href": "/contact"}}'),
-  ('post', 2, 'features', 'features', 'surface',
-    'What you will get',
-    'Less posting, more selling', 'more selling',
-    null,
-    '{"source": "product", "columns": 3}'),
-  ('post', 3, 'waitlist', 'waitlist', 'sunk',
-    'Waitlist',
-    'Be the first to try Post', 'first',
-    'Leave your email. We will write once, when it opens.',
-    '{"product_slug": "post"}'),
-  ('post', 4, 'cta', null, 'surface',
-    null,
-    'Need it sooner?', 'sooner',
-    'We already set up social media automations for businesses as a custom service. Tell us what you need.',
-    '{"primary_cta": {"label": "Talk to us", "href": "/contact"}}'),
 
   -- Products --------------------------------------------------------------
   ('products', 1, 'hero', null, 'surface',
@@ -1029,3 +1004,272 @@ select p.id, 'lingo_account_id', 'Lingo account ID', 'number',
 from public.products p
 where p.slug = 'lingo'
 on conflict (product_id, key) do nothing;
+
+-- =============================================================================
+-- Retexia Post launch content (same as migrations/0008_post_lingo_launch.sql, parts 1-4)
+-- =============================================================================
+
+-- ---------------------------------------------------------------------
+-- 1. Products: panel addresses, Post goes live
+-- ---------------------------------------------------------------------
+update public.products set panel_url = 'https://lingo.retexia.com', panel_live = true where slug = 'lingo';
+update public.products
+   set panel_url = 'https://post.retexia.com',
+       panel_live = true,
+       status = 'live',
+       tagline = 'Your social media runs itself',
+       description = 'Every day Post prepares posts in your brand for Facebook and Instagram. Edit or skip anything you like; the rest is published on time.',
+       icon = 'calendar-clock'
+ where slug = 'post';
+
+-- Features (retexia.com/post "What you get")
+delete from public.product_features
+ where product_id = (select id from public.products where slug = 'post')
+   and id not in (select md5('retexia:feature:post:' || n)::uuid from generate_series(1, 6) n);
+insert into public.product_features (id, product_id, icon, title, description, sort_order)
+select md5('retexia:feature:post:' || f.n)::uuid, p.id, f.icon, f.title, f.description, f.n
+from public.products p
+join (values
+  (1, 'sparkles', 'Posts made for you, every day', 'Post writes the caption and hashtags and designs the image in your colours, with your logo and your real prices.'),
+  (2, 'shield-check', 'You stay in control', 'See each post before it goes out. Approve, edit or deny it; deny and Post makes a new one, up to 10 times.'),
+  (3, 'calendar-days', 'Week plan and offers', 'Tell Post about new stock, a weekend sale or a holiday, and it plans your posts around it.'),
+  (4, 'share-2', 'Facebook and Instagram', 'Connect your Page and Instagram Business account once. Post publishes to both at the times you choose.'),
+  (5, 'languages', 'In your language and tone', 'Captions in English, Sinhala or Tamil, in your brand''s tone, with the words you like and none you don''t.'),
+  (6, 'badge-check', 'Checked before it posts', 'Prices, offers and phone numbers come from your own details, so Post never invents a discount.')
+) as f (n, icon, title, description) on true
+where p.slug = 'post'
+on conflict (id) do update set
+  icon = excluded.icon,
+  title = excluded.title,
+  description = excluded.description,
+  sort_order = excluded.sort_order;
+
+-- ---------------------------------------------------------------------
+-- 2. Post plans (from the product spec; LKR at about Rs. 300 = US$1)
+-- ---------------------------------------------------------------------
+insert into public.packages (
+  product_id, slug, name, tagline, price_monthly, price_yearly, setup_fee, badge, is_featured,
+  cta_label, fine_print, is_active, sort_order
+)
+select p.id, v.slug, v.name, v.tagline, v.monthly, v.yearly, 0, v.badge, v.featured, v.cta,
+       'Prices in LKR. Yearly plans include 2 months free. AI allowances reset every month; when one runs out, Post keeps posting with your own photos.',
+       true, v.sort_order
+from public.products p
+join (values
+  ('starter', 'Post Starter', 'Your page, posting every day', 5900.00, 59000.00, null, false, 'Choose Starter', 1),
+  ('growth', 'Post Growth', 'More posts, more control', 14900.00, 149000.00, 'Most popular', true, 'Choose Growth', 2),
+  ('pro', 'Post Pro', 'For several brands or branches', 29900.00, 299000.00, null, false, 'Choose Pro', 3)
+) as v (slug, name, tagline, monthly, yearly, badge, featured, cta, sort_order) on true
+where p.slug = 'post'
+on conflict (product_id, slug) do update set
+  name = excluded.name,
+  tagline = excluded.tagline,
+  price_monthly = excluded.price_monthly,
+  price_yearly = excluded.price_yearly,
+  setup_fee = excluded.setup_fee,
+  badge = excluded.badge,
+  is_featured = excluded.is_featured,
+  cta_label = excluded.cta_label,
+  fine_print = excluded.fine_print,
+  is_active = excluded.is_active,
+  sort_order = excluded.sort_order;
+
+delete from public.package_features
+ where package_id in (select pk.id from public.packages pk join public.products p on p.id = pk.product_id where p.slug = 'post')
+   and id not in (
+     select md5('retexia:package-feature:post:' || k || ':' || n)::uuid
+       from unnest(array['starter', 'growth', 'pro']) k, generate_series(1, 12) n);
+insert into public.package_features (id, package_id, label, included, sort_order)
+select md5('retexia:package-feature:post:' || f.pkg || ':' || f.n)::uuid, pk.id, f.label, f.included, f.n
+from public.packages pk
+join public.products p on p.id = pk.product_id and p.slug = 'post'
+join (values
+  ('starter', 1, '1 business', true),
+  ('starter', 2, '2 accounts: your Facebook Page and Instagram', true),
+  ('starter', 3, 'Up to 3 posts a day, prepared for you', true),
+  ('starter', 4, '40 AI-designed images a month', true),
+  ('starter', 5, '60 redos a month (up to 10 per post)', true),
+  ('starter', 6, 'Unlimited caption edits', true),
+  ('starter', 7, 'Offers and special days', true),
+  ('starter', 8, '1 GB photo library', true),
+  ('starter', 9, 'Week plan', false),
+  ('growth', 1, 'Everything in Starter', true),
+  ('growth', 2, '4 connected accounts', true),
+  ('growth', 3, '150 AI-designed images a month', true),
+  ('growth', 4, '200 redos a month', true),
+  ('growth', 5, 'Week plan: choose what goes out each day', true),
+  ('growth', 6, '5 GB photo library', true),
+  ('growth', 7, 'Priority WhatsApp support', true),
+  ('pro', 1, 'Everything in Growth', true),
+  ('pro', 2, 'Up to 3 businesses or branches', true),
+  ('pro', 3, '10 connected accounts', true),
+  ('pro', 4, '400 AI-designed images a month', true),
+  ('pro', 5, '500 redos a month', true),
+  ('pro', 6, '20 GB photo library', true),
+  ('pro', 7, 'Same-day support', true)
+) as f (pkg, n, label, included) on f.pkg = pk.slug
+on conflict (id) do update set
+  label = excluded.label,
+  included = excluded.included,
+  sort_order = excluded.sort_order;
+
+-- ---------------------------------------------------------------------
+-- 3. Post order form (short: the brand profile is filled in the panel)
+-- ---------------------------------------------------------------------
+insert into public.forms (slug, product_id, title, description, submit_label, success_title, success_message, version)
+select 'post-onboarding', p.id,
+  'Start Retexia Post',
+  'A few questions about your business. After payment you set up your brand and connect Facebook and Instagram in your Post panel.',
+  'Submit request',
+  'Request received',
+  'Thank you. We will send the payment details within one working day. Then your Post panel opens at post.retexia.com.',
+  1
+from public.products p where p.slug = 'post'
+on conflict (slug) do update set
+  product_id = excluded.product_id,
+  title = excluded.title,
+  description = excluded.description,
+  submit_label = excluded.submit_label,
+  success_title = excluded.success_title,
+  success_message = excluded.success_message;
+
+update public.products set onboarding_form_id = (select id from public.forms where slug = 'post-onboarding') where slug = 'post';
+
+insert into public.form_steps (id, form_id, step_number, title, description, sort_order)
+select md5('retexia:form:post-onboarding:step:' || s.n)::uuid, f.id, s.n, s.title, s.description, s.n
+from public.forms f
+join (values
+  (1, 'Your business', 'So Post knows who it is posting for.'),
+  (2, 'Your pages and contact', 'Where Post will publish, and how we reach you.')
+) as s (n, title, description) on true
+where f.slug = 'post-onboarding'
+on conflict (id) do update set
+  form_id = excluded.form_id,
+  step_number = excluded.step_number,
+  title = excluded.title,
+  description = excluded.description,
+  sort_order = excluded.sort_order;
+
+insert into public.form_fields (
+  id, step_id, form_id, key, label, type, placeholder, help_text, options, required, min, max,
+  default_value, show_if, width, prefill_from, sort_order
+)
+select
+  md5('retexia:form:post-onboarding:field:' || v.key)::uuid,
+  md5('retexia:form:post-onboarding:step:' || v.step)::uuid,
+  f.id, v.key, v.label, v.type, v.placeholder, v.help_text, v.options::jsonb, v.required,
+  v.min, v.max, v.default_value, v.show_if::jsonb, v.width, v.prefill_from, v.sort_order
+from public.forms f
+join (values
+  (1, 'business_name', 'Business name', 'text', 'Kandy Cakes', null, '[]', true, 2, 120, null, null, 'full', 'profile.business_name', 1),
+  (1, 'industry', 'Industry', 'select', 'Choose one', null,
+    '[{"value":"clothing","label":"Clothing and fashion"},{"value":"food","label":"Food and restaurants"},{"value":"electronics","label":"Electronics and mobile"},{"value":"beauty","label":"Beauty and salon"},{"value":"health","label":"Health and clinics"},{"value":"education","label":"Education and tuition"},{"value":"travel","label":"Travel and tourism"},{"value":"real_estate","label":"Real estate"},{"value":"hardware","label":"Hardware and building"},{"value":"other","label":"Other"}]',
+    true, null, null, null, null, 'half', null, 2),
+  (1, 'city', 'City', 'text', 'Kandy', null, '[]', true, 2, 80, null, null, 'half', null, 3),
+  (1, 'languages', 'Caption languages', 'checkbox_group', null, 'Pick all that apply.',
+    '[{"value":"en","label":"English"},{"value":"si","label":"Sinhala"},{"value":"ta","label":"Tamil"}]',
+    true, 1, null, null, null, 'full', null, 4),
+  (1, 'goal', 'What should your posts do most?', 'radio_cards', null, null,
+    '[{"value":"sales","label":"Bring messages and sales","description":"Offers, prices and new stock."},{"value":"awareness","label":"Keep my page active","description":"Regular, good-looking posts so people remember you."},{"value":"both","label":"Both","description":"A mix of selling and staying visible."}]',
+    true, null, null, null, null, 'full', null, 5),
+  (2, 'facebook_page', 'Facebook Page link', 'url', 'https://facebook.com/kandycakes', 'Leave empty if you don''t have one yet; we help you create it.', '[]', false, null, 300, null, null, 'half', null, 1),
+  (2, 'instagram_handle', 'Instagram username', 'text', '@kandycakes', 'Must be a Business or Creator account. We help you switch, free.', '[]', false, null, 60, null, null, 'half', null, 2),
+  (2, 'contact_name', 'Your name', 'text', 'Amaya Perera', null, '[]', true, 2, 120, null, null, 'half', 'profile.full_name', 3),
+  (2, 'contact_phone', 'Your WhatsApp number', 'phone', '+94 77 123 4567', 'We message you here about payment and setup.', '[]', true, null, null, null, null, 'half', 'profile.whatsapp', 4),
+  (2, 'notes', 'Anything else we should know?', 'textarea', 'Busy seasons, offers you run often, things you never want posted.', null, '[]', false, null, 2000, null, null, 'full', null, 5),
+  (2, 'agree', 'I agree to the [Terms](/terms) and [Privacy policy](/privacy), and understand that posts I don''t deny are published automatically', 'checkbox', null, null, '[]', true, null, null, null, null, 'full', null, 6)
+) as v (step, key, label, type, placeholder, help_text, options, required, min, max, default_value, show_if, width, prefill_from, sort_order) on true
+where f.slug = 'post-onboarding'
+on conflict (id) do update set
+  step_id = excluded.step_id,
+  key = excluded.key,
+  label = excluded.label,
+  type = excluded.type,
+  placeholder = excluded.placeholder,
+  help_text = excluded.help_text,
+  options = excluded.options,
+  required = excluded.required,
+  min = excluded.min,
+  max = excluded.max,
+  default_value = excluded.default_value,
+  show_if = excluded.show_if,
+  width = excluded.width,
+  prefill_from = excluded.prefill_from,
+  sort_order = excluded.sort_order;
+
+-- ---------------------------------------------------------------------
+-- 4. Post FAQs and page
+-- ---------------------------------------------------------------------
+insert into public.faqs (id, product_id, question, answer, sort_order)
+select md5('retexia:faq:post:' || v.n)::uuid, (select id from public.products where slug = 'post'), v.question, v.answer, v.n
+from (values
+  (1, 'Will Post publish something I didn''t approve?', 'Only if you leave **auto-publish** on (the default): posts you don''t edit or deny go out at their time. Turn auto-publish off in your Post settings and nothing goes out until you tap Approve.'),
+  (2, 'What do I need to start?', 'A Facebook Page, and if you want Instagram too, an Instagram **Business** or **Creator** account linked to that Page. You connect them yourself with "Continue with Facebook" in your panel. We help you switch accounts for free.'),
+  (3, 'Where do the pictures come from?', 'Post designs an image for each post with AI, in your colours and with your logo. You can also upload your own product photos to your library and use them instead.'),
+  (4, 'Can Post get prices or offers wrong?', 'Post only uses prices, offers and contact details from your own product list and settings. If a number on a design can''t be found there, Post leaves it out.'),
+  (5, 'What happens when my AI images run out?', 'Your page keeps posting. Post uses photos from your library until the allowance resets next month, or you can move to a bigger plan any time.'),
+  (6, 'Can I cancel?', 'Yes. Message us and we stop your plan before the next billing date. Your posts stay on Facebook and Instagram.')
+) as v (n, question, answer)
+where exists (select 1 from public.products where slug = 'post')
+on conflict (id) do update set
+  product_id = excluded.product_id,
+  question = excluded.question,
+  answer = excluded.answer,
+  sort_order = excluded.sort_order;
+
+update public.pages
+   set seo_title = 'Retexia Post · Your social media runs itself',
+       seo_description = 'Post prepares posts in your brand for Facebook and Instagram every day and publishes them on time. Plans from LKR 5,900 a month.',
+       is_published = true,
+       show_in_sitemap = true
+ where slug = 'post';
+
+-- Replace the "coming soon" sections with the launch page.
+delete from public.page_sections
+ where page_id = (select id from public.pages where slug = 'post')
+   and id not in (select md5('retexia:section:post:' || n)::uuid from generate_series(1, 6) n);
+insert into public.page_sections (id, page_id, type, anchor, background, eyebrow, title, highlight, subtitle, content, sort_order, is_visible)
+select md5('retexia:section:post:' || v.n)::uuid, (select id from public.pages where slug = 'post'),
+       v.type, v.anchor, v.background, v.eyebrow, v.title, v.highlight, v.subtitle, v.content::jsonb, v.n, true
+from (values
+  (1, 'hero', null, 'surface', 'Retexia Post',
+    'Your social media runs itself', 'runs itself',
+    'Every day Post prepares posts in your brand for Facebook and Instagram. Edit or skip anything you like; the rest goes out on time.',
+    '{"visual": "none", "show_halo": true, "primary_cta": {"label": "See plans", "href": "#pricing"}, "secondary_cta": {"label": "How it works", "href": "#how"}}'),
+  (2, 'features', 'features', 'surface', 'What you get',
+    'Posts every day, in your brand', 'in your brand', null,
+    '{"source": "product", "columns": 3}'),
+  (3, 'steps', 'how', 'sunk', 'How it works',
+    'Set it up once, then relax', 'then relax', null,
+    $json${"items": [
+      {"icon": "clipboard-list", "title": "Choose a plan", "text": "Pick a plan and answer a few questions about your business."},
+      {"icon": "palette", "title": "Set up your brand", "text": "Add your logo, colours, products and the tone you like. About ten minutes."},
+      {"icon": "share-2", "title": "Connect Facebook and Instagram", "text": "Continue with Facebook and choose your Page and Instagram account."},
+      {"icon": "circle-check", "title": "Approve, or just relax", "text": "Each day's posts are ready in your panel. Edit, deny or let them go out on time."}
+    ]}$json$),
+  (4, 'pricing', 'pricing', 'surface', 'Pricing',
+    'Plans that grow with you', 'grow with you',
+    'Pay monthly, or pay yearly and get two months free. No setup fee.',
+    '{"product_slug": "post", "show_yearly_toggle": true}'),
+  (5, 'faq', 'faq', 'sunk', 'Questions',
+    'Questions about Post', 'Post', null,
+    '{"product_slug": "post"}'),
+  (6, 'cta', null, 'surface', null,
+    'Let your page post itself', 'post itself',
+    'Choose a plan today. Once your brand is set up, Post starts preparing your posts.',
+    '{"primary_cta": {"label": "Choose a plan", "href": "#pricing"}, "secondary_cta": {"label": "Talk to us", "href": "/contact"}}')
+) as v (n, type, anchor, background, eyebrow, title, highlight, subtitle, content)
+where exists (select 1 from public.pages where slug = 'post')
+on conflict (id) do update set
+  page_id = excluded.page_id,
+  type = excluded.type,
+  anchor = excluded.anchor,
+  background = excluded.background,
+  eyebrow = excluded.eyebrow,
+  title = excluded.title,
+  highlight = excluded.highlight,
+  subtitle = excluded.subtitle,
+  content = excluded.content,
+  sort_order = excluded.sort_order,
+  is_visible = excluded.is_visible;
+

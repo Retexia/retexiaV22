@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ActivityChart } from "@/components/lingo/activity-chart";
 import { ORDER_STATUS, money } from "@/lib/lingo/labels";
 import { requireLingoPage } from "@/lib/lingo/session";
+import { connectionState } from "@/lib/lingo/evolution";
 import { daysAgoIso } from "@/lib/time";
 
 export const metadata = { title: "Overview" };
@@ -13,7 +14,9 @@ const PAID = ["confirmed", "processing", "shipped", "delivered"];
 export default async function LingoOverview() {
   const { customer, tenant, db } = await requireLingoPage("/");
   const since = daysAgoIso(30);
-  const [daily, { data: todo }, { data: recentOrders }, { data: active }, { data: products }, { count: followups }, { data: biz }, { count: productCount }] = await Promise.all([
+  const { data: line } = await db.from("lingo_users").select("evolution_base_url, evolution_instance, evolution_apikey").eq("id", tenant.id).single();
+  const [wa, daily, { data: todo }, { data: recentOrders }, { data: active }, { data: products }, { count: followups }, { data: biz }, { count: productCount }] = await Promise.all([
+    line ? connectionState(line.evolution_base_url, line.evolution_instance, line.evolution_apikey, 4000) : Promise.resolve("unknown" as const),
     db.rpc("panel_daily_stats", { p_user: tenant.id, p_days: 30 }),
     db.from("orders").select("id, product_name, quantity, total_price, status, customer_name, created_at").eq("lingo_user_id", tenant.id).in("status", ["confirmed", "processing"]).order("created_at").limit(8),
     db.from("orders").select("product_id, product_name, total_price, status").eq("lingo_user_id", tenant.id).gte("created_at", since).neq("status", "draft").limit(5000),
@@ -44,6 +47,11 @@ export default async function LingoOverview() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={`Hi ${customer.name.split(" ")[0] || tenant.business_name}`} description="What Lingo did on your WhatsApp in the last 30 days." />
+      {wa === "close" || wa === "connecting" ? (
+        <Alert tone="danger" title="Your WhatsApp is not linked" action={<Link href="/connect" className="text-link">Link it now</Link>}>
+          Lingo can&apos;t read or answer messages until your business WhatsApp is linked. It takes a minute: scan a code with your phone.
+        </Alert>
+      ) : null}
       {!tenant.active ? <Alert tone="warning" title="Lingo is paused">Customers&apos; messages are not being answered. Turn it on at the top of the page.</Alert> : null}
       {missing.length ? (
         <Alert tone="info" title="Help Lingo answer better">

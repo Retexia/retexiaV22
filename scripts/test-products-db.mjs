@@ -78,4 +78,42 @@ await expectError(() => as("authenticated", amaya, `select * from post.system_se
 const po = (await q(`select * from post.admin_overview() where business_id = $1`, [biz]))[0];
 ok(Number(po.images) === 2, "Post admin overview shows this month's usage");
 
+console.log("Launch (0008)");
+const pkgs = await q(`select pk.slug, pk.price_monthly from public.packages pk join public.products p on p.id = pk.product_id where p.slug = 'post' order by pk.sort_order`);
+ok(pkgs.map((p) => p.slug).join() === "starter,growth,pro", "Post has the Starter, Growth and Pro plans");
+const prod = (await q(`select status, panel_url, onboarding_form_id from public.products where slug = 'post'`))[0];
+ok(prod.status === "live" && prod.panel_url === "https://post.retexia.com" && prod.onboarding_form_id, "Post is live with its panel address and order form");
+ok((await q(`select count(*)::int n from public.page_sections s join public.pages g on g.id = s.page_id where g.slug = 'post' and s.type = 'waitlist'`))[0].n === 0, "the waitlist section is gone from the Post page");
+// Orders drive the plan
+const postProduct = (await q(`select id from public.products where slug = 'post'`))[0].id;
+const growth = (await q(`select id from public.packages where product_id = $1 and slug = 'growth'`, [postProduct]))[0].id;
+const order = (await q(`insert into public.orders (user_id, product_id, package_id, status) values ($1, $2, $3, 'setting_up') returning id`, [amaya, postProduct, growth]))[0].id;
+ok((await q(`select plan from post.businesses where id = $1`, [biz]))[0].plan === "growth", "a Post order sets the business plan");
+await q(`update public.orders set status = 'cancelled' where id = $1`, [order]);
+ok((await q(`select subscription_status from post.businesses where id = $1`, [biz]))[0].subscription_status === "canceled", "a cancelled order stops the business posting");
+ok((await q(`select count(*)::int n from post.claim_due_posts()`))[0].n === 0, "cancelled businesses publish nothing");
+// Lingo bot follows the order
+const lingoProduct = (await q(`select id from public.products where slug = 'lingo'`))[0].id;
+const core = (await q(`select id from public.packages where product_id = $1 and slug = 'core'`, [lingoProduct]))[0].id;
+const lorder = (await q(`insert into public.orders (user_id, product_id, package_id, status) values ($1, $2, $3, 'active') returning id`, [amaya, lingoProduct, core]))[0].id;
+await q(`update public.orders set status = 'paused' where id = $1`, [lorder]);
+ok((await q(`select active from lingo.lingo_users where id = $1`, [lu]))[0].active === false, "pausing the Lingo order switches the bot off");
+await q(`update public.orders set status = 'active' where id = $1`, [lorder]);
+ok((await q(`select active from lingo.lingo_users where id = $1`, [lu]))[0].active === true, "resuming it switches the bot back on");
+// Vault helpers
+const sid = (await q(`select post.save_secret(null, 'PAGE-TOKEN') id`))[0].id;
+ok((await q(`select post.read_secret($1) t`, [sid]))[0].t === "PAGE-TOKEN", "tokens are stored in Vault and read back on the server");
+await expectError(() => as("authenticated", amaya, `select post.read_secret($1)`, [sid]), "customers can't read tokens", /permission denied/);
+// Slots
+await q(`update post.businesses set settings = settings || '{"slots": ["08:00", "12:00", "18:00"]}' where id = $1`, [biz]);
+const slot = (await q(`select * from post.next_free_slot($1)`, [biz]))[0];
+ok(slot && slot.scheduled_at > new Date(Date.now() + 19 * 60_000), "the next free slot is in the future");
+ok((await q(`select to_char(post.slot_time($1, '2026-10-10', 2) at time zone 'Asia/Colombo', 'HH24:MI') t`, [biz]))[0].t === "12:00", "slot times follow the business's posting times");
+
+console.log("Drafts from the n8n workflow");
+const tmr = (await q(`select ((now() at time zone 'Asia/Colombo')::date + 1)::text d`))[0].d;
+const draft = (await q(`insert into post.posts (business_id, local_date, slot, format, scheduled_at, status, source) values ($1, $2, 3, 'photo', now() + interval '1 day', 'ready', 'manual') returning scheduled_at`, [biz, tmr]))[0];
+const want = (await q(`select post.slot_time($1, $2, 3) t`, [biz, tmr]))[0].t;
+ok(new Date(draft.scheduled_at).getTime() === new Date(want).getTime(), "a draft saved by the workflow is scheduled at its slot's time");
+
 summary();

@@ -161,6 +161,9 @@ export type EventRow = {
   created_at: string;
 };
 
+/** A "Continue with Facebook" in progress (0008). */
+export type MetaConnectionRow = { id: string; business_id: string; meta_user_id: string; token_secret_id: string | null; created_at: string };
+
 /** Retexia's global switches (0007), read-only for the panel. */
 export type SystemSettingsRow = { id: number; generation_paused: boolean; publishing_paused: boolean; note: string | null; updated_at: string; updated_by: string | null };
 
@@ -177,10 +180,20 @@ export type PostDatabase = {
       usage_monthly: Table<UsageRow, "business_id" | "period">;
       events: Table<EventRow, "type">;
       system_settings: Table<SystemSettingsRow, never>;
+      meta_connections: Table<MetaConnectionRow, "business_id" | "meta_user_id">;
     };
     Views: { [_ in never]: never };
     Functions: {
       bump_usage: { Args: { p_business: string; p_field: string; p_amount?: number; p_cost?: number }; Returns: undefined };
+      claim_due_posts: { Args: { p_limit?: number }; Returns: PostRow[] };
+      claim_batch_businesses: { Args: Record<string, never>; Returns: { business_id: string; local_date: string }[] };
+      save_secret: { Args: { p_secret: string | null; p_value: string }; Returns: string };
+      read_secret: { Args: { p_secret: string }; Returns: string | null };
+      delete_secret: { Args: { p_secret: string }; Returns: undefined };
+      next_free_slot: { Args: { p_business: string }; Returns: { local_date: string; slot: number; scheduled_at: string }[] };
+      slot_time: { Args: { p_business: string; p_date: string; p_slot: number }; Returns: string };
+      plan_for_owner: { Args: { p_owner: string }; Returns: { plan: PlanTier; subscription_status: BusinessRow["subscription_status"] }[] };
+      handle_meta_deletion: { Args: { p_meta_user_id: string }; Returns: string };
     };
     Enums: {
       plan_tier: PlanTier;

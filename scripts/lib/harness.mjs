@@ -63,6 +63,15 @@ export async function createHarness() {
     $$;
     grant execute on all functions in schema auth to anon, authenticated, service_role;
 
+    -- Supabase Vault stand-in (plain text here; encrypted in Supabase).
+    create schema vault;
+    create table vault.secrets (id uuid primary key default gen_random_uuid(), name text unique, secret text, created_at timestamptz default now());
+    create view vault.decrypted_secrets as select id, name, secret as decrypted_secret from vault.secrets;
+    create function vault.create_secret(new_secret text, new_name text default null, new_description text default '') returns uuid
+      language sql as $$ insert into vault.secrets (name, secret) values (new_name, new_secret) returning id $$;
+    create function vault.update_secret(secret_id uuid, new_secret text default null, new_name text default null, new_description text default null) returns void
+      language sql as $$ update vault.secrets set secret = coalesce(new_secret, secret) where id = secret_id $$;
+
     create schema storage;
     grant usage on schema storage to anon, authenticated, service_role;
     create table storage.buckets (id text primary key, name text, public boolean default false, file_size_limit bigint, allowed_mime_types text[]);

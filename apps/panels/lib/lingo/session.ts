@@ -19,7 +19,7 @@ export type LingoContext = { customer: PayingCustomer; tenant: Tenant; db: Lingo
  * Fallback: the "Lingo account ID" the team filled on the order's Setup tab;
  * an unclaimed account is linked to the customer on first visit.
  */
-const tenantFor = cache(async (customerId: string, orderId: string): Promise<Tenant | null> => {
+export const tenantFor = cache(async (customerId: string, orderId: string): Promise<Tenant | null> => {
   const db = lingoDb();
   const { data: own } = await db.from("lingo_users").select(TENANT_COLUMNS).eq("owner_id", customerId).order("id").limit(1).maybeSingle();
   if (own) return own as Tenant;

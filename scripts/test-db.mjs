@@ -20,10 +20,10 @@ for (const round of [1, 2]) {
 
 const count = async (table) => (await db.query(`select count(*)::int as n from ${table}`)).rows[0].n;
 ok((await count("public.products")) === 2, "2 products");
-ok((await count("public.packages")) === 3, "3 Lingo packages");
-ok((await count("public.package_features")) === 27, "27 package features");
-ok((await count("public.form_fields")) === 24, "24 onboarding fields");
-ok((await count("public.form_steps")) === 3, "3 onboarding steps");
+ok((await count("public.packages")) === 6, "6 packages (Lingo 3, Post 3)");
+ok((await count("public.package_features")) === 50, "50 package features");
+ok((await count("public.form_fields")) === 35, "35 onboarding fields (Lingo 24, Post 11)");
+ok((await count("public.form_steps")) === 5, "5 onboarding steps");
 ok((await count("public.services")) === 6, "6 services");
 ok((await count("public.pages")) === 7, "7 pages");
 ok((await count("public.order_statuses")) === 8, "8 order statuses");
@@ -183,7 +183,7 @@ const anonProducts = await as("anon", null, `select slug from public.products or
 ok(anonProducts.rows.map((r) => r.slug).join(",") === "lingo,post", "anon reads live + coming soon products");
 await db.query(`update public.packages set is_visible = false where slug = 'supreme'`);
 const anonPackages = await as("anon", null, `select slug from public.packages`);
-ok(anonPackages.rows.length === 2, "hidden package not readable");
+ok(anonPackages.rows.length === 5, "hidden package not readable");
 await db.query(`update public.packages set is_visible = true where slug = 'supreme'`);
 await expectError(
   () => as("anon", null, `update public.site_settings set site_name = 'Hacked'`).then((r) => {
@@ -209,6 +209,8 @@ await as("anon", null, `insert into public.contact_messages (name, email, messag
 }
 ok((await db.query(`select email from public.contact_messages`)).rows[0].email === "kasun@example.com", "contact email stored lowercase");
 
+// The waitlist is for "coming soon" products: use Post as one for these checks.
+await db.query(`update public.products set status = 'coming_soon' where id = $1`, [ids.post_id]);
 await as("anon", null, `insert into public.waitlist (product_id, email) values ($1, 'Nuwan@Example.com')`, [ids.post_id]);
 await expectError(
   () => as("anon", null, `insert into public.waitlist (product_id, email) values ($1, 'nuwan@example.com')`, [ids.post_id]),
@@ -220,6 +222,7 @@ await expectError(
   "waitlist only for coming soon products",
   /row-level security/,
 );
+await db.query(`update public.products set status = 'live' where id = $1`, [ids.post_id]);
 
 const hiddenPage = await db.query(`update public.pages set is_published = false where slug = 'terms' returning id`);
 const anonTerms = await as("anon", null, `select id from public.page_sections where page_id = $1`, [hiddenPage.rows[0].id]);

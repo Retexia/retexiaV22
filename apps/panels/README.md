@@ -1,5 +1,7 @@
 # Retexia product panels (post.retexia.com, lingo.retexia.com)
 
+**Go-live setup (env vars, n8n, Meta app, scheduler): see `docs/LINGO_POST_SETUP.md`.**
+
 One Next.js app for every product's customer panel. `proxy.ts` looks at the
 domain and serves `app/post/*` on post.retexia.com and `app/lingo/*` on
 lingo.retexia.com (an internal rewrite, so URLs stay clean). A new product is a

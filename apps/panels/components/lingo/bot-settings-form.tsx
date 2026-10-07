@@ -46,7 +46,7 @@ export function BotSettingsForm({ initial, whatsapp }: { initial: V; whatsapp: s
           <Field label="Delivery takes (days)" hint="Used in follow-up messages after an order." error={errors.delivery_days}>
             <Input type="number" min={1} max={30} value={v.delivery_days} onChange={(e) => setV({ ...v, delivery_days: e.target.value })} />
           </Field>
-          <Field label="WhatsApp connection" hint="Managed by Retexia. Message us to change the number.">
+          <Field label="WhatsApp line" hint="Link, relink or change the phone on the WhatsApp page.">
             <Input value={whatsapp} disabled />
           </Field>
         </div>

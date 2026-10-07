@@ -223,3 +223,24 @@ export async function checkLingoConnection(input: { id: number }): Promise<Actio
     return { ok: true, message: state === "open" ? "WhatsApp is connected" : `WhatsApp state: ${state}`, data: state };
   });
 }
+
+/** Point the bot's WhatsApp line at the n8n Lingo workflow (LINGO_N8N_WEBHOOK_URL). */
+export async function linkLingoWebhook(input: { id: number }): Promise<ActionResult> {
+  return run(async () => {
+    const staff = await requireRole("operate");
+    const id = accountId.parse(input.id);
+    const url = process.env.LINGO_N8N_WEBHOOK_URL?.trim();
+    if (!url) return { ok: false, message: "Set LINGO_N8N_WEBHOOK_URL (the n8n Lingo webhook's Production URL) in the admin's environment first." };
+    const { data } = await lingo().from("lingo_users").select("evolution_instance, evolution_base_url, evolution_apikey").eq("id", id).maybeSingle();
+    if (!data) return { ok: false, message: "Bot account not found." };
+    const path = `${data.evolution_base_url.replace(/\/+$/, "")}/webhook/set/${encodeURIComponent(data.evolution_instance)}`;
+    const post = (body: unknown) =>
+      fetch(path, { method: "POST", headers: { apikey: data.evolution_apikey, "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(15_000), cache: "no-store" }).catch(() => null);
+    const events = ["MESSAGES_UPSERT"];
+    let res = await post({ webhook: { enabled: true, url, webhookByEvents: false, webhookBase64: false, events } });
+    if (!res?.ok) res = await post({ enabled: true, url, webhook_by_events: false, webhook_base64: false, events });
+    if (!res?.ok) return { ok: false, message: `Evolution API replied ${res?.status ?? "nothing"}. Check the address and key.` };
+    await audit(staff, { action: "lingo.webhook", table: "lingo.lingo_users", recordId: String(id), summary: `Linked Lingo account #${id} (${data.evolution_instance}) to the n8n webhook` });
+    return { ok: true, message: "Linked: new WhatsApp messages go to the Lingo bot in n8n." };
+  });
+}

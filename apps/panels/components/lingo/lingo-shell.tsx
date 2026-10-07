@@ -3,7 +3,7 @@
 import { createBrowserClient } from "@retexia/supabase/browser";
 import { DropdownMenu, Switch, ThemeToggle } from "@retexia/ui";
 import { PanelShell, type PanelNavGroup } from "@retexia/ui/admin";
-import { Bot, Building2, LayoutDashboard, LogOut, MessageSquareText, Package, ShoppingBag, UserRound, Users } from "lucide-react";
+import { Bot, Building2, LayoutDashboard, LogOut, MessageSquareText, Package, ShoppingBag, Smartphone, UserRound, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -29,6 +29,7 @@ export function LingoShell({ children, business, active, newOrders, webUrl, emai
         { href: "/business", label: "Business details", icon: icon(Building2) },
         { href: "/replies", label: "Bot replies", icon: icon(MessageSquareText) },
         { href: "/settings", label: "Bot settings", icon: icon(Bot) },
+        { href: "/connect", label: "WhatsApp", icon: icon(Smartphone) },
       ],
     },
   ];
