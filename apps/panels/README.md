@@ -8,8 +8,14 @@ project.
 
 Shared by all panels:
 
-- **Login:** the normal Retexia account. The session cookie is shared on
-  `.retexia.com`; signed-out visitors go to `retexia.com/login` and come back.
+- **Login:** the normal Retexia account. When a panel has no session it asks
+  retexia.com (`/auth/start` → `retexia.com/auth/panel` → `/auth/handoff`): the
+  website confirms who is signed in (or asks them to sign in) and hands the
+  sign-in over, so panels work even if the shared `.retexia.com` cookie can't be
+  read. If it fails, `/auth/problem` says why (e.g. different Supabase projects).
+- **Setup check:** `https://lingo.retexia.com/api/health` shows the Supabase
+  project this deployment uses and whether the keys are set (no secrets). It must
+  show the same project as the website.
 - **Access:** `lib/customer.ts` checks the main database for an order of that
   product in status *setting up*, *active* or *paused*.
 - **Data:** everything is in the Retexia Supabase project: Post in schema

@@ -4,7 +4,6 @@ import { createServerClient } from "@retexia/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { webUrl } from "./env";
 
 /** Order statuses that unlock a product panel (paid and being set up, live, or paused). */
 const ACCESS_STATUSES = ["setting_up", "active", "paused"];
@@ -63,7 +62,7 @@ export async function selfOrigin() {
 /** For pages: signed in with an active order for the product, or redirect. */
 export async function requirePayingCustomer(productSlug: string, path = "/"): Promise<PayingCustomer> {
   const customer = await getCustomer(productSlug);
-  if (!customer) redirect(`${webUrl()}/login?next=${encodeURIComponent(`${await selfOrigin()}${path}`)}`);
+  if (!customer) redirect(`/auth/start?next=${encodeURIComponent(path)}`);
   if (!customer.order) redirect("/no-access");
   return customer as PayingCustomer;
 }
