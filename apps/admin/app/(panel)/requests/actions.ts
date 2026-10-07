@@ -4,14 +4,19 @@ import { buildAnswers, parseForm, sanitizeValues, validateForm, type FormValues 
 import type { Json } from "@retexia/supabase";
 import { createAdminClient } from "@retexia/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 import { dbMessage, run, type ActionResult } from "@/lib/action";
 import { audit } from "@/lib/audit";
 import { adminUrl } from "@/lib/env";
 import { requireRole } from "@/lib/auth";
 import { postSigned, type N8nReply } from "@/lib/n8n";
+import { dispatchOutbox } from "@/lib/outbox";
 
 const uuid = z.uuid();
+
+/** Emails queued by the database (status changes, payments) go out right after the response. */
+const sendQueuedEmails = () => after(() => dispatchOutbox().then(() => undefined, () => undefined));
 
 function refresh(ref?: string) {
   revalidatePath("/requests");
@@ -51,7 +56,8 @@ export async function changeStatus(input: {
     });
     if (error) return { ok: false, message: dbMessage(error) };
     refresh(d.ref);
-    return { ok: true, message: "Status updated" };
+    sendQueuedEmails();
+    return { ok: true, message: d.notify ? "Status updated. The customer is emailed." : "Status updated" };
   });
 }
 
@@ -67,6 +73,7 @@ export async function bulkChangeStatus(input: { ids: string[]; toStatus: string;
       else done++;
     }
     refresh();
+    sendQueuedEmails();
     if (failed.length) return { ok: done > 0, message: `${done} updated, ${failed.length} not: ${failed[0]}` } as ActionResult;
     return { ok: true, message: `${done} request${done === 1 ? "" : "s"} updated` };
   });
@@ -221,6 +228,7 @@ export async function recordPayment(input: z.input<typeof paymentSchema>): Promi
     if (error) return { ok: false, message: dbMessage(error) };
     refresh(order.ref ?? undefined);
     revalidatePath("/payments");
+    sendQueuedEmails();
     return { ok: true, message: d.status === "confirmed" ? "Payment recorded and confirmed" : "Payment recorded as pending" };
   });
 }
@@ -234,6 +242,7 @@ export async function setPaymentStatus(input: { id: string; status: "confirmed" 
     if (!data) return { ok: false, message: "Payment not found." };
     revalidatePath("/payments");
     revalidatePath("/requests", "layout");
+    sendQueuedEmails();
     return { ok: true, message: d.status === "confirmed" ? "Payment confirmed" : d.status === "refunded" ? "Marked as refunded" : "Marked as failed" };
   });
 }

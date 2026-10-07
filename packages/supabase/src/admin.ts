@@ -20,3 +20,17 @@ export function createAdminClient(): SupabaseClient<Database> {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
 }
+
+/**
+ * Service-role client for a product's own schema ("lingo", "post"). Same rules
+ * as createAdminClient: apps/admin server code only, after requireRole().
+ */
+export function createAdminSchemaClient(schema: "lingo" | "post") {
+  const { url } = requireSupabaseEnv();
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set (apps/admin only, server-side).");
+  return createClient(url, key, {
+    db: { schema },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}

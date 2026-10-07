@@ -319,3 +319,17 @@ through the `svc_*` database functions, so only those functions would change.
 - [ ] Notifications webhook to n8n created and the callback secret saved in n8n.
 - [ ] `https://retexia.com/sitemap.xml` and `/robots.txt` load; `admin.retexia.com/robots.txt` disallows everything.
 - [ ] Sign up, onboarding, payment proof upload, approval, payment confirmation and receipt tested end to end.
+
+## Customer emails (Resend)
+
+The admin sends every queued email in `notifications_outbox` (status changes,
+payments, new requests) through Resend from `EMAIL_FROM`.
+
+1. Admin Vercel project → env: `RESEND_API_KEY`, `EMAIL_FROM="Retexia <admin@retexia.com>"`,
+   `OUTBOX_WEBHOOK_SECRET` (any long random string). Redeploy.
+2. Status changes and payments recorded in the admin are emailed at once.
+3. For emails queued by the website (new request, payment proof): Supabase →
+   Database → Webhooks → Create: table `notifications_outbox`, event Insert,
+   HTTP POST `https://admin.retexia.com/api/notifications/dispatch`,
+   header `x-retexia-secret: <OUTBOX_WEBHOOK_SECRET>`.
+4. Failed emails: Admin → Settings → Notifications → Retry.

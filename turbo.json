@@ -15,7 +15,11 @@
     "POST_PRODUCT_SLUG",
     "POST_SAFETY_WORKFLOW",
     "LINGO_PRODUCT_SLUG",
-    "PANEL_DEFAULT"
+    "PANEL_DEFAULT",
+    "RESEND_API_KEY",
+    "EMAIL_FROM",
+    "EMAIL_REPLY_TO",
+    "OUTBOX_WEBHOOK_SECRET"
   ],
   "tasks": {
     "build": {

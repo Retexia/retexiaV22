@@ -8,6 +8,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { dbMessage, run, type ActionResult } from "@/lib/action";
 import { audit } from "@/lib/audit";
+import { emailConfigured } from "@/lib/email";
+import { dispatchOutbox } from "@/lib/outbox";
 import { requireRole } from "@/lib/auth";
 import { postSigned } from "@/lib/n8n";
 import { rateLimit } from "@/lib/rate-limit";
@@ -248,6 +250,15 @@ export async function retryNotification(input: { id: string }): Promise<ActionRe
     const { data: n } = await staff.supabase.from("notifications_outbox").select("*").eq("id", id).maybeSingle();
     if (!n) return { ok: false, message: "Notification not found." };
     const admin = createAdminClient();
+    if (n.channel === "email" && emailConfigured()) {
+      await admin.from("notifications_outbox").update({ status: "pending", attempts: 0, error: null }).eq("id", id);
+      await dispatchOutbox();
+      const { data: after } = await admin.from("notifications_outbox").select("status, error").eq("id", id).maybeSingle();
+      const sent = after?.status === "sent";
+      await audit(staff, { action: "notification.retry", table: "notifications_outbox", recordId: id, summary: `Resent ${n.event} to ${n.recipient ?? "?"}: ${sent ? "sent" : (after?.error ?? "failed")}` });
+      revalidatePath("/settings/notifications");
+      return sent ? { ok: true, message: "Email sent" } : { ok: false, message: after?.error ?? "The email could not be sent" };
+    }
     const { data: settings } = await admin.rpc("svc_get_integration_settings");
     const s = (settings ?? {}) as { notifications_webhook_url?: string | null; n8n_callback_secret?: string | null };
     if (!s.notifications_webhook_url) return { ok: false, message: "Set the notifications webhook in Settings → Integrations first." };

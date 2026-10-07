@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { StaffContext } from "@/lib/auth";
+import { LingoRequestPanel } from "./lingo/request-panel";
 
 /**
  * Optional product-specific admin code.
@@ -29,7 +30,11 @@ export type ProductExtension = {
   requestPanels?: { key: string; render: (ctx: RequestPanelContext) => ReactNode | Promise<ReactNode> }[];
 };
 
-export const productExtensions: Record<string, ProductExtension> = {};
+export const productExtensions: Record<string, ProductExtension> = {
+  lingo: {
+    requestPanels: [{ key: "lingo-account", render: (ctx) => <LingoRequestPanel {...ctx} /> }],
+  },
+};
 
 export function productExtension(slug: string | null | undefined): ProductExtension {
   return (slug && productExtensions[slug]) || {};

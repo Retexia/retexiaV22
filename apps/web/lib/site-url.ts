@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 
 /** Canonical site URL from NEXT_PUBLIC_SITE_URL (no trailing slash). */
 export function siteUrl() {
-  return (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/+$/, "");
+  return (process.env.NEXT_PUBLIC_SITE_URL || (process.env.NODE_ENV === "production" ? "https://retexia.com" : "http://localhost:3000")).replace(/\/+$/, "");
 }
 
 /**
