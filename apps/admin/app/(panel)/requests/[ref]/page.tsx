@@ -8,11 +8,13 @@ import { notFound } from "next/navigation";
 import { AuditList, type AuditEntry } from "@/components/common/audit-list";
 import { OrderStatus, label } from "@/components/common/status";
 import { ChangePricingButton, EditAnswersButton } from "@/components/requests/overview-editors";
+import { PaddleSubscription } from "@/components/requests/paddle-subscription";
 import { PaymentsPanel, type PaymentRow } from "@/components/requests/payments-panel";
 import { RequestActions, type TransitionOption } from "@/components/requests/request-actions";
 import { ServiceSetup, type ServiceField } from "@/components/requests/service-setup";
 import { Timeline, type TimelineItem } from "@/components/requests/timeline";
 import { requireStaffPage } from "@/lib/auth";
+import { paddleDashboard } from "@/lib/paddle";
 import { param, type SearchParams } from "@/lib/list-params";
 import { productExtension } from "@/products/registry";
 
@@ -45,10 +47,11 @@ export default async function RequestPage({ params, searchParams }: { params: Pa
   const orderId = order.id;
   const tab = (param(sp, "tab") ?? "overview") as (typeof TABS)[number]["key"];
 
-  const [statuses, transitions, payments, team, product, packages, notes, events, runs, fields, actions, secrets, auditRows] = await Promise.all([
+  const [statuses, transitions, payments, paddle, team, product, packages, notes, events, runs, fields, actions, secrets, auditRows] = await Promise.all([
     supabase.from("order_statuses").select("key, label, description").order("sort_order"),
     supabase.from("order_status_transitions").select("*").eq("from_status", order.status ?? "").order("sort_order"),
     supabase.from("payments").select("*").eq("order_id", orderId).order("created_at", { ascending: false }),
+    supabase.from("orders").select("paddle_subscription_id, paddle_customer_id").eq("id", orderId).maybeSingle(),
     supabase.from("profiles").select("id, full_name, email, role").in("role", ["support", "editor", "admin", "owner"]),
     supabase.from("products").select("id, panel_url, panel_live, onboarding_form_id").eq("id", order.product_id ?? "").maybeSingle(),
     supabase.from("packages").select("id, name, price_monthly, price_yearly, setup_fee").eq("product_id", order.product_id ?? "").order("sort_order"),
@@ -312,6 +315,16 @@ export default async function RequestPage({ params, searchParams }: { params: Pa
         ? await Promise.all((productExtension(order.product_slug).requestPanels ?? []).map(async (panel) => <div key={panel.key}>{await panel.render({ staff, orderId, productSlug: order.product_slug ?? "" })}</div>))
         : null}
 
+      {tab === "payments" && paddle.data?.paddle_subscription_id ? (
+        <PaddleSubscription
+          orderId={orderId}
+          subscriptionId={paddle.data.paddle_subscription_id}
+          customerId={paddle.data.paddle_customer_id}
+          dashboardUrl={paddleDashboard(`/subscriptions/${paddle.data.paddle_subscription_id}`)}
+          canAdmin={canAdmin}
+          final={Boolean(order.status_is_final)}
+        />
+      ) : null}
       {tab === "payments" ? (
         <PaymentsPanel
           order={{

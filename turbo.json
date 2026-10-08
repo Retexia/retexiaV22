@@ -28,7 +28,11 @@
     "META_APP_ID",
     "META_APP_SECRET",
     "META_GRAPH_VERSION",
-    "POST_CRON_KEY"
+    "POST_CRON_KEY",
+    "NEXT_PUBLIC_PADDLE_ENV",
+    "NEXT_PUBLIC_PADDLE_CLIENT_TOKEN",
+    "PADDLE_API_KEY",
+    "PADDLE_WEBHOOK_SECRET"
   ],
   "tasks": {
     "build": {

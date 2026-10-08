@@ -836,6 +836,9 @@ export type Database = {
           id: string
           package_id: string
           package_name: string | null
+          paddle_customer_id: string | null
+          paddle_subscription_id: string | null
+          paddle_transaction_id: string | null
           paused_at: string | null
           price_amount: number | null
           price_override_reason: string | null
@@ -866,6 +869,9 @@ export type Database = {
           id?: string
           package_id: string
           package_name?: string | null
+          paddle_customer_id?: string | null
+          paddle_subscription_id?: string | null
+          paddle_transaction_id?: string | null
           paused_at?: string | null
           price_amount?: number | null
           price_override_reason?: string | null
@@ -896,6 +902,9 @@ export type Database = {
           id?: string
           package_id?: string
           package_name?: string | null
+          paddle_customer_id?: string | null
+          paddle_subscription_id?: string | null
+          paddle_transaction_id?: string | null
           paused_at?: string | null
           price_amount?: number | null
           price_override_reason?: string | null
@@ -1006,6 +1015,9 @@ export type Database = {
           is_featured: boolean
           is_visible: boolean
           name: string
+          paddle_price_monthly: string | null
+          paddle_price_setup: string | null
+          paddle_price_yearly: string | null
           price_monthly: number
           price_note: string | null
           price_yearly: number | null
@@ -1028,6 +1040,9 @@ export type Database = {
           is_featured?: boolean
           is_visible?: boolean
           name: string
+          paddle_price_monthly?: string | null
+          paddle_price_setup?: string | null
+          paddle_price_yearly?: string | null
           price_monthly?: number
           price_note?: string | null
           price_yearly?: number | null
@@ -1050,6 +1065,9 @@ export type Database = {
           is_featured?: boolean
           is_visible?: boolean
           name?: string
+          paddle_price_monthly?: string | null
+          paddle_price_setup?: string | null
+          paddle_price_yearly?: string | null
           price_monthly?: number
           price_note?: string | null
           price_yearly?: number | null
@@ -1066,6 +1084,47 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      paddle_events: {
+        Row: {
+          error: string | null
+          event_type: string
+          id: string
+          occurred_at: string | null
+          order_id: string | null
+          payload: Json
+          processed_at: string | null
+          received_at: string
+        }
+        Insert: {
+          error?: string | null
+          event_type: string
+          id: string
+          occurred_at?: string | null
+          order_id?: string | null
+          payload?: Json
+          processed_at?: string | null
+          received_at?: string
+        }
+        Update: {
+          error?: string | null
+          event_type?: string
+          id?: string
+          occurred_at?: string | null
+          order_id?: string | null
+          payload?: Json
+          processed_at?: string | null
+          received_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paddle_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -1431,6 +1490,7 @@ export type Database = {
       }
       products: {
         Row: {
+          auto_activate: boolean
           code: string
           color_dark: string
           color_light: string
@@ -1443,6 +1503,7 @@ export type Database = {
           is_visible: boolean
           name: string
           onboarding_form_id: string | null
+          paddle_product_id: string | null
           page_slug: string | null
           panel_live: boolean
           panel_url: string | null
@@ -1454,6 +1515,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          auto_activate?: boolean
           code: string
           color_dark?: string
           color_light?: string
@@ -1466,6 +1528,7 @@ export type Database = {
           is_visible?: boolean
           name: string
           onboarding_form_id?: string | null
+          paddle_product_id?: string | null
           page_slug?: string | null
           panel_live?: boolean
           panel_url?: string | null
@@ -1477,6 +1540,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          auto_activate?: boolean
           code?: string
           color_dark?: string
           color_light?: string
@@ -1489,6 +1553,7 @@ export type Database = {
           is_visible?: boolean
           name?: string
           onboarding_form_id?: string | null
+          paddle_product_id?: string | null
           page_slug?: string | null
           panel_live?: boolean
           panel_url?: string | null
@@ -2008,6 +2073,9 @@ export type Database = {
       svc_get_action_secret: { Args: { p_action_id: string }; Returns: Json }
       svc_get_integration_settings: { Args: never; Returns: Json }
       svc_get_order_secrets: { Args: { p_order_id: string; p_keys: string[] }; Returns: Json }
+      svc_paddle_payment: { Args: { p: Json }; Returns: Json }
+      svc_paddle_refund: { Args: { p: Json }; Returns: Json }
+      svc_paddle_subscription: { Args: { p: Json }; Returns: Json }
     }
     Enums: {
       [_ in never]: never

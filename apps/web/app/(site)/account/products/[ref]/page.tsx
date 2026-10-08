@@ -6,6 +6,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CancelOrderButton } from "@/components/account/cancel-order";
 import { canOpenPanel } from "@/components/account/order-card";
+import { BillingButton } from "@/components/account/billing-button";
+import { PaddlePay } from "@/components/account/paddle-pay";
 import { PaymentProofForm } from "@/components/account/payment-proof-form";
 import { Markdown } from "@/components/markdown";
 import { requireUser } from "@/lib/auth";
@@ -13,6 +15,7 @@ import { getForm, getOrderStatuses, getProducts, getSiteSettings } from "@/lib/c
 import { formatDate, formatPrice } from "@/lib/format";
 import { whatsappHref } from "@/lib/links";
 import { getMyOrder, getOrderPayments, getVisibleServiceFields } from "@/lib/orders";
+import { paddleEnv, paddleReady } from "@/lib/paddle.server";
 import { getT } from "@/lib/strings.server";
 
 export async function generateMetadata({ params }: PageProps<"/account/products/[ref]">): Promise<Metadata> {
@@ -33,7 +36,13 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
   const data = await getMyOrder(supabase, ref);
   if (!data) notFound();
   const { order, events } = data;
-  const [payments, serviceFields] = await Promise.all([getOrderPayments(supabase, order.id), getVisibleServiceFields(supabase, order.id)]);
+  const [payments, serviceFields, { data: pkgPrices }] = await Promise.all([
+    getOrderPayments(supabase, order.id),
+    getVisibleServiceFields(supabase, order.id),
+    supabase.from("packages").select("paddle_price_monthly, paddle_price_yearly").eq("id", order.package_id).maybeSingle(),
+  ]);
+  // Online payment through Paddle when it is set up and the plan is in the Paddle catalog.
+  const payOnline = paddleReady() && Boolean(order.billing_cycle === "yearly" ? pkgPrices?.paddle_price_yearly : pkgPrices?.paddle_price_monthly);
   const pendingProof = payments.find((p) => p.status === "pending");
   const awaitingPayment = order.status === "awaiting_payment";
 
@@ -135,7 +144,41 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
         ) : null}
       </header>
 
-      {awaitingPayment ? (
+      {awaitingPayment && payOnline ? (
+        <Card as="section" aria-labelledby="pay-title" className="flex flex-col gap-4 border-warning/40!">
+          <div className="flex flex-col gap-1">
+            <h2 id="pay-title" className="type-h2 text-ink">
+              {t("order.paddle.title", "Pay to start")}
+            </h2>
+            <p className="type-body text-ink-muted">
+              {t("order.paddle.intro", "{plan}, billed {cycle}{setup}. Pay by card, Apple Pay, Google Pay or PayPal. Tax is added where it applies.", {
+                plan: order.package_name ?? "",
+                cycle: order.billing_cycle === "yearly" ? t("order.paddle.yearly", "yearly") : t("order.paddle.monthly", "monthly"),
+                setup: (order.setup_fee ?? 0) > 0 ? t("order.paddle.with_setup", ", with the one-time setup fee on the first payment") : "",
+              })}
+            </p>
+          </div>
+          <PaddlePay
+            refId={order.ref ?? ""}
+            env={paddleEnv()}
+            token={process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN ?? ""}
+            autoOpen={sp.pay === "1"}
+            labels={{
+              pay: t("order.paddle.pay", "Pay now"),
+              paying: t("order.paddle.opening", "Opening checkout…"),
+              received: t("order.paddle.received", "Payment received"),
+              confirming: t("order.paddle.confirming", "Thank you! We're confirming it with Paddle. This page updates by itself in a few seconds."),
+              secure: t("order.paddle.secure", "Secure checkout by Paddle"),
+              failed: t("order.paddle.failed", "The checkout couldn't open. Check your connection and try again."),
+            }}
+          />
+          <p className="type-small text-ink-muted">
+            {t("order.paddle.mor", "Our order process is conducted by our online reseller Paddle.com, the Merchant of Record for all our orders.")}
+          </p>
+        </Card>
+      ) : null}
+
+      {awaitingPayment && !payOnline ? (
         <Card as="section" aria-labelledby="pay-title" className="flex flex-col gap-5 border-warning/40!">
           <div className="flex flex-col gap-1">
             <h2 id="pay-title" className="type-h2 text-ink">
@@ -166,6 +209,7 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
       ) : null}
 
       <div className="flex flex-wrap gap-3">
+        {order.paddle_customer_id && paddleReady() ? <BillingButton refId={order.ref ?? ""} label={t("order.paddle.manage", "Manage billing")} /> : null}
         {product?.panel_url ? (
           panel ? (
             <Button href={product.panel_url}>{t("order.open_panel", "Open {name} panel", { name: product.short_name })}</Button>

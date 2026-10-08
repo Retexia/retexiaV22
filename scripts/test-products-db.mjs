@@ -116,4 +116,35 @@ const draft = (await q(`insert into post.posts (business_id, local_date, slot, f
 const want = (await q(`select post.slot_time($1, $2, 3) t`, [biz, tmr]))[0].t;
 ok(new Date(draft.scheduled_at).getTime() === new Date(want).getTime(), "a draft saved by the workflow is scheduled at its slot's time");
 
+console.log("Paddle (0009)");
+const lingoP = (await q(`select id from public.products where slug = 'lingo'`))[0].id;
+const corePk = (await q(`select id from public.packages where product_id = $1 and slug = 'core'`, [lingoP]))[0].id;
+await q(`update public.packages set paddle_price_monthly = 'pri_core_m', paddle_price_setup = 'pri_core_setup' where id = $1`, [corePk]);
+const paid = (await as("authenticated", kasun, `insert into public.orders (product_id, package_id, billing_cycle, answers) values ($1, $2, 'monthly', '[]') returning id, status, currency`, [lingoP, corePk])).rows[0];
+ok(paid.status === "awaiting_payment" && paid.currency === "USD", "a Paddle package order waits for payment, in USD");
+await expectError(() => as("authenticated", kasun, `select public.svc_paddle_payment('{}'::jsonb)`), "customers can't record Paddle payments", /permission denied/);
+const pay = { order_id: paid.id, transaction_id: "txn_1", subscription_id: "sub_1", customer_id: "ctm_1", amount: "64.00", currency: "usd", kind: "setup_fee", period_start: "2026-10-09T00:00:00Z", period_end: "2026-11-09T00:00:00Z", origin: "web" };
+await q(`select public.svc_paddle_payment($1::jsonb)`, [JSON.stringify(pay)]);
+const after = (await q(`select status, renews_at, paddle_subscription_id from public.orders where id = $1`, [paid.id]))[0];
+ok(after.status === "setting_up" && after.paddle_subscription_id === "sub_1", "a Paddle payment moves the request to setting up");
+ok(new Date(after.renews_at).toISOString().startsWith("2026-11-09"), "the renewal date follows Paddle's billing period");
+const rc = (await q(`select receipt_number, status, method from public.payments where reference = 'txn_1'`))[0];
+ok(rc.status === "confirmed" && rc.method === "online_gateway" && /^RCT-/.test(rc.receipt_number), "the payment is confirmed with a receipt number");
+await q(`select public.svc_paddle_payment($1::jsonb)`, [JSON.stringify(pay)]);
+ok((await q(`select count(*)::int n from public.payments where reference = 'txn_1'`))[0].n === 1, "the same Paddle transaction is recorded once");
+await q(`select public.svc_paddle_payment($1::jsonb)`, [JSON.stringify({ ...pay, order_id: "", transaction_id: "txn_2", kind: "subscription", amount: "25.00", period_start: "2026-11-09T00:00:00Z", period_end: "2026-12-09T00:00:00Z", origin: "subscription_recurring" })]);
+ok(new Date((await q(`select renews_at from public.orders where id = $1`, [paid.id]))[0].renews_at).toISOString().startsWith("2026-12-09"), "renewals are matched by subscription and extend the request");
+await q(`select public.svc_paddle_refund($1::jsonb)`, [JSON.stringify({ transaction_id: "txn_2", adjustment_id: "adj_1", amount: "25.00", currency: "USD" })]);
+ok((await q(`select status from public.payments where reference = 'txn_2'`))[0].status === "refunded", "a full Paddle refund marks the payment refunded");
+await q(`select public.svc_paddle_subscription($1::jsonb)`, [JSON.stringify({ subscription_id: "sub_1", status: "canceled" })]);
+ok((await q(`select status from public.orders where id = $1`, [paid.id]))[0].status === "cancelled", "cancelling in Paddle cancels the request");
+// Self-serve products go live on payment
+const postP = (await q(`select id from public.products where slug = 'post'`))[0].id;
+const starter = (await q(`select id from public.packages where product_id = $1 and slug = 'starter'`, [postP]))[0].id;
+await q(`update public.packages set paddle_price_monthly = 'pri_starter_m' where id = $1`, [starter]);
+const postOrder = (await as("authenticated", kasun, `insert into public.orders (product_id, package_id, billing_cycle, answers) values ($1, $2, 'monthly', '[]') returning id`, [postP, starter])).rows[0];
+await q(`select public.svc_paddle_payment($1::jsonb)`, [JSON.stringify({ order_id: postOrder.id, transaction_id: "txn_3", subscription_id: "sub_3", amount: "19.00", currency: "USD", kind: "subscription", period_end: "2026-11-09T00:00:00Z", origin: "web" })]);
+ok((await q(`select status from public.orders where id = $1`, [postOrder.id]))[0].status === "active", "a paid Post request goes straight to active");
+ok(Number((await q(`select price_monthly from public.packages where id = $1`, [starter]))[0].price_monthly) === 19, "Post Starter costs US$19 a month");
+
 summary();

@@ -6,7 +6,8 @@ import type { CustomerOrder } from "@/lib/orders";
 import type { Translate } from "@/lib/strings";
 
 export function canOpenPanel(product: Product | undefined, order: Pick<CustomerOrder, "status">) {
-  return Boolean(product?.panel_live && product.panel_url && order.status === "active");
+  // Same statuses the panels accept: paid and being set up, live, or paused.
+  return Boolean(product?.panel_live && product.panel_url && ["setting_up", "active", "paused"].includes(order.status));
 }
 
 export function OrderCard({

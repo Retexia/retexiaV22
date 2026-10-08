@@ -166,7 +166,7 @@ function OnboardingForm({ userId, product, packages, initialPackage, initialCycl
       } catch {
         // ignore
       }
-      router.push(`/account/products/${encodeURIComponent(result.ref)}?new=1`);
+      router.push(`/account/products/${encodeURIComponent(result.ref)}?new=1&pay=1`);
       return;
     }
     setPending(false);
@@ -207,7 +207,7 @@ function OnboardingForm({ userId, product, packages, initialPackage, initialCycl
             {t("onboarding.change_package", "Change package")}
           </Button>
           <p className="border-t border-line pt-4 type-small text-ink-muted">
-            {t("onboarding.no_payment_now", "No payment now. We review your request first and send you the payment details.")}
+            {t("onboarding.pay_next", "Next: pay securely with Paddle (card, Apple Pay, Google Pay or PayPal). We start as soon as the payment goes through.")}
           </p>
         </Card>
       </aside>

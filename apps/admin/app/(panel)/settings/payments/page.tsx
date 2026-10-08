@@ -1,4 +1,5 @@
 import { PageHeader } from "@retexia/ui/admin";
+import { PaddleCard } from "@/components/settings/paddle-card";
 import { PaymentsForm } from "@/components/settings/payments-form";
 import { requireStaffPage } from "@/lib/auth";
 
@@ -11,6 +12,7 @@ export default async function PaymentSettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="Payments and invoices" description="How customers pay, and what receipts look like." />
+      <PaddleCard currency={s.currency_code} />
       <PaymentsForm
         currency={s.currency_code}
         siteName={s.site_name}

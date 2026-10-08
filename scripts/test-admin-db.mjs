@@ -165,7 +165,7 @@ await expectError(
 await as("authenticated", support, `update public.payments set status = 'confirmed' where id = $1`, [proofId]);
 const paid = (await q(`select receipt_number, amount, paid_at from public.payments where id = $1`, [proofId]))[0];
 ok(paid.receipt_number === `RCT-${year}-0001`, `confirming creates receipt RCT-${year}-0001 (got ${paid.receipt_number})`);
-ok(Number(paid.amount) === 14900 + 19900, "proof amount = setup fee + first period");
+ok(Number(paid.amount) === 49 + 69, "proof amount = setup fee + first period");
 await expectError(
   () => as("authenticated", support, `update public.payments set status = 'refunded' where id = $1`, [proofId]),
   "only admins can refund",
@@ -213,7 +213,7 @@ await as("authenticated", support, `select public.admin_change_order_status($1, 
   const o = (await q(`select status, starts_at, renews_at from public.orders where id = $1`, [order.id]))[0];
   const months = (new Date(o.renews_at) - new Date(o.starts_at)) / (1000 * 60 * 60 * 24);
   ok(o.status === "active" && months >= 28 && months <= 31, "going live sets starts_at and renews_at one month later");
-  await as("authenticated", support, `insert into public.payments (order_id, kind, amount, status) values ($1, 'subscription', 14900, 'confirmed')`, [order.id]);
+  await as("authenticated", support, `insert into public.payments (order_id, kind, amount, status) values ($1, 'subscription', 49, 'confirmed')`, [order.id]);
   const after = (await q(`select renews_at from public.orders where id = $1`, [order.id]))[0];
   const ext = (new Date(after.renews_at) - new Date(o.renews_at)) / (1000 * 60 * 60 * 24);
   ok(ext >= 28 && ext <= 31, "a confirmed subscription payment extends renews_at by one cycle");
@@ -426,7 +426,7 @@ console.log("Dashboard and customers");
   const d = (await as("authenticated", editor, `select public.admin_dashboard() as d`)).rows[0].d;
   ok(d.active_subscriptions === 2 && Number(d.mrr) > 0 && Array.isArray(d.weekly) && d.weekly.length >= 4, "dashboard numbers and weekly series");
   const c = (await as("authenticated", support, `select email, lifetime_paid, active_products from public.staff_customers where id = $1`, [alice])).rows[0];
-  ok(Number(c.lifetime_paid) === 14900 + 19900 + 14900 && c.active_products.includes("lingo"), "staff_customers totals");
+  ok(Number(c.lifetime_paid) === 49 + 69 + 49 && c.active_products.includes("lingo"), "staff_customers totals");
   await expectError(() => as("authenticated", admin, `select public.admin_anonymise_user($1)`, [alice]), "only owners anonymise", /Only an owner/);
   await as("authenticated", owner, `select public.admin_anonymise_user($1)`, [alice]);
   const prof = (await q(`select full_name, phone from public.profiles where id = $1`, [alice]))[0];

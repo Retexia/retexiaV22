@@ -1015,11 +1015,6 @@
     "file": "apps/web/app/(site)/[slug]/get-started/page.tsx"
   },
   {
-    "key": "onboarding.no_payment_now",
-    "fallback": "No payment now. We review your request first and send you the payment details.",
-    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
-  },
-  {
     "key": "onboarding.not_answered",
     "fallback": "Not answered",
     "file": "apps/web/components/onboarding/onboarding-flow.tsx"
@@ -1037,6 +1032,11 @@
   {
     "key": "onboarding.package_changed",
     "fallback": "Package updated",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.pay_next",
+    "fallback": "Next: pay securely with Paddle (card, Apple Pay, Google Pay or PayPal). We start as soon as the payment goes through.",
     "file": "apps/web/components/onboarding/onboarding-flow.tsx"
   },
   {
@@ -1172,6 +1172,86 @@
   {
     "key": "order.package",
     "fallback": "Package",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.paddle.already_paid",
+    "fallback": "This request is already paid.",
+    "file": "apps/web/app/(site)/account/billing-actions.ts"
+  },
+  {
+    "key": "order.paddle.confirming",
+    "fallback": "Thank you! We're confirming it with Paddle. This page updates by itself in a few seconds.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.paddle.failed",
+    "fallback": "The checkout couldn't open. Check your connection and try again.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.paddle.intro",
+    "fallback": "{plan}, billed {cycle}{setup}. Pay by card, Apple Pay, Google Pay or PayPal. Tax is added where it applies.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.paddle.manage",
+    "fallback": "Manage billing",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.paddle.monthly",
+    "fallback": "monthly",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.paddle.mor",
+    "fallback": "Our order process is conducted by our online reseller Paddle.com, the Merchant of Record for all our orders.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.paddle.opening",
+    "fallback": "Opening checkout…",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.paddle.pay",
+    "fallback": "Pay now",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.paddle.portal_failed",
+    "fallback": "We couldn't open billing right now. Please try again shortly.",
+    "file": "apps/web/app/(site)/account/billing-actions.ts"
+  },
+  {
+    "key": "order.paddle.received",
+    "fallback": "Payment received",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.paddle.secure",
+    "fallback": "Secure checkout by Paddle",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.paddle.title",
+    "fallback": "Pay to start",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.paddle.unavailable",
+    "fallback": "Online payment isn't available right now. Please try again shortly or message us.",
+    "file": "apps/web/app/(site)/account/billing-actions.ts"
+  },
+  {
+    "key": "order.paddle.with_setup",
+    "fallback": ", with the one-time setup fee on the first payment",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.paddle.yearly",
+    "fallback": "yearly",
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
   },
   {
@@ -1413,6 +1493,26 @@
     "key": "order.whatsapp_message",
     "fallback": "Hi, I have a question about my request {ref}.",
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "pay.failed",
+    "fallback": "The checkout couldn't load. Check your connection and refresh the page.",
+    "file": "apps/web/app/(site)/pay/page.tsx"
+  },
+  {
+    "key": "pay.missing",
+    "fallback": "This payment link is incomplete. Open your request in your account and press Pay now.",
+    "file": "apps/web/app/(site)/pay/page.tsx"
+  },
+  {
+    "key": "pay.opening",
+    "fallback": "Opening Paddle's secure checkout…",
+    "file": "apps/web/app/(site)/pay/page.tsx"
+  },
+  {
+    "key": "pay.title",
+    "fallback": "Secure checkout",
+    "file": "apps/web/app/(site)/pay/page.tsx"
   },
   {
     "key": "pricing.billing",

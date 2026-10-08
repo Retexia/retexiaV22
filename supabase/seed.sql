@@ -95,6 +95,39 @@ on conflict (key) do update set
   customer_can_cancel = excluded.customer_can_cancel,
   sort_order = excluded.sort_order;
 
+-- Order status steps (same as 0003_admin.sql; needs the order statuses above)
+insert into public.order_status_transitions
+  (from_status, to_status, action_label, min_roles, requires_confirmed_payment, requires_reason, notify_customer_default,
+   customer_note_template, sort_order)
+select v.from_status, v.to_status, v.label, v.roles, v.payment, v.reason, v.notify, v.template, v.sort_order
+from (values
+  ('submitted', 'reviewing', 'Start review', array['support', 'admin', 'owner'], false, false, false, null, 1),
+  ('submitted', 'awaiting_payment', 'Approve', array['support', 'admin', 'owner'], false, false, true,
+    'Good news: your request is approved. Please pay the setup fee and first period using the details below, with your reference as the payment reference.', 2),
+  ('reviewing', 'awaiting_payment', 'Approve', array['support', 'admin', 'owner'], false, false, true,
+    'Good news: your request is approved. Please pay the setup fee and first period using the details below, with your reference as the payment reference.', 2),
+  ('submitted', 'rejected', 'Reject', array['support', 'admin', 'owner'], false, true, true,
+    'Thank you for your interest. We cannot take this request because ', 3),
+  ('reviewing', 'rejected', 'Reject', array['support', 'admin', 'owner'], false, true, true,
+    'Thank you for your interest. We cannot take this request because ', 3),
+  ('awaiting_payment', 'setting_up', 'Start setup', array['support', 'admin', 'owner'], true, false, true,
+    'Payment received, thank you. We have started setting things up.', 1),
+  ('setting_up', 'active', 'Mark as live', array['support', 'admin', 'owner'], false, false, true,
+    'You are live. Everything is running.', 1),
+  ('active', 'paused', 'Pause', array['support', 'admin', 'owner'], false, false, true, null, 2),
+  ('paused', 'active', 'Resume', array['support', 'admin', 'owner'], false, false, true, 'Welcome back. Everything is running again.', 1),
+  ('submitted', 'cancelled', 'Cancel', array['support', 'admin', 'owner'], false, false, true, null, 9),
+  ('reviewing', 'cancelled', 'Cancel', array['support', 'admin', 'owner'], false, false, true, null, 9),
+  ('awaiting_payment', 'cancelled', 'Cancel', array['support', 'admin', 'owner'], false, false, true, null, 9),
+  ('setting_up', 'cancelled', 'Cancel', array['support', 'admin', 'owner'], false, false, true, null, 9),
+  ('active', 'cancelled', 'Cancel', array['support', 'admin', 'owner'], false, false, true, null, 9),
+  ('paused', 'cancelled', 'Cancel', array['support', 'admin', 'owner'], false, false, true, null, 9)
+) as v (from_status, to_status, label, roles, payment, reason, notify, template, sort_order)
+where exists (select 1 from public.order_statuses where key = v.from_status)
+  and exists (select 1 from public.order_statuses where key = v.to_status)
+on conflict (from_status, to_status) do nothing;
+
+
 -- -----------------------------------------------------------------------------
 -- Products
 -- -----------------------------------------------------------------------------
@@ -837,11 +870,11 @@ insert into public.site_strings (key, value, description) values
   ('onboarding.existing_title', 'You already have a {name} request', 'Used in apps/web/app/(site)/[slug]/get-started/page.tsx'),
   ('onboarding.existing_view', 'View it', 'Used in apps/web/app/(site)/[slug]/get-started/page.tsx'),
   ('onboarding.meta_title', 'Set up {name}', 'Used in apps/web/app/(site)/[slug]/get-started/page.tsx'),
-  ('onboarding.no_payment_now', 'No payment now. We review your request first and send you the payment details.', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
   ('onboarding.not_answered', 'Not answered', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
   ('onboarding.not_ready_text', 'Online sign-up for {name} opens soon. Talk to us and we will set it up for you.', 'Used in apps/web/app/(site)/[slug]/get-started/page.tsx'),
   ('onboarding.not_ready_title', 'Almost ready', 'Used in apps/web/app/(site)/[slug]/get-started/page.tsx'),
   ('onboarding.package_changed', 'Package updated', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
+  ('onboarding.pay_next', 'Next: pay securely with Paddle (card, Apple Pay, Google Pay or PayPal). We start as soon as the payment goes through.', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
   ('onboarding.pay_yearly', 'Pay yearly', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
   ('onboarding.progress', 'Form progress', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
   ('onboarding.restored_text', 'We restored the answers you saved on this device.', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
@@ -869,6 +902,22 @@ insert into public.site_strings (key, value, description) values
   ('order.none', 'None', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.open_panel', 'Open {name} panel', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.package', 'Package', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.paddle.already_paid', 'This request is already paid.', 'Used in apps/web/app/(site)/account/billing-actions.ts'),
+  ('order.paddle.confirming', 'Thank you! We''re confirming it with Paddle. This page updates by itself in a few seconds.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.paddle.failed', 'The checkout couldn''t open. Check your connection and try again.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.paddle.intro', '{plan}, billed {cycle}{setup}. Pay by card, Apple Pay, Google Pay or PayPal. Tax is added where it applies.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.paddle.manage', 'Manage billing', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.paddle.monthly', 'monthly', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.paddle.mor', 'Our order process is conducted by our online reseller Paddle.com, the Merchant of Record for all our orders.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.paddle.opening', 'Opening checkout…', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.paddle.pay', 'Pay now', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.paddle.portal_failed', 'We couldn''t open billing right now. Please try again shortly.', 'Used in apps/web/app/(site)/account/billing-actions.ts'),
+  ('order.paddle.received', 'Payment received', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.paddle.secure', 'Secure checkout by Paddle', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.paddle.title', 'Pay to start', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.paddle.unavailable', 'Online payment isn''t available right now. Please try again shortly or message us.', 'Used in apps/web/app/(site)/account/billing-actions.ts'),
+  ('order.paddle.with_setup', ', with the one-time setup fee on the first payment', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.paddle.yearly', 'yearly', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.panel_pending', 'Your panel opens when setup is finished.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.paused_note', 'Why it is paused', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.paused_since', 'Paused since', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
@@ -917,6 +966,10 @@ insert into public.site_strings (key, value, description) values
   ('order.timeline', 'Timeline', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.view_details', 'View details', 'Used in apps/web/components/account/order-card.tsx'),
   ('order.whatsapp_message', 'Hi, I have a question about my request {ref}.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('pay.failed', 'The checkout couldn''t load. Check your connection and refresh the page.', 'Used in apps/web/app/(site)/pay/page.tsx'),
+  ('pay.missing', 'This payment link is incomplete. Open your request in your account and press Pay now.', 'Used in apps/web/app/(site)/pay/page.tsx'),
+  ('pay.opening', 'Opening Paddle''s secure checkout…', 'Used in apps/web/app/(site)/pay/page.tsx'),
+  ('pay.title', 'Secure checkout', 'Used in apps/web/app/(site)/pay/page.tsx'),
   ('pricing.billing', 'Billing', 'Used in apps/web/components/sections/pricing-table.tsx'),
   ('pricing.choose', 'Choose {name}', 'Used in apps/web/components/sections/form-sections.tsx'),
   ('pricing.included', 'Included:', 'Used in apps/web/components/sections/pricing-table.tsx'),
@@ -1273,3 +1326,92 @@ on conflict (id) do update set
   sort_order = excluded.sort_order,
   is_visible = excluded.is_visible;
 
+-- =============================================================================
+-- Paddle launch content (same as migrations/0009_paddle.sql, part 4)
+-- =============================================================================
+
+-- ---------------------------------------------------------------------
+-- 4. Website data: USD prices and Paddle wording
+-- ---------------------------------------------------------------------
+update public.site_settings set currency_code = 'USD', currency_locale = 'en-US' where id = 1;
+update public.packages set currency = null where currency = 'LKR';
+update public.products set auto_activate = true where slug = 'post';
+
+update public.packages pk
+   set price_monthly = v.monthly, price_yearly = v.yearly, setup_fee = v.setup, fine_print = v.fine
+  from public.products p,
+       (values
+         ('lingo', 'core', 25.00, 250.00, 39.00, 'Prices in US dollars. WhatsApp marketing message fees charged by Meta are billed at cost. Yearly plans include 2 months free.'),
+         ('lingo', 'pro', 49.00, 490.00, 69.00, 'Prices in US dollars. WhatsApp marketing message fees charged by Meta are billed at cost. Yearly plans include 2 months free.'),
+         ('lingo', 'supreme', 119.00, 1190.00, 169.00, 'Prices in US dollars. WhatsApp marketing message fees charged by Meta are billed at cost. Yearly plans include 2 months free.'),
+         ('post', 'starter', 19.00, 190.00, 0, 'Prices in US dollars. Yearly plans include 2 months free. AI allowances reset every month; when one runs out, Post keeps posting with your own photos.'),
+         ('post', 'growth', 49.00, 490.00, 0, 'Prices in US dollars. Yearly plans include 2 months free. AI allowances reset every month; when one runs out, Post keeps posting with your own photos.'),
+         ('post', 'pro', 99.00, 990.00, 0, 'Prices in US dollars. Yearly plans include 2 months free. AI allowances reset every month; when one runs out, Post keeps posting with your own photos.')
+       ) as v (product, slug, monthly, yearly, setup, fine)
+ where p.id = pk.product_id and p.slug = v.product and pk.slug = v.slug;
+
+update public.pages set seo_description = replace(seo_description, 'Plans from LKR 6,900 a month.', 'Plans from US$25 a month.') where slug = 'lingo';
+update public.pages set seo_description = replace(seo_description, 'Plans from LKR 5,900 a month.', 'Plans from US$19 a month.') where slug = 'post';
+
+update public.order_statuses
+   set description = 'Pay securely to start. Your request is saved; pay any time from your account.'
+ where key = 'awaiting_payment';
+
+update public.forms
+   set success_title = 'Last step: payment',
+       submit_label = 'Continue to payment',
+       success_message = 'Pay below to start. We begin setting up your Lingo as soon as your payment goes through.'
+ where slug = 'lingo-onboarding';
+update public.forms
+   set success_title = 'Last step: payment',
+       submit_label = 'Continue to payment',
+       success_message = 'Pay below to start. Your Post panel opens at post.retexia.com as soon as your payment goes through.'
+ where slug = 'post-onboarding';
+
+-- FAQs
+update public.faqs set answer = 'Choose a plan, answer a few questions, then pay securely by card, Apple Pay, Google Pay or PayPal through Paddle, our payment partner. We start as soon as the payment goes through.'
+ where id = md5('retexia:faq:general:3')::uuid;
+update public.faqs set answer = 'Yes. Open the request in your account and press **Manage billing** to cancel. Your service runs until the end of the period you paid for.'
+ where id = md5('retexia:faq:lingo:7')::uuid;
+update public.faqs set answer = 'Yes. Press **Manage billing** on your request in your account to cancel. Posting stops at the end of the period you paid for; your posts stay on Facebook and Instagram.'
+ where id = md5('retexia:faq:post:6')::uuid;
+update public.faqs set answer = 'Yes. Message us and we switch your plan from your next billing date. Paddle adjusts the price automatically.'
+ where id = md5('retexia:faq:lingo:6')::uuid;
+
+-- Terms: Paddle as Merchant of Record, USD, cancelling through Manage billing.
+update public.page_sections s
+   set content = jsonb_set(s.content, '{body}', to_jsonb(
+     replace(replace(replace(s.content ->> 'body',
+       'When you submit a request, we review it and may ask you questions. We can accept or decline a request. Once accepted, we send you the price and payment details. Setup starts after the first payment is received.',
+       'When you order a plan, you answer a few questions about your business and then pay. Setup starts as soon as the first payment goes through. We may contact you with questions, and we can decline a request and refund it in full.'),
+       'Prices are shown in Sri Lankan rupees (LKR) unless stated otherwise. Monthly plans are billed every month, yearly plans every year. The setup fee is paid once.',
+       'Our order process is conducted by our online reseller Paddle.com. Paddle.com is the Merchant of Record for all our orders, handles payments and billing questions, and may add sales tax or VAT where it applies. Prices are shown in US dollars. Monthly plans renew every month and yearly plans every year until you cancel. The setup fee is paid once, with the first payment.'),
+       'You can cancel a request from your account before setup starts. After that, message us and we will stop the service before your next billing date. Setup fees are not refundable once setup has started. Amounts already paid for the current billing period are not refunded.',
+       'You can cancel any time from your account: open the request and press Manage billing. Your plan keeps running until the end of the period you paid for and is not renewed after that. Refunds are covered by our [refund policy](/refund-policy).')))
+  from public.pages g
+ where g.id = s.page_id and g.slug = 'terms' and s.type = 'rich_text';
+
+update public.page_sections s
+   set content = jsonb_set(s.content, '{body}', to_jsonb(
+     replace(s.content ->> 'body',
+       'WhatsApp messages also pass through Meta''s WhatsApp Business Platform.',
+       'WhatsApp messages also pass through Meta''s WhatsApp Business Platform. Payments are handled by Paddle.com, our reseller and Merchant of Record: Paddle processes your card or PayPal details, and we never see or store them.')))
+  from public.pages g
+ where g.id = s.page_id and g.slug = 'privacy' and s.type = 'rich_text'
+   and position('Paddle' in s.content ->> 'body') = 0;
+
+-- Refund policy page (Paddle needs one linked from the site).
+insert into public.pages (slug, title, seo_title, seo_description, product_id, is_published, show_in_sitemap)
+values ('refund-policy', 'Refund policy', null, 'How refunds work for Retexia plans paid through Paddle.', null, true, true)
+on conflict (slug) do nothing;
+insert into public.page_sections (id, page_id, type, anchor, background, eyebrow, title, highlight, subtitle, content, sort_order, is_visible)
+select md5('retexia:section:refund-policy:1')::uuid, g.id, 'rich_text', null, 'surface', 'Legal', 'Refund policy', null,
+  'Last updated: 9 October 2026',
+  $json${"body": "We want you to be happy with Retexia. If you are not, this is how refunds work.\n\n## 14-day money-back guarantee\n\nIf you are not satisfied, ask for a refund within **14 days of your first payment** and we will refund it in full, including the setup fee.\n\n## Renewals\n\nYou can ask for a refund of a renewal (monthly or yearly) within 14 days of the renewal date. Cancel first from your account (**Manage billing**) so the plan is not renewed again.\n\n## How to ask\n\nEmail hello@retexia.com with your request reference (for example LNG-2026-0001), or reply to your Paddle receipt. Refunds go back to the card or PayPal account you paid with, through Paddle, usually within 5 to 10 working days.\n\n## Who processes refunds\n\nOur order process is conducted by our online reseller Paddle.com. Paddle.com is the Merchant of Record for all our orders and handles refunds and billing questions.\n\n## Cancelling\n\nYou can cancel any time from your account. Your plan keeps running until the end of the period you paid for."}$json$::jsonb,
+  1, true
+from public.pages g where g.slug = 'refund-policy'
+on conflict (id) do nothing;
+
+insert into public.navigation_items (id, location, label, href, kind, open_in_new_tab, sort_order)
+values (md5('retexia:nav:footer_legal:3')::uuid, 'footer_legal', 'Refund policy', '/refund-policy', 'link', false, 3)
+on conflict (id) do nothing;
