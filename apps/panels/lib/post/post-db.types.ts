@@ -124,6 +124,10 @@ export type PostRow = {
   safety: Json;
   approved_at: string | null;
   approved_by: string | null;
+  /** WhatsApp messages to the owner (0014): picture sent, "published" sent, last alert. */
+  wa_media_id: string | null;
+  wa_published_at: string | null;
+  wa_alert: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -229,7 +233,10 @@ export type Brand = {
 };
 
 /** businesses.settings.playlist: how many posts and stories a day, and when they go out. */
-export type Playlist = { posts: number; stories: number; post_times: string[]; story_times: string[] };
+/** plan_time: when the next day's playlist is written each day (HH:MM, business time). */
+export type Playlist = { posts: number; stories: number; post_times: string[]; story_times: string[]; plan_time: string };
+
+export type WhatsAppType = "items" | "published" | "alerts";
 
 /** businesses.settings */
 export type Settings = {
@@ -242,7 +249,8 @@ export type Settings = {
   content_mix: { photo: number; reel: number };
   stories_per_day: number;
   paused: boolean;
-  whatsapp: { enabled: boolean; number: string | null; opted_in_at: string | null; types: string[]; quiet_hours: [string, string] };
+  /** types: items (each post/story with its caption when ready), published, alerts (needs you / failed). */
+  whatsapp: { enabled: boolean; number: string | null; opted_in_at: string | null; types: WhatsAppType[]; quiet_hours: [string, string] };
 };
 
 /** posts.variants */

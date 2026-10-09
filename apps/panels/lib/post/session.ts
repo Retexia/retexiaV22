@@ -8,7 +8,7 @@ import { getCustomer as getCustomerFor, requirePayingCustomer, type Customer, ty
 import { defaultLanguages, isCaptionLanguage, isDesignLanguage } from "./languages";
 import { PLAN_LIMITS, defaultTimes } from "./plans";
 import { postDb, type PostDb } from "./post-db";
-import type { BusinessRow, Settings } from "./post-db.types";
+import type { BusinessRow, Settings, WhatsAppType } from "./post-db.types";
 
 export const BUSINESS_COOKIE = "rx_post_business";
 const productSlug = () => process.env.POST_PRODUCT_SLUG || "post";
@@ -56,7 +56,7 @@ export async function requireBusiness(): Promise<BusinessContext> {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  playlist: { posts: 2, stories: 2, post_times: defaultTimes(2, false), story_times: defaultTimes(2, true) },
+  playlist: { posts: 2, stories: 2, post_times: defaultTimes(2, false), story_times: defaultTimes(2, true), plan_time: "06:00" },
   caption_language: "si",
   design_language: "si",
   auto_publish: true,
@@ -65,7 +65,7 @@ export const DEFAULT_SETTINGS: Settings = {
   content_mix: { photo: 2, reel: 1 },
   stories_per_day: 2,
   paused: false,
-  whatsapp: { enabled: false, number: null, opted_in_at: null, types: ["morning", "evening", "alerts"], quiet_hours: ["22:00", "07:00"] },
+  whatsapp: { enabled: false, number: null, opted_in_at: null, types: ["items", "published", "alerts"], quiet_hours: ["22:00", "07:00"] },
 };
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -75,6 +75,16 @@ export function fitTimes(saved: unknown, count: number, story: boolean): string[
   const list = Array.isArray(saved) ? saved.filter((t): t is string => typeof t === "string" && TIME.test(t)) : [];
   const defaults = defaultTimes(count, story);
   return Array.from({ length: count }, (_, i) => list[i] ?? defaults[i]!).sort();
+}
+
+const WA_TYPES: Record<string, WhatsAppType> = { items: "items", published: "published", alerts: "alerts", morning: "items", evening: "published" };
+
+/** WhatsApp settings; older saved types (morning, evening) map to the new ones. */
+function readWhatsApp(saved: Partial<Settings["whatsapp"]> | undefined): Settings["whatsapp"] {
+  const w = { ...DEFAULT_SETTINGS.whatsapp, ...(saved ?? {}) };
+  const types = Array.isArray(saved?.types) ? [...new Set((saved.types as string[]).map((t) => WA_TYPES[t]).filter((t): t is WhatsAppType => Boolean(t)))] : DEFAULT_SETTINGS.whatsapp.types;
+  const quiet = Array.isArray(w.quiet_hours) && w.quiet_hours.length === 2 && w.quiet_hours.every((t) => TIME.test(t)) ? w.quiet_hours : DEFAULT_SETTINGS.whatsapp.quiet_hours;
+  return { ...w, types, quiet_hours: quiet };
 }
 
 /** Settings with defaults filled in and the playlist kept inside the plan's limits. */
@@ -88,11 +98,17 @@ export function readSettings(b: Pick<BusinessRow, "settings" | "plan" | "languag
   return {
     ...DEFAULT_SETTINGS,
     ...s,
-    playlist: { posts, stories, post_times: fitTimes(p.post_times, posts, false), story_times: fitTimes(p.story_times, stories, true) },
+    playlist: {
+      posts,
+      stories,
+      post_times: fitTimes(p.post_times, posts, false),
+      story_times: fitTimes(p.story_times, stories, true),
+      plan_time: typeof p.plan_time === "string" && TIME.test(p.plan_time) ? p.plan_time : "06:00",
+    },
     caption_language: isCaptionLanguage(s.caption_language) ? s.caption_language : langs.caption,
     design_language: isDesignLanguage(s.design_language) ? s.design_language : langs.design,
     slots: Array.isArray(s.slots) && s.slots.length === 3 ? s.slots : DEFAULT_SETTINGS.slots,
     content_mix: { ...DEFAULT_SETTINGS.content_mix, ...(s.content_mix ?? {}) },
-    whatsapp: { ...DEFAULT_SETTINGS.whatsapp, ...(s.whatsapp ?? {}) },
+    whatsapp: readWhatsApp(s.whatsapp),
   };
 }

@@ -239,7 +239,7 @@ export function PostCard({ post, autoPublish, defaults, compact = false }: { pos
         title={post.live ? "Delete from Facebook and Instagram?" : "Delete this item?"}
         description={
           post.live
-            ? "Retexia deletes it from Facebook and Instagram. If Instagram doesn't allow it, we tell you how to delete it there. This can't be undone."
+            ? "It is removed from every account it was published to. This can't be undone."
             : post.inPlaylist
               ? "It leaves today's playlist and nothing goes out at that time. You can add a new item instead."
               : "It is deleted and nothing goes out."

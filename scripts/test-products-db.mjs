@@ -3,6 +3,7 @@
 // Retexia team can read for support.
 //
 //   pnpm db:test
+import { readFileSync } from "node:fs";
 import { createHarness, migration, seed } from "./lib/harness.mjs";
 
 const { db, ok, expectError, as, summary } = await createHarness();
@@ -156,6 +157,21 @@ ok(runs.length === 1 && runs[0].business_id === biz, "the 06:00 run picks up the
 const today = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 ok(new Date(runs[0].plan_date).toISOString().slice(0, 10) === new Date(new Date(`${today}T00:00:00Z`).getTime() + 86_400_000).toISOString().slice(0, 10), "it writes tomorrow's playlist");
 ok((await q(`select * from post.claim_planning_businesses(10)`)).length === 0, "and only once a day");
+ok(runs[0].plan_today === true, "every run also fills today's empty slots");
+
+console.log("Planning time, auto publish, WhatsApp (0014)");
+await q(`update post.businesses set last_plan_date = null, settings = jsonb_set(settings, '{playlist,plan_time}', '"23:59"') where id = $1`, [biz]);
+const lateNow = Number(new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date()).replace(":", "")) >= 2359;
+ok(lateNow || (await q(`select * from post.claim_planning_businesses(10)`)).length === 0, "the run waits for the business's own planning time");
+await q(`update post.businesses set settings = jsonb_set(settings, '{playlist,plan_time}', '"00:00"') where id = $1`, [biz]);
+ok((await q(`select * from post.claim_planning_businesses(10)`)).length === 1, "an earlier planning time runs straight away (to try it out)");
+await q(`update post.businesses set settings = jsonb_set(settings, '{playlist,plan_time}', '"9am"'), last_plan_date = null where id = $1`, [biz]);
+ok((await q(`select * from post.claim_planning_businesses(10)`)).length <= 1, "a broken planning time falls back to 06:00 instead of failing");
+await q(`update post.businesses set category = 'Alcohol', settings = jsonb_set(settings, '{auto_publish}', 'false') where id = $1`, [biz]);
+await db.exec(readFileSync(new URL("../supabase/migrations/0014_post_today_whatsapp.sql", import.meta.url), "utf8"));
+ok((await q(`select settings ->> 'auto_publish' a from post.businesses where id = $1`, [biz]))[0].a === "true", "businesses held back by their type publish automatically again");
+await q(`update post.posts set wa_media_id = media_id, wa_alert = 'failed', wa_published_at = now() where business_id = $1`, [biz]);
+ok(true, "WhatsApp bookkeeping columns exist");
 const ctx = (await q(`select post.plan_context($1, $2) c`, [biz, planDate]))[0].c;
 ok(ctx.business.name && Array.isArray(ctx.products) && Array.isArray(ctx.offers) && Array.isArray(ctx.recent_prompts), "the AI gets the business, products, offers and recent prompts in one query");
 

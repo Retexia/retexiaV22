@@ -33,7 +33,6 @@ export const CATEGORIES = [
 ].map((c) => ({ value: c, label: c }));
 
 /** Sensitive categories: always manual approval (product spec). */
-export const SENSITIVE = ["Health and wellness", "Supplements", "Alcohol", "Finance and insurance"];
 
 export const FORMATS = [
   { value: "photo", label: "Photo" },

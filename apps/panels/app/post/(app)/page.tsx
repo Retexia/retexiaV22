@@ -4,6 +4,7 @@ import { ListMusic } from "lucide-react";
 import Link from "next/link";
 import { AddItem } from "@/components/post/add-item";
 import { ApproveDay } from "@/components/post/approve-day";
+import { FillToday } from "@/components/post/fill-today";
 import { PostCard } from "@/components/post/post-card";
 import { captionLanguageLabel, designLanguageLabel } from "@/lib/post/languages";
 import { PLAN_LIMITS, defaultTimes } from "@/lib/post/plans";
@@ -35,6 +36,10 @@ export default async function PlaylistPage({ searchParams }: { searchParams: Pro
     const taken = new Set(views.filter((v) => v.isStory === story).map((v) => v.time));
     return times.find((t) => !taken.has(t)) ?? defaultTimes(PLAYLIST_SLOTS, story).find((t) => !taken.has(t)) ?? "18:00";
   };
+
+  const planAt = settings.playlist.plan_time;
+  // Playlist slots still empty today (each one gets the next free time when filled).
+  const emptyToday = date === today ? Math.max(0, settings.playlist.posts - used(false)) + Math.max(0, settings.playlist.stories - used(true)) : 0;
 
   const reconnect = (accounts ?? []).filter((a) => a.status !== "connected");
   const connected = (accounts ?? []).some((a) => a.status === "connected" && a.enabled);
@@ -68,9 +73,9 @@ export default async function PlaylistPage({ searchParams }: { searchParams: Pro
               {max === 0
                 ? `Your playlist has no ${story ? "stories" : "posts"}. Change it in Settings.`
                 : date === today
-                  ? `No ${story ? "stories" : "posts"} today. Add one now, or tomorrow's playlist is written at 6 AM.`
+                  ? `No ${story ? "stories" : "posts"} today yet. Press Fill today, or add one yourself.`
                   : date === addDays(today, 1)
-                    ? "Tomorrow's playlist is written at 6 AM. You can add items yourself now."
+                    ? `Tomorrow's playlist is written today at ${planAt}. You can add items yourself now.`
                     : "Add items for this day now, or plan it in the week plan."}
             </p>
           </Card>
@@ -83,7 +88,7 @@ export default async function PlaylistPage({ searchParams }: { searchParams: Pro
     <div className="flex flex-col gap-6">
       <PageHeader
         title={first ? `Hi ${first}` : "Playlist"}
-        description={`Every morning at 6 AM, tomorrow's playlist is written: ${settings.playlist.posts} post${settings.playlist.posts === 1 ? "" : "s"} and ${settings.playlist.stories} stor${settings.playlist.stories === 1 ? "y" : "ies"}. Everything is designed overnight, ready by 6 AM, and goes out at its time. Change, redo or delete anything until 15 minutes before.`}
+        description={`Every day at ${planAt}, tomorrow's playlist is written: ${settings.playlist.posts} post${settings.playlist.posts === 1 ? "" : "s"} and ${settings.playlist.stories} stor${settings.playlist.stories === 1 ? "y" : "ies"}. Everything is designed from midnight, ready by 6 AM, and ${settings.auto_publish ? "goes out by itself at its time" : "waits for your approval"}. Change, redo or delete anything until 15 minutes before.`}
       />
       {settings.paused ? (
         <Alert tone="warning" title="Publishing is paused" action={<Button href="/settings" size="sm" variant="secondary">Turn back on</Button>}>
@@ -134,7 +139,10 @@ export default async function PlaylistPage({ searchParams }: { searchParams: Pro
             change
           </Link>
         </span>
-        <ApproveDay date={date} count={views.filter((v) => v.status === "ready" && !v.locked).length} />
+        <div className="flex flex-wrap gap-2">
+          {emptyToday > 0 && !settings.paused ? <FillToday empty={emptyToday} /> : null}
+          <ApproveDay date={date} count={settings.auto_publish ? 0 : views.filter((v) => v.status === "ready" && !v.locked).length} />
+        </div>
       </Card>
 
       {laneView(false, "Posts", limits.postsPerDay)}

@@ -6,12 +6,14 @@ import { PLAN_LIMITS } from "./plans";
 import { postDb, type PostDb } from "./post-db";
 import type { BusinessRow, PlanItemRow, PostRow, ProductRow } from "./post-db.types";
 import { readSettings } from "./session";
-import { localDate, zonedToUtc } from "../time";
+import { sendOwnerMessages } from "./whatsapp";
+import { addDays, localDate, timeIn } from "../time";
 
 /**
  * The daily playlist (product logic; the database keeps it consistent):
  *   06:00  runPlanning() writes tomorrow's playlist: one prompt per post and
- *          story slot (n8n "plan", or simple prompts if n8n is unreachable);
+ *          story slot (n8n "plan", or simple prompts if n8n is unreachable),
+ *          and fills today's empty slots (the time is settings.playlist.plan_time);
  *   00:00  dispatchDesigns() sends the day's items to n8n "design" (also any
  *          item under 3 hours away), so the day is ready by 06:00;
  *   then   the publisher posts each item at its time.
@@ -37,27 +39,44 @@ async function imagesLeft(db: PostDb, b: BusinessRow) {
   return Math.max(0, PLAN_LIMITS[b.plan].images - (data?.images ?? 0));
 }
 
-/** Writes one day's playlist: only empty slots, and (onlyFuture) only times at least an hour away. */
-export async function planDay(db: PostDb, b: BusinessRow, date: string, onlyFuture = false): Promise<number> {
+const minutes = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+
+/**
+ * Writes one day's playlist into its empty slots.
+ *   all:  every empty slot at its time (tomorrow's playlist);
+ *   fill: today: slots whose time has passed get the next free times from
+ *         20 minutes from now (every 30 minutes, until 23:50), so today is never empty.
+ */
+export async function planDay(db: PostDb, b: BusinessRow, date: string, mode: "all" | "fill" = "all"): Promise<number> {
   const s = readSettings(b);
   const [{ data: existing }, { data: items }, { data: products }, left] = await Promise.all([
-    db.from("posts").select("slot, is_story").eq("business_id", b.id).eq("local_date", date).lte("slot", PLAYLIST_SLOTS),
+    db.from("posts").select("slot, is_story, scheduled_at").eq("business_id", b.id).eq("local_date", date),
     db.from("plan_items").select("*").eq("business_id", b.id).eq("active", true).lte("start_date", date).gte("end_date", date),
     db.from("products").select("name, price, currency, description").eq("business_id", b.id).eq("active", true).limit(40),
     imagesLeft(db, b),
   ]);
-  const taken = new Set((existing ?? []).map((e) => `${e.is_story ? "story" : "post"}-${e.slot}`));
+  const taken = new Set((existing ?? []).filter((e) => e.slot <= PLAYLIST_SLOTS).map((e) => `${e.is_story ? "story" : "post"}-${e.slot}`));
+  const isToday = date === localDate(b.timezone);
+  const earliest = Math.ceil((minutes(timeIn(b.timezone, new Date().toISOString())) + 20) / 5) * 5;
   const offers = ((items ?? []) as PlanItemRow[]).filter((i) => i.type === "offer");
   const notes = s.week_plan_enabled && PLAN_LIMITS[b.plan].weekPlan ? ((items ?? []) as PlanItemRow[]).filter((i) => i.type === "week_note") : [];
-  const soon = Date.now() + 60 * 60_000;
 
   const slots: (PlanSlot & { slot: number; source: "ai" | "offer" | "week_plan"; plan_item_id: string | null })[] = [];
   const add = (format: "post" | "story", count: number, times: string[]) => {
+    // Times already used in this lane today (items made by hand too).
+    const used = new Set((existing ?? []).filter((e) => e.is_story === (format === "story")).map((e) => timeIn(b.timezone, e.scheduled_at)));
     for (let i = 1; i <= count; i++) {
       const key = `${format}-${i}`;
-      const time = times[i - 1]!;
+      let time = times[i - 1]!;
       if (taken.has(key)) continue;
-      if (onlyFuture && new Date(zonedToUtc(date, time, b.timezone)).getTime() < soon) continue;
+      if (isToday && mode === "fill" && minutes(time) < earliest) {
+        let m = earliest;
+        while (m <= 23 * 60 + 50 && (used.has(hhmm(m)) || times.slice(i).includes(hhmm(m)))) m += 30;
+        if (m > 23 * 60 + 50) continue;
+        time = hhmm(m);
+      } else if (isToday && minutes(time) < earliest) continue;
+      used.add(time);
       const offer = offers.find((o) => i <= (o.slots_per_day ?? 1));
       const note = format === "post" ? notes.find((n) => n.slot === i || n.slot === null) : undefined;
       const d = (offer?.details ?? {}) as { title?: string; price?: string | null; discount?: string | null };
@@ -132,7 +151,7 @@ export async function runPlanning(db: PostDb, limit = 4) {
       if (!b) return 0;
       try {
         // One after the other: both count the month's remaining designs.
-        const today = d.plan_today ? await planDay(db, b as BusinessRow, d.today, true) : 0;
+        const today = d.plan_today ? await planDay(db, b as BusinessRow, d.today, "fill") : 0;
         return today + (await planDay(db, b as BusinessRow, d.plan_date));
       } catch (e) {
         console.error("[playlist] planning failed", d.business_id, e);
@@ -144,6 +163,17 @@ export async function runPlanning(db: PostDb, limit = 4) {
   );
   const items = counts.reduce((a, c) => a + c, 0);
   return { businesses: due?.length ?? 0, items };
+}
+
+/**
+ * Today never stays empty: fills today's empty slots (late ones get the next
+ * free times) and, once tomorrow's playlist exists, its empty slots too.
+ */
+export async function refreshPlaylist(db: PostDb, b: BusinessRow) {
+  const today = localDate(b.timezone);
+  let items = await planDay(db, b, today, "fill");
+  if (b.last_plan_date === today) items += await planDay(db, b, addDays(today, 1));
+  return items;
 }
 
 /** Sends one claimed item to n8n; on failure it goes back to "planned" (3 tries) or to the owner. */
@@ -193,6 +223,13 @@ export async function dispatchDesigns(db: PostDb, limit = 15) {
 
 export async function runCycle() {
   const db = postDb();
-  const [planning, designs] = await Promise.all([runPlanning(db), dispatchDesigns(db)]);
-  return { planning, designs };
+  const [planning, designs, whatsapp] = await Promise.all([
+    runPlanning(db),
+    dispatchDesigns(db),
+    sendOwnerMessages(db).catch((e) => {
+      console.error("[playlist] WhatsApp messages", e);
+      return { sent: 0, configured: true, error: true };
+    }),
+  ]);
+  return { planning, designs, whatsapp };
 }

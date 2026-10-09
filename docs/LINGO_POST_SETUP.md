@@ -44,7 +44,9 @@ bots from the admin, as before.
 
 ### Database
 
-Run `supabase/migrations/0013_post_playlist.sql` (after 0012). It adds the daily
+Run `supabase/migrations/0013_post_playlist.sql` (after 0012), then
+`0014_post_today_whatsapp.sql` (publish automatically for every business type,
+the planning time setting, WhatsApp messages). It adds the daily
 playlist (posts and stories, slots 1–10), the functions the workflow calls, and
 the new plan texts on retexia.com/post. Safe to run again.
 
@@ -80,38 +82,48 @@ each customer's own Facebook/Instagram access.
    `https://post.retexia.com/api/meta/data-deletion`. Copy App ID and App secret.
 4. Permissions used: `pages_show_list`, `pages_manage_posts`,
    `pages_read_engagement`, `instagram_basic`, `instagram_content_publish`,
-   `business_management`, and later `instagram_manage_contents` (see below).
-   Until Meta approves them (App Review + Business
+   `instagram_manage_contents` (deleting Instagram posts), `business_management`.
+   Customers who connected before this change press **Reconnect** once so
+   Instagram deletes work. Until Meta approves them (App Review + Business
    Verification, plan 4–6 weeks), only people with a role on the app can connect:
    add early customers as testers (App roles → Roles).
-5. **Deleting Instagram posts** needs the newer permission
-   `instagram_manage_contents`. It only shows in the Graph API Explorer once the
-   app offers it: App Dashboard → **Use cases** → the Instagram use case
-   (e.g. "Manage messaging & content on Instagram") → **Customize** →
-   **Permissions** → `instagram_manage_contents` → **Add**. Then set
-   `META_INSTAGRAM_DELETE=true` in Vercel, redeploy, and customers press
-   **Reconnect** once. Until then the panel deletes from Facebook and tells the
-   customer to delete the Instagram copy in the Instagram app. Leave the flag off
-   while the app doesn't offer the permission: Facebook Login refuses permissions
-   the app doesn't have ("Invalid Scopes").
 
 ### Vercel → panels project
 
-`N8N_POST_URL` (the Production URL above), `N8N_POST_KEY` (= `retexiaKey`), `META_APP_ID`, `META_APP_SECRET`, `META_INSTAGRAM_DELETE` (see step 5),
+`N8N_POST_URL` (the Production URL above), `N8N_POST_KEY` (= `retexiaKey`), `META_APP_ID`, `META_APP_SECRET`,
 `META_GRAPH_VERSION=v26.0`, `POST_CRON_KEY` (the key from step 1). Redeploy.
+
+### WhatsApp messages to owners
+
+Owners turn them on under **Playlist and settings → WhatsApp messages**: each
+post and story with its picture and caption as soon as it is ready (again after
+a redo), a note when it is published, and an alert when something needs them.
+Nothing is sent in their quiet hours; those messages go out when it ends.
+
+They are sent from Retexia's own WhatsApp line on your Evolution server:
+
+1. On the Evolution server, create an instance for Retexia (e.g. `retexia-post`)
+   and scan its QR code with the Retexia business WhatsApp.
+2. Vercel → panels: `POST_WHATSAPP_INSTANCE=retexia-post` (it uses
+   `EVOLUTION_API_URL` and `EVOLUTION_API_KEY`; set `POST_WHATSAPP_KEY` only if
+   the instance has its own key). Redeploy.
+3. In Settings, press **Send a test message**.
 
 ### What happens then (the daily playlist)
 
 - **Playlist:** each day has up to 5 posts and 5 stories (plan limits: Starter
   2 + 2, Growth 3 + 3, Pro 5 + 5). The customer sets how many, their times, the
   caption language and the design language under **Playlist and settings**.
-- **06:00** (business time): tomorrow's prompts are written. The customer can
+- **06:00** (business time, changeable under **Playlist and settings → Write
+  tomorrow's playlist at**): tomorrow's prompts are written, and today's empty
+  slots are filled (slots whose time has passed get the next free times). The customer can
   change any idea, its languages or its time during the day, or add their own.
-  On a business's first day, today's remaining slots are planned too.
+  **Fill today** on the Playlist page does the same for today straight away.
 - **From 00:00:** the day's items are designed, so they are ready by 6 AM.
   "Design now" designs one straight away.
-- **At each item's time:** published to Facebook and Instagram (with
-  auto-publish on), or after the customer approves. Temporary errors retry
+- **At each item's time:** published to Facebook and Instagram. Publishing
+  automatically is on for every business until the owner turns it off; then
+  each item waits for approval. Temporary errors retry
   after 2, 5, 15 and 30 minutes; lost access marks the account "Reconnect needed".
 - **After publishing:** the customer can change the Facebook text, or delete the
   post from Facebook and Instagram. Instagram does not allow caption changes

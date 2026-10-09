@@ -4,12 +4,12 @@ import { Alert, Button, Card, CheckboxGroup, Field, Input, RadioCards, Select, S
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { saveSettings, updateBasics } from "@/app/post/actions";
+import { saveSettings, sendWhatsAppTest, updateBasics } from "@/app/post/actions";
 import { savePlaylistSettings } from "@/app/post/playlist-actions";
 import { CAPTION_LANGUAGES, DESIGN_LANGUAGES } from "@/lib/post/languages";
 import { defaultTimes } from "@/lib/post/plans";
 import { CATEGORIES, COUNTRIES, LANGUAGES } from "@/lib/post/options";
-import type { Settings } from "@/lib/post/post-db.types";
+import type { Settings, WhatsAppType } from "@/lib/post/post-db.types";
 
 type Basics = { name: string; category: string; country: string; timezone: string; languages: string[] };
 
@@ -28,12 +28,13 @@ function Section({ title, description, children }: { title: string; description?
 export function SettingsForm({
   basics: initialBasics,
   settings: initial,
-  sensitive,
+  whatsAppReady,
   limits,
 }: {
   basics: Basics;
   settings: Settings;
-  sensitive: boolean;
+  /** Retexia's WhatsApp line is set up (POST_WHATSAPP_INSTANCE). */
+  whatsAppReady: boolean;
   limits: { label: string; postsPerDay: number; storiesPerDay: number };
 }) {
   const router = useRouter();
@@ -49,30 +50,48 @@ export function SettingsForm({
 
   return (
     <div className="flex flex-col gap-6">
-      <PlaylistSection settings={initial} sensitive={sensitive} limits={limits} />
+      <PlaylistSection settings={initial} limits={limits} />
 
-      <Section title="WhatsApp messages" description="One short message in the morning (today's posts, with an approve link), one in the evening (what went out), and alerts when something needs you.">
+      <Section title="WhatsApp messages" description="Get each post and story on WhatsApp with its caption as soon as it is ready, so you can check it before it goes out. Plus a note when it is published, and an alert when something needs you.">
+        {!whatsAppReady ? <Alert tone="info">WhatsApp messages start as soon as Retexia&apos;s WhatsApp line is switched on. Your settings are saved until then.</Alert> : null}
         <Switch checked={s.whatsapp.enabled} onCheckedChange={(enabled) => setS({ ...s, whatsapp: { ...s.whatsapp, enabled } })} label="Send me WhatsApp messages" description="Reply STOP at any time to turn them off." />
         {s.whatsapp.enabled ? (
           <>
             <Field label="WhatsApp number" hint="International format, e.g. +94771234567" error={errors["whatsapp.number"]} required>
               <Input value={s.whatsapp.number ?? ""} onChange={(e) => setS({ ...s, whatsapp: { ...s.whatsapp, number: e.target.value } })} />
             </Field>
+            {whatsAppReady ? (
+              <Button
+                className="self-start"
+                size="sm"
+                variant="secondary"
+                loading={busy === "wa-test"}
+                disabled={!s.whatsapp.number}
+                onClick={async () => {
+                  setBusy("wa-test");
+                  const r = await sendWhatsAppTest({ number: s.whatsapp.number ?? "" });
+                  setBusy(null);
+                  toast[r.ok ? "success" : "error"](r.message ?? "");
+                }}
+              >
+                Send a test message
+              </Button>
+            ) : null}
             <Field label="Send" labelAs="legend">
               <CheckboxGroup
                 name="wa-types"
                 value={s.whatsapp.types}
-                onChange={(types) => setS({ ...s, whatsapp: { ...s.whatsapp, types } })}
+                onChange={(types) => setS({ ...s, whatsapp: { ...s.whatsapp, types: types as WhatsAppType[] } })}
                 columns={2}
                 options={[
-                  { value: "morning", label: "Morning: today's posts" },
-                  { value: "evening", label: "Evening: what was published" },
-                  { value: "alerts", label: "Alerts: failures and things that need me" },
+                  { value: "items", label: "Each post and story with its caption, when it is ready" },
+                  { value: "published", label: "When it is published" },
+                  { value: "alerts", label: "Alerts: when something needs me" },
                 ]}
               />
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Quiet from">
+              <Field label="Quiet from" hint="Messages wait until the quiet time ends.">
                 <Input type="time" value={s.whatsapp.quiet_hours[0]} onChange={(e) => setS({ ...s, whatsapp: { ...s.whatsapp, quiet_hours: [e.target.value, s.whatsapp.quiet_hours[1]] } })} />
               </Field>
               <Field label="Until">
@@ -89,7 +108,7 @@ export function SettingsForm({
           onClick={async () => {
             setBusy("settings");
             const r = await saveSettings({
-              whatsapp: { enabled: s.whatsapp.enabled, number: s.whatsapp.number || null, types: s.whatsapp.types as ("morning" | "evening" | "alerts")[], quiet_hours: s.whatsapp.quiet_hours },
+              whatsapp: { enabled: s.whatsapp.enabled, number: s.whatsapp.number || null, types: s.whatsapp.types, quiet_hours: s.whatsapp.quiet_hours },
             });
             setBusy(null);
             finish(r);
@@ -117,9 +136,6 @@ export function SettingsForm({
             <CheckboxGroup name="languages" options={LANGUAGES} value={b.languages} onChange={(languages) => setB({ ...b, languages })} columns={2} />
           </Field>
         </div>
-        {b.category !== initialBasics.category && ["Health and wellness", "Supplements", "Alcohol", "Finance and insurance"].includes(b.category) ? (
-          <Alert tone="info">This type of business always needs your approval before posting.</Alert>
-        ) : null}
         <Button
           className="self-start"
           variant="secondary"
@@ -139,7 +155,7 @@ export function SettingsForm({
 }
 
 /** The daily playlist: how many posts and stories, their times, the languages, publishing. */
-function PlaylistSection({ settings, sensitive, limits }: { settings: Settings; sensitive: boolean; limits: { label: string; postsPerDay: number; storiesPerDay: number } }) {
+function PlaylistSection({ settings, limits }: { settings: Settings; limits: { label: string; postsPerDay: number; storiesPerDay: number } }) {
   const router = useRouter();
   const [v, setV] = useState({
     posts: settings.playlist.posts,
@@ -148,7 +164,8 @@ function PlaylistSection({ settings, sensitive, limits }: { settings: Settings; 
     story_times: settings.playlist.story_times,
     caption_language: settings.caption_language as string,
     design_language: settings.design_language as string,
-    auto_publish: settings.auto_publish && !sensitive,
+    plan_time: settings.playlist.plan_time,
+    auto_publish: settings.auto_publish,
     paused: settings.paused,
   });
   const [busy, setBusy] = useState(false);
@@ -161,16 +178,18 @@ function PlaylistSection({ settings, sensitive, limits }: { settings: Settings; 
   return (
     <Section
       title="Daily playlist"
-      description={`At 6 AM every day, tomorrow's playlist is written with these numbers. Everything is designed overnight and ready by 6 AM. The ${limits.label} plan allows up to ${limits.postsPerDay} posts and ${limits.storiesPerDay} stories a day.`}
+      description={`Every day at the planning time, tomorrow's playlist is written with these numbers (and today's empty slots are filled). Everything is designed from midnight and ready by 6 AM. The ${limits.label} plan allows up to ${limits.postsPerDay} posts and ${limits.storiesPerDay} stories a day.`}
     >
       <Switch checked={v.paused} onCheckedChange={(paused) => setV({ ...v, paused })} label="Pause all publishing" description="Holiday, closed for a few days? Nothing is published or planned until you turn this off." />
       <Switch
         checked={v.auto_publish}
-        disabled={sensitive}
         onCheckedChange={(auto_publish) => setV({ ...v, auto_publish })}
         label="Publish automatically"
-        description={sensitive ? "Your business type always needs your approval before posting." : v.auto_publish ? "Items go out at their time unless you change or delete them." : "Manual approval: each item waits for you. Not approved by its time = skipped."}
+        description={v.auto_publish ? "Items go out at their time unless you change or delete them." : "Manual approval: each item waits for you. Not approved by its time = skipped."}
       />
+      <Field label="Write tomorrow's playlist at" hint="Every day at this time. Change it to try it out: it runs within 5 minutes of the time you choose." className="max-w-xs">
+        <Input type="time" value={v.plan_time} onChange={(e) => setV({ ...v, plan_time: e.target.value })} />
+      </Field>
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="flex flex-col gap-3">
           <Field label="Posts a day">

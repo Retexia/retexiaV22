@@ -8,8 +8,8 @@ import { defaultLanguages } from "@/lib/post/languages";
 import { PLAN_LIMITS } from "@/lib/post/plans";
 import { postDb } from "@/lib/post/post-db";
 import type { Brand, Json, PostFormat, Settings, Variants } from "@/lib/post/post-db.types";
-import { SENSITIVE } from "@/lib/post/options";
 import { BUSINESS_COOKIE, DEFAULT_SETTINGS, getCustomer, listBusinesses, requireBusiness } from "@/lib/post/session";
+import { sendTestMessage } from "@/lib/post/whatsapp";
 import { LOCK_MINUTES } from "@/lib/time";
 
 const uuid = z.uuid();
@@ -61,7 +61,7 @@ export async function createBusiness(input: z.input<typeof basics>): Promise<Act
           ...DEFAULT_SETTINGS,
           caption_language: defaultLanguages(d.languages).caption,
           design_language: defaultLanguages(d.languages).design,
-          auto_publish: !SENSITIVE.includes(d.category),
+          auto_publish: true,
         } as unknown as Json,
       })
       .select("id")
@@ -84,10 +84,9 @@ export async function selectBusiness(input: { id: string }): Promise<ActionResul
 
 export async function updateBasics(input: z.input<typeof basics>): Promise<ActionResult> {
   return run(async () => {
-    const { db, business, settings } = await requireBusiness();
+    const { db, business } = await requireBusiness();
     const d = basics.parse(input);
-    const next = SENSITIVE.includes(d.category) ? { ...settings, auto_publish: false } : settings;
-    const { error } = await db.from("businesses").update({ ...d, category: d.category || null, settings: next as unknown as Json }).eq("id", business.id);
+    const { error } = await db.from("businesses").update({ ...d, category: d.category || null }).eq("id", business.id);
     if (error) return { ok: false, message: dbMessage(error) };
     return done("Business details saved");
   });
@@ -98,7 +97,7 @@ const settingsInput = z.object({
   whatsapp: z.object({
     enabled: z.boolean(),
     number: z.string().trim().max(20).regex(/^(\+?\d{8,15})?$/, "Use international format, e.g. +94771234567").nullable(),
-    types: z.array(z.enum(["morning", "evening", "alerts"])),
+    types: z.array(z.enum(["items", "published", "alerts"])),
     quiet_hours: z.tuple([time, time]),
   }),
 });
@@ -121,6 +120,16 @@ export async function saveSettings(input: z.input<typeof settingsInput>): Promis
     const { error } = await db.from("businesses").update({ settings: next as unknown as Json }).eq("id", business.id);
     if (error) return { ok: false, message: dbMessage(error) };
     return done("Message settings saved");
+  });
+}
+
+/** Sends a test WhatsApp message to the number in the form. */
+export async function sendWhatsAppTest(input: { number: string }): Promise<ActionResult> {
+  return run(async () => {
+    const { business } = await requireBusiness();
+    const number = z.string().trim().regex(/^\+?\d{8,15}$/, "Use international format, e.g. +94771234567").parse(input.number);
+    const r = await sendTestMessage(number, business.name);
+    return r.ok ? { ok: true, message: "Sent. Check WhatsApp." } : { ok: false, message: r.error };
   });
 }
 

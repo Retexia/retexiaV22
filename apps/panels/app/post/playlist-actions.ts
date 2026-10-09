@@ -1,14 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 import { dbMessage, run, type ActionResult } from "@/lib/action";
 import { CAPTION_LANGUAGES, DESIGN_LANGUAGES } from "@/lib/post/languages";
-import { deletePublished, instagramDeleteEnabled, noPermission, updateFacebookText } from "@/lib/post/meta";
+import { deletePublished, updateFacebookText } from "@/lib/post/meta";
 import { designConfigured, requestDesign } from "@/lib/post/n8n";
-import { SENSITIVE } from "@/lib/post/options";
 import { PLAN_LIMITS, defaultTimes } from "@/lib/post/plans";
-import { PLAYLIST_SLOTS, designItem } from "@/lib/post/playlist";
+import { PLAYLIST_SLOTS, designItem, dispatchDesigns, refreshPlaylist } from "@/lib/post/playlist";
+import { postDb } from "@/lib/post/post-db";
 import type { Json, PostRow, PostStatus, Settings, Variants } from "@/lib/post/post-db.types";
 import { fitTimes, requireBusiness } from "@/lib/post/session";
 import { LOCK_MINUTES, addDays, localDate, zonedToUtc } from "@/lib/time";
@@ -224,40 +225,23 @@ export async function deletePost(input: { id: string }): Promise<ActionResult> {
     }
     const { data: accounts } = await db.from("social_accounts").select("id, platform, display_name, token_secret_id").eq("business_id", business.id);
     const failed: string[] = [];
-    const deleted = new Set<string>();
-    // Instagram posts Retexia may not delete (permission not granted yet): the owner deletes them in the app.
-    let instagramByHand = false;
-    const byHand = async (id: string) => {
-      instagramByHand = true;
-      await db.from("publications").update({ status: "removed", last_error: "Still on Instagram: delete it in the Instagram app." }).eq("id", id);
-    };
     for (const p of live) {
       const a = (accounts ?? []).find((x) => x.id === p.social_account_id);
-      const name = a ? (a.platform === "facebook" ? "Facebook" : "Instagram") : "an account";
-      if (a?.platform === "instagram" && !instagramDeleteEnabled()) {
-        await byHand(p.id);
-        continue;
-      }
       const token = await tokenFor(db, a?.token_secret_id ?? null);
+      const name = a ? (a.platform === "facebook" ? "Facebook" : "Instagram") : "an account";
       if (!token) {
         failed.push(`${name} (reconnect it first)`);
         continue;
       }
       const r = await deletePublished(p.external_id!, token);
-      if (r.ok) {
-        await db.from("publications").update({ status: "removed" }).eq("id", p.id);
-        deleted.add(name);
-      } else if (a?.platform === "instagram" && noPermission(r.error)) await byHand(p.id);
+      if (r.ok) await db.from("publications").update({ status: "removed" }).eq("id", p.id);
       else failed.push(`${name}: ${r.error.message}`);
     }
-    const handNote = instagramByHand ? " Instagram doesn't let Retexia delete it yet: open the post in the Instagram app, tap ⋯ and Delete." : "";
     if (failed.length === live.length) return { ok: false, message: `Couldn't delete it: ${failed.join("; ")}` };
     if (!failed.length) await db.from("posts").update({ status: "removed" }).eq("id", post.id);
-    await db.from("events").insert({ business_id: business.id, type: "post_deleted", payload: { post_id: post.id, failed, instagram_by_hand: instagramByHand } });
+    await db.from("events").insert({ business_id: business.id, type: "post_deleted", payload: { post_id: post.id, failed } });
     revalidatePath("/", "layout");
-    if (failed.length) return { ok: false, message: `Deleted in part. Still up: ${failed.join("; ")}.${handNote}` };
-    const where = deleted.size ? `Deleted from ${[...deleted].join(" and ")}.` : "Removed from Retexia.";
-    return { ok: true, message: `${where}${handNote}` };
+    return failed.length ? { ok: false, message: `Deleted in part. Still up: ${failed.join("; ")}` } : { ok: true, message: "Deleted from Facebook and Instagram." };
   });
 }
 
@@ -296,9 +280,32 @@ const settingsInput = z.object({
   story_times: z.array(time).max(PLAYLIST_SLOTS),
   caption_language: captionLang,
   design_language: designLang,
+  plan_time: time,
   auto_publish: z.boolean(),
   paused: z.boolean(),
 });
+
+/** Designs whatever is due now, after the answer has been sent (the scheduler would do it within 5 minutes). */
+const designSoon = () =>
+  after(async () => {
+    try {
+      await dispatchDesigns(postDb());
+    } catch (e) {
+      console.error("[playlist] design dispatch", e);
+    }
+  });
+
+/** Fills today's empty playlist slots now (late ones get the next free times) and starts designing them. */
+export async function fillToday(): Promise<ActionResult> {
+  return run(async () => {
+    const { db, business } = await requireBusiness();
+    if (business.settings && (business.settings as Partial<Settings>).paused) return { ok: false, message: "Your playlist is paused. Turn it back on in Playlist and settings." };
+    const added = await refreshPlaylist(db, business);
+    if (!added) return { ok: false, message: "Nothing to add: today's playlist is full, there is no time left today, or this month's AI designs are used up." };
+    designSoon();
+    return done(`${added} item${added === 1 ? "" : "s"} added. They are being designed now (about 2 minutes each).`);
+  });
+}
 
 /**
  * How many posts and stories a day, their times, the languages, and
@@ -319,14 +326,19 @@ export async function savePlaylistSettings(input: z.input<typeof settingsInput>)
     }
     const next: Settings = {
       ...settings,
-      playlist: { posts: d.posts, stories: d.stories, post_times: postTimes, story_times: storyTimes },
+      playlist: { posts: d.posts, stories: d.stories, post_times: postTimes, story_times: storyTimes, plan_time: d.plan_time },
       caption_language: d.caption_language as Settings["caption_language"],
       design_language: d.design_language as Settings["design_language"],
-      auto_publish: d.auto_publish && !SENSITIVE.includes(business.category ?? ""),
+      auto_publish: d.auto_publish,
       paused: d.paused,
       stories_per_day: d.stories,
     };
-    const { error } = await db.from("businesses").update({ settings: next as unknown as Json }).eq("id", business.id);
+    // A new planning time: the next run happens at that time (today too, if it hasn't come yet).
+    const planTimeChanged = d.plan_time !== settings.playlist.plan_time;
+    const { error } = await db
+      .from("businesses")
+      .update({ settings: next as unknown as Json, ...(planTimeChanged ? { last_plan_date: null } : {}) })
+      .eq("id", business.id);
     if (error) return { ok: false, message: dbMessage(error) };
 
     // Move today's and tomorrow's remaining playlist items to the new times.
@@ -347,7 +359,15 @@ export async function savePlaylistSettings(input: z.input<typeof settingsInput>)
       await db.from("posts").update({ scheduled_at: at }).eq("id", it.id);
       moved++;
     }
-    return done(`Saved. ${moved ? `${moved} item${moved === 1 ? "" : "s"} moved to the new times. ` : ""}The number of posts and stories applies from the next playlist (written at 6 AM).`);
+    // More posts or stories a day: today's (and tomorrow's, if written) new slots are filled now.
+    let added = 0;
+    if (!d.paused) {
+      added = await refreshPlaylist(db, { ...business, settings: next as unknown as Json, last_plan_date: planTimeChanged ? null : business.last_plan_date });
+      if (added) designSoon();
+    }
+    return done(
+      `Saved. ${moved ? `${moved} item${moved === 1 ? "" : "s"} moved to the new times. ` : ""}${added ? `${added} new item${added === 1 ? "" : "s"} added and being designed. ` : ""}Tomorrow's playlist is written at ${d.plan_time}.`,
+    );
   });
 }
 
