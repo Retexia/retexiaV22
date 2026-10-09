@@ -19,12 +19,12 @@ export default async function PlanPage() {
   const thumbs = await mediaUrls(db, library ?? []);
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Week plan and offers" description="Steer what gets posted. Offers come first, then your notes for a slot, then the AI's own ideas." />
+      <PageHeader title="Week plan and offers" description="Steer what tomorrow's playlist says. Offers come first, then your note for a post, then the AI's own ideas. Playlists are written at 6 AM." />
       <PlanEditor
         today={today}
         weekPlanAllowed={PLAN_LIMITS[business.plan].weekPlan}
         weekPlanEnabled={settings.week_plan_enabled}
-        slots={settings.slots}
+        slots={settings.playlist.post_times.length ? settings.playlist.post_times : settings.slots}
         days={Array.from({ length: 7 }, (_, i) => {
           const d = addDays(today, i);
           return { date: d, label: dayLabel(d, today) };

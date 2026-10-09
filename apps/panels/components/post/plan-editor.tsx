@@ -77,7 +77,7 @@ export function PlanEditor({
                   <th scope="row" className="pr-2 text-left align-top type-label font-medium text-ink">
                     {d.label}
                   </th>
-                  {[1, 2, 3].map((slot) => {
+                  {slots.map((_, i) => i + 1).map((slot) => {
                     const n = notes.find((x) => x.date === d.date && x.slot === slot);
                     const p = photo(n?.media_id ?? null);
                     return (
@@ -258,7 +258,7 @@ export function PlanEditor({
               <Input type="date" value={offer.end_date} min={offer.start_date} onChange={(e) => setOffer({ ...offer, end_date: e.target.value })} />
             </Field>
             <Field label="Posts a day about it">
-              <Select value={String(offer.slots_per_day)} onChange={(e) => setOffer({ ...offer, slots_per_day: Number(e.target.value) || 1 })} options={["1", "2", "3"].map((v) => ({ value: v, label: v }))} />
+              <Select value={String(offer.slots_per_day)} onChange={(e) => setOffer({ ...offer, slots_per_day: Number(e.target.value) || 1 })} options={["1", "2", "3", "4", "5"].map((v) => ({ value: v, label: v }))} />
             </Field>
             <div className="flex items-end pb-2">
               <Switch checked={offer.active} onCheckedChange={(active) => setOffer({ ...offer, active })} label="Offer is on" />

@@ -10,10 +10,10 @@ export default async function SettingsPage() {
   const { business, settings, customer } = await requireBusinessPage("/settings");
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Schedule and settings" description={`${PLAN_LIMITS[business.plan].label} plan · subscription ${customer.order.ref}`} />
+      <PageHeader title="Playlist and settings" description={`${PLAN_LIMITS[business.plan].label} plan · subscription ${customer.order.ref}`} />
       <SettingsForm
         sensitive={SENSITIVE.includes(business.category ?? "")}
-        weekPlanAllowed={PLAN_LIMITS[business.plan].weekPlan}
+        limits={PLAN_LIMITS[business.plan]}
         basics={{ name: business.name, category: business.category ?? "", country: business.country, timezone: business.timezone, languages: business.languages }}
         settings={settings}
       />

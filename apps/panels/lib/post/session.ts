@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import { AccessError } from "../action";
 import { getCustomer as getCustomerFor, requirePayingCustomer, type Customer, type PayingCustomer } from "../customer";
+import { defaultLanguages, isCaptionLanguage, isDesignLanguage } from "./languages";
+import { PLAN_LIMITS, defaultTimes } from "./plans";
 import { postDb, type PostDb } from "./post-db";
 import type { BusinessRow, Settings } from "./post-db.types";
 
@@ -54,20 +56,41 @@ export async function requireBusiness(): Promise<BusinessContext> {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
+  playlist: { posts: 2, stories: 2, post_times: defaultTimes(2, false), story_times: defaultTimes(2, true) },
+  caption_language: "si",
+  design_language: "si",
   auto_publish: true,
   week_plan_enabled: false,
   slots: ["09:00", "13:00", "19:00"],
   content_mix: { photo: 2, reel: 1 },
-  stories_per_day: 3,
+  stories_per_day: 2,
   paused: false,
   whatsapp: { enabled: false, number: null, opted_in_at: null, types: ["morning", "evening", "alerts"], quiet_hours: ["22:00", "07:00"] },
 };
 
-export function readSettings(b: Pick<BusinessRow, "settings">): Settings {
+const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** Times for n items: the saved ones (valid, in order) completed with the defaults. */
+export function fitTimes(saved: unknown, count: number, story: boolean): string[] {
+  const list = Array.isArray(saved) ? saved.filter((t): t is string => typeof t === "string" && TIME.test(t)) : [];
+  const defaults = defaultTimes(count, story);
+  return Array.from({ length: count }, (_, i) => list[i] ?? defaults[i]!).sort();
+}
+
+/** Settings with defaults filled in and the playlist kept inside the plan's limits. */
+export function readSettings(b: Pick<BusinessRow, "settings" | "plan" | "languages">): Settings {
   const s = (b.settings ?? {}) as Partial<Settings>;
+  const limits = PLAN_LIMITS[b.plan] ?? PLAN_LIMITS.trial;
+  const p = (s.playlist ?? {}) as Partial<Settings["playlist"]>;
+  const posts = Math.max(0, Math.min(limits.postsPerDay, Number.isInteger(p.posts) ? p.posts! : Math.min(3, limits.postsPerDay)));
+  const stories = Math.max(0, Math.min(limits.storiesPerDay, Number.isInteger(p.stories) ? p.stories! : Math.min(2, limits.storiesPerDay)));
+  const langs = defaultLanguages(b.languages ?? []);
   return {
     ...DEFAULT_SETTINGS,
     ...s,
+    playlist: { posts, stories, post_times: fitTimes(p.post_times, posts, false), story_times: fitTimes(p.story_times, stories, true) },
+    caption_language: isCaptionLanguage(s.caption_language) ? s.caption_language : langs.caption,
+    design_language: isDesignLanguage(s.design_language) ? s.design_language : langs.design,
     slots: Array.isArray(s.slots) && s.slots.length === 3 ? s.slots : DEFAULT_SETTINGS.slots,
     content_mix: { ...DEFAULT_SETTINGS.content_mix, ...(s.content_mix ?? {}) },
     whatsapp: { ...DEFAULT_SETTINGS.whatsapp, ...(s.whatsapp ?? {}) },

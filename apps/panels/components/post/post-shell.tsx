@@ -34,7 +34,7 @@ export function PostShell({
   const groups: PanelNavGroup[] = [
     {
       items: [
-        { href: "/", label: "Today", icon: icon(LayoutDashboard), exact: true, badge: attention || null },
+        { href: "/", label: "Playlist", icon: icon(LayoutDashboard), exact: true, badge: attention || null },
         { href: "/calendar", label: "Calendar", icon: icon(CalendarDays) },
         { href: "/create", label: "New post", icon: icon(Plus) },
       ],
@@ -52,7 +52,7 @@ export function PostShell({
       label: "Setup",
       items: [
         { href: "/accounts", label: "Facebook and Instagram", icon: icon(Share2) },
-        { href: "/settings", label: "Schedule and settings", icon: icon(Settings) },
+        { href: "/settings", label: "Playlist and settings", icon: icon(Settings) },
         { href: "/activity", label: "Activity and usage", icon: icon(Activity) },
       ],
     },

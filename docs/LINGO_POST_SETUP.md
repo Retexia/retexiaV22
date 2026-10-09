@@ -42,20 +42,32 @@ bots from the admin, as before.
 
 ## 3. Post (post.retexia.com)
 
-### n8n photo workflow (unchanged)
+### Database
 
-Your "Retexia — Photo post (generate + publish)" workflow stays as it is. The
-panel calls its webhook with `{ "prompt", "publish", "business_id" }` and reads
-what the workflow writes to the database:
+Run `supabase/migrations/0013_post_playlist.sql` (after 0012). It adds the daily
+playlist (posts and stories, slots 1–10), the functions the workflow calls, and
+the new plan texts on retexia.com/post. Safe to run again.
 
-- **Publish now** → your workflow designs and publishes it (status `published`/`failed`).
-- **Save as draft** → your workflow saves it as `ready` in the next free slot; the
-  database sets it to that slot's time, and it goes out then (auto-publish) or
-  after the owner approves.
-- **Nightly posts** and **deny → new version** call the same webhook.
+### n8n workflow "Retexia — Post (plan + design)"
 
-Set `N8N_PHOTO_POST_URL` to the **Production URL** of *Webhook: photo post*
-(the workflow must be active).
+1. n8n → **Import from file** → `n8n/retexia-post.json`.
+2. Open each node with a credential and pick yours: **Postgres** (the Retexia
+   project), **Supabase** (the Retexia project, for Storage), **OpenAI**.
+3. **Config** node: set `retexiaKey` to a long random value
+   (`openssl rand -hex 32`). Models, image quality and sizes are there too
+   (`imageQuality: 'high'` draws Sinhala/Tamil letters more accurately).
+4. **Activate** it, then copy *Webhook: Retexia Post* → **Production URL**
+   (ends in `/webhook/retexia-post`).
+5. Deactivate the old "Retexia — Photo post (generate + publish)" workflow: it
+   published with a fixed Page token, and the panel no longer calls it.
+
+The workflow only designs; it never publishes. post.retexia.com publishes with
+each customer's own Facebook/Instagram access.
+
+| Call from the panel | What the workflow does |
+| --- | --- |
+| `plan` (06:00 each day) | Reads `post.plan_context()`, writes one idea per slot for tomorrow (offers and week-plan notes first, no repeats), answers with the prompts. If n8n is down the panel writes simple product prompts itself. |
+| `design` (from 00:00, or "Design now"/"Redo"/"New post") | Answers at once, then writes the captions and the design text in the chosen languages, draws the picture (feed 4:5, story 9:16, logo when set), uploads it and calls `post.finish_design()`. Errors call `post.design_failed()`: the item shows "needs you" with the reason. |
 
 ### Meta app (Facebook and Instagram)
 
@@ -68,26 +80,46 @@ Set `N8N_PHOTO_POST_URL` to the **Production URL** of *Webhook: photo post*
    `https://post.retexia.com/api/meta/data-deletion`. Copy App ID and App secret.
 4. Permissions used: `pages_show_list`, `pages_manage_posts`,
    `pages_read_engagement`, `instagram_basic`, `instagram_content_publish`,
-   `business_management`. Until Meta approves them (App Review + Business
+   `business_management`, and later `instagram_manage_contents` (see below).
+   Until Meta approves them (App Review + Business
    Verification, plan 4–6 weeks), only people with a role on the app can connect:
    add early customers as testers (App roles → Roles).
+5. **Deleting Instagram posts** needs the newer permission
+   `instagram_manage_contents`. It only shows in the Graph API Explorer once the
+   app offers it: App Dashboard → **Use cases** → the Instagram use case
+   (e.g. "Manage messaging & content on Instagram") → **Customize** →
+   **Permissions** → `instagram_manage_contents` → **Add**. Then set
+   `META_INSTAGRAM_DELETE=true` in Vercel, redeploy, and customers press
+   **Reconnect** once. Until then the panel deletes from Facebook and tells the
+   customer to delete the Instagram copy in the Instagram app. Leave the flag off
+   while the app doesn't offer the permission: Facebook Login refuses permissions
+   the app doesn't have ("Invalid Scopes").
 
 ### Vercel → panels project
 
-`N8N_PHOTO_POST_URL`, `META_APP_ID`, `META_APP_SECRET`,
+`N8N_POST_URL` (the Production URL above), `N8N_POST_KEY` (= `retexiaKey`), `META_APP_ID`, `META_APP_SECRET`, `META_INSTAGRAM_DELETE` (see step 5),
 `META_GRAPH_VERSION=v26.0`, `POST_CRON_KEY` (the key from step 1). Redeploy.
 
-### What happens then
+### What happens then (the daily playlist)
 
-- **New post** in the panel → your n8n workflow designs it (about a minute) and,
-  with "Publish now", publishes it; otherwise it waits in the next free time slot.
-- **Every night ~1 AM** (business time): 3 posts per business with a connected
-  account and AI images left. Priority: active offer → week plan → product idea.
-- **Scheduled posts** (drafts, nightly posts) are published every minute by
-  post.retexia.com to Facebook and Instagram, with the customer's own access
-  from "Continue with Facebook" (stored in Supabase Vault). Temporary errors retry after 2, 5, 15
-  and 30 minutes; lost access marks the account "Reconnect needed".
-- **Deny** → your workflow makes a new version in the next free slot (10 per post, monthly redo allowance).
+- **Playlist:** each day has up to 5 posts and 5 stories (plan limits: Starter
+  2 + 2, Growth 3 + 3, Pro 5 + 5). The customer sets how many, their times, the
+  caption language and the design language under **Playlist and settings**.
+- **06:00** (business time): tomorrow's prompts are written. The customer can
+  change any idea, its languages or its time during the day, or add their own.
+  On a business's first day, today's remaining slots are planned too.
+- **From 00:00:** the day's items are designed, so they are ready by 6 AM.
+  "Design now" designs one straight away.
+- **At each item's time:** published to Facebook and Instagram (with
+  auto-publish on), or after the customer approves. Temporary errors retry
+  after 2, 5, 15 and 30 minutes; lost access marks the account "Reconnect needed".
+- **After publishing:** the customer can change the Facebook text, or delete the
+  post from Facebook and Instagram. Instagram does not allow caption changes
+  through its API, so the panel offers delete and post again.
+- **Made by hand:** "New post" makes a post or story (up to 5 extra a day) now
+  or at a chosen time.
+- Nothing is planned while the business is paused, its subscription stopped, or
+  Admin → Products → Post has AI posts paused for everyone.
 - Orders drive plans: the customer's package sets the plan; pausing or cancelling
   the order stops Post publishing and switches the Lingo bot off.
 - Admin → Products → Post → **Businesses**: health, usage, cost, and the global
@@ -97,5 +129,7 @@ Set `N8N_PHOTO_POST_URL` to the **Production URL** of *Webhook: photo post*
 
 - `https://post.retexia.com/api/health` and `https://lingo.retexia.com/api/health`.
 - Supabase → Integrations → Cron → `retexia-post-publish-tick` runs every minute
-  (it only calls the panel when a post is due).
+  (it only calls the panel when a post is due) and `retexia-post-batch-tick`
+  every 5 minutes (`/api/post/batch` answers with what it planned and sent to
+  design, and `designer: connected` when `N8N_POST_URL` is set).
 - Admin → Settings → Audit log shows bot links, account changes and plan changes.

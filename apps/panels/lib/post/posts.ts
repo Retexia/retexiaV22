@@ -24,6 +24,14 @@ export type PostView = {
   locked: boolean;
   denyReason: string | null;
   brief: Record<string, unknown>;
+  /** Playlist item (slots 1–5) or made by hand (6–10). */
+  inPlaylist: boolean;
+  title: string;
+  prompt: string;
+  captionLanguage: string | null;
+  designLanguage: string | null;
+  /** Live on at least one account (can be edited on Facebook / deleted). */
+  live: boolean;
   publications: { platform: string; name: string | null; status: PublicationRow["status"]; permalink: string | null; error: string | null; publishedAt: string | null }[];
 };
 
@@ -66,6 +74,12 @@ export async function toViews(db: PostDb, businessId: string, tz: string, posts:
       locked: isLocked(p.scheduled_at),
       denyReason: p.deny_reason,
       brief: (p.brief ?? {}) as Record<string, unknown>,
+      inPlaylist: p.slot <= 5,
+      title: String(((p.brief ?? {}) as Record<string, unknown>).title ?? ""),
+      prompt: String(((p.brief ?? {}) as Record<string, unknown>).prompt ?? ""),
+      captionLanguage: (((p.brief ?? {}) as Record<string, unknown>).caption_language as string | undefined) ?? null,
+      designLanguage: (((p.brief ?? {}) as Record<string, unknown>).design_language as string | undefined) ?? null,
+      live: (pubs ?? []).some((x) => x.post_id === p.id && x.status === "published"),
       publications: (pubs ?? [])
         .filter((x) => x.post_id === p.id)
         .map((x) => ({

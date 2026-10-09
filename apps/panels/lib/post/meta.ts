@@ -11,7 +11,15 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 /** One-time state for "Continue with Facebook" (state.businessId). */
 export const META_STATE_COOKIE = "rx_meta_state";
 
-export const META_SCOPES = ["pages_show_list", "pages_manage_posts", "pages_read_engagement", "instagram_basic", "instagram_content_publish", "business_management"];
+const BASE_SCOPES = ["pages_show_list", "pages_manage_posts", "pages_read_engagement", "instagram_basic", "instagram_content_publish", "business_management"];
+
+/**
+ * Deleting Instagram posts and stories from the panel needs instagram_manage_contents.
+ * Request it only once the Meta app offers it (META_INSTAGRAM_DELETE=true): asking for a
+ * permission the app doesn't have makes Facebook Login fail with "Invalid Scopes".
+ */
+export const instagramDeleteEnabled = () => process.env.META_INSTAGRAM_DELETE?.trim() === "true";
+export const metaScopes = () => [...BASE_SCOPES, ...(instagramDeleteEnabled() ? ["instagram_manage_contents"] : [])];
 
 export function metaConfig() {
   const appId = process.env.META_APP_ID?.trim();
@@ -71,13 +79,40 @@ export async function graphPost<T>(path: string, params: Record<string, string>)
   }
 }
 
+export async function graphDelete(path: string, token: string): Promise<GraphResult<{ success?: boolean }>> {
+  try {
+    const res = await fetch(`${graph(path)}?${new URLSearchParams({ access_token: token })}`, { method: "DELETE", signal: AbortSignal.timeout(30_000), cache: "no-store" });
+    const json = (await res.json().catch(() => ({}))) as { success?: boolean; error?: Parameters<typeof classify>[0] };
+    if (!res.ok || json.error) return { ok: false, error: classify(json.error, res.status) };
+    return { ok: true, data: json };
+  } catch {
+    return { ok: false, error: classify(undefined, 0) };
+  }
+}
+
+/**
+ * Deletes a published Facebook Page post/story or Instagram post/story (the id saved when it was published).
+ * Already deleted on Facebook/Instagram (code 100, subcode 33: the object no longer exists) counts as done.
+ */
+/** Meta refused for lack of permission (the app or the connection doesn't have it). */
+export const noPermission = (e: GraphError) => e.code === 10 || (e.code !== undefined && e.code >= 200 && e.code < 300);
+
+export async function deletePublished(externalId: string, token: string): Promise<GraphResult<{ success?: boolean }>> {
+  const r = await graphDelete(`/${externalId}`, token);
+  if (!r.ok && r.error.code === 100 && r.error.subcode === 33) return { ok: true, data: { success: true } };
+  return r;
+}
+
+/** Changes a published Facebook Page post's text (only posts this app made; Instagram captions can't be changed by apps). */
+export const updateFacebookText = (postId: string, message: string, token: string) => graphPost<{ success?: boolean }>(`/${postId}`, { message, access_token: token });
+
 // ---------------------------------------------------------------------------
 // Login
 // ---------------------------------------------------------------------------
 
 export function loginUrl(redirectUri: string, state: string) {
   const cfg = metaConfig()!;
-  const q = new URLSearchParams({ client_id: cfg.appId, redirect_uri: redirectUri, state, scope: META_SCOPES.join(","), response_type: "code" });
+  const q = new URLSearchParams({ client_id: cfg.appId, redirect_uri: redirectUri, state, scope: metaScopes().join(","), response_type: "code" });
   return `https://www.facebook.com/${cfg.version}/dialog/oauth?${q}`;
 }
 

@@ -4,13 +4,13 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { dbMessage, run, type ActionResult } from "@/lib/action";
-import { requestDesign } from "@/lib/post/n8n";
+import { defaultLanguages } from "@/lib/post/languages";
 import { PLAN_LIMITS } from "@/lib/post/plans";
 import { postDb } from "@/lib/post/post-db";
 import type { Brand, Json, PostFormat, Settings, Variants } from "@/lib/post/post-db.types";
 import { SENSITIVE } from "@/lib/post/options";
 import { BUSINESS_COOKIE, DEFAULT_SETTINGS, getCustomer, listBusinesses, requireBusiness } from "@/lib/post/session";
-import { LOCK_MINUTES, localDate, zonedToUtc } from "@/lib/time";
+import { LOCK_MINUTES } from "@/lib/time";
 
 const uuid = z.uuid();
 const done = (message: string, paths: string[] = ["/"]): ActionResult => {
@@ -57,7 +57,12 @@ export async function createBusiness(input: z.input<typeof basics>): Promise<Act
         ...(plan?.[0] ? { plan: plan[0].plan, subscription_status: plan[0].subscription_status } : {}),
         category: d.category || null,
         // Sensitive industries always need the owner's approval (product spec).
-        settings: { ...DEFAULT_SETTINGS, auto_publish: !SENSITIVE.includes(d.category) } as unknown as Json,
+        settings: {
+          ...DEFAULT_SETTINGS,
+          caption_language: defaultLanguages(d.languages).caption,
+          design_language: defaultLanguages(d.languages).design,
+          auto_publish: !SENSITIVE.includes(d.category),
+        } as unknown as Json,
       })
       .select("id")
       .single();
@@ -90,12 +95,6 @@ export async function updateBasics(input: z.input<typeof basics>): Promise<Actio
 
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM");
 const settingsInput = z.object({
-  auto_publish: z.boolean(),
-  week_plan_enabled: z.boolean(),
-  slots: z.tuple([time, time, time]).refine((s) => s[0] < s[1] && s[1] < s[2], "Put the times in order, earliest first"),
-  content_mix: z.object({ photo: z.number().int().min(0).max(3), reel: z.number().int().min(0).max(3) }).refine((m) => m.photo + m.reel === 3, "The mix must add up to 3 posts a day"),
-  stories_per_day: z.number().int().min(0).max(3),
-  paused: z.boolean(),
   whatsapp: z.object({
     enabled: z.boolean(),
     number: z.string().trim().max(20).regex(/^(\+?\d{8,15})?$/, "Use international format, e.g. +94771234567").nullable(),
@@ -104,16 +103,14 @@ const settingsInput = z.object({
   }),
 });
 
+/** WhatsApp messages (the playlist, languages and publishing have savePlaylistSettings). */
 export async function saveSettings(input: z.input<typeof settingsInput>): Promise<ActionResult> {
   return run(async () => {
     const { db, business, settings } = await requireBusiness();
     const d = settingsInput.parse(input);
-    if (d.week_plan_enabled && !PLAN_LIMITS[business.plan].weekPlan) return { ok: false, message: `The week plan is not part of the ${PLAN_LIMITS[business.plan].label} plan.` };
     if (d.whatsapp.enabled && !d.whatsapp.number) return { ok: false, message: "Add a WhatsApp number to turn on messages.", fieldErrors: { "whatsapp.number": "Required" } };
     const next: Settings = {
       ...settings,
-      ...d,
-      auto_publish: d.auto_publish && !SENSITIVE.includes(business.category ?? ""),
       whatsapp: {
         ...settings.whatsapp,
         ...d.whatsapp,
@@ -123,7 +120,7 @@ export async function saveSettings(input: z.input<typeof settingsInput>): Promis
     };
     const { error } = await db.from("businesses").update({ settings: next as unknown as Json }).eq("id", business.id);
     if (error) return { ok: false, message: dbMessage(error) };
-    return done(d.paused ? "Saved. Publishing is paused." : "Settings saved");
+    return done("Message settings saved");
   });
 }
 
@@ -346,47 +343,6 @@ export async function approveDay(input: { date: string }): Promise<ActionResult>
   });
 }
 
-export async function denyPost(input: { id: string; reason: "caption" | "image" | "both" | "wrong_product" }): Promise<ActionResult> {
-  return run(async () => {
-    const { db, post, business } = await ownPost(input.id);
-    const reason = z.enum(["caption", "image", "both", "wrong_product"]).parse(input.reason);
-    if (!post) return { ok: false, message: "Post not found." };
-    if (!["ready", "approved"].includes(post.status)) return { ok: false, message: "This post can't be sent back right now." };
-    const out = post.regen_count >= 10;
-    const { data, error } = await db
-      .from("posts")
-      .update(out ? { status: "needs_manual" } : { status: "denied", regen_count: post.regen_count + 1, deny_reason: reason, approved_at: null, approved_by: null })
-      .eq("id", post.id)
-      .eq("regen_count", post.regen_count)
-      .in("status", ["ready", "approved"])
-      .gt("scheduled_at", lockIso())
-      .select("id");
-    if (error) return { ok: false, message: dbMessage(error) };
-    if (!data?.length) return { ok: false, message: "This post is locked for publishing." };
-    if (out) return done("No new versions left for this post. Edit it, pick your own photo, or skip it.");
-    // Ask n8n for a new version in the same slot (the monthly redo allowance counts here).
-    const period = `${localDate(business.timezone).slice(0, 7)}-01`;
-    const { data: usage } = await db.from("usage_monthly").select("regenerations").eq("business_id", business.id).eq("period", period).maybeSingle();
-    if ((usage?.regenerations ?? 0) >= PLAN_LIMITS[business.plan].regenerations) {
-      await db.from("posts").update({ status: "needs_manual" }).eq("id", post.id);
-      return done("You've used this month's redos. Edit this post, pick your own photo, or skip it.");
-    }
-    const brief = (post.brief ?? {}) as { prompt?: string };
-    const feedback = { caption: "Write a different caption.", image: "Make a different image.", both: "Make a different image and caption.", wrong_product: "It showed the wrong product; follow the request exactly." }[reason];
-    const r = await requestDesign({
-      business_id: business.id,
-      prompt: `${brief.prompt ?? post.caption ?? "A post for the business"}\n\nThe owner rejected the last version. ${feedback}`.slice(0, 1500),
-      publish: false,
-    });
-    if (!r.ok) {
-      await db.from("posts").update({ status: "needs_manual" }).eq("id", post.id);
-      return done("We couldn't make a new version right now. Edit this post or skip it.");
-    }
-    await db.rpc("bump_usage", { p_business: business.id, p_field: "regenerations", p_amount: 1, p_cost: 0 });
-    return done(`Making a new version; it appears in your next free time slot in about a minute (${9 - post.regen_count} left after this one).`);
-  });
-}
-
 const editInput = z.object({
   id: uuid,
   facebook: z.string().trim().max(5000),
@@ -424,31 +380,6 @@ export async function editPost(input: z.input<typeof editInput>): Promise<Action
   });
 }
 
-export async function movePost(input: { id: string; date: string; slot: number }): Promise<ActionResult> {
-  return run(async () => {
-    const d = z.object({ id: uuid, date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.number().int().min(1).max(3) }).parse(input);
-    const { db, post, business, settings } = await ownPost(d.id);
-    if (!post) return { ok: false, message: "Post not found." };
-    if (["published", "publishing"].includes(post.status)) return { ok: false, message: "This post is already out." };
-    const scheduled = zonedToUtc(d.date, settings.slots[d.slot - 1]!, business.timezone);
-    if (new Date(scheduled).getTime() <= Date.now() + LOCK_MINUTES * 60000) return { ok: false, message: "Pick a time at least 15 minutes from now." };
-    const { data: taken } = await db
-      .from("posts")
-      .select("id")
-      .eq("business_id", business.id)
-      .eq("local_date", d.date)
-      .eq("slot", d.slot)
-      .eq("is_story", post.is_story)
-      .neq("id", post.id)
-      .maybeSingle();
-    if (taken) return { ok: false, message: "That time already has a post. Move or skip that one first." };
-    const status = post.status === "expired" ? "ready" : post.status;
-    const { error } = await db.from("posts").update({ local_date: d.date, slot: d.slot, scheduled_at: scheduled, status }).eq("id", post.id).eq("business_id", business.id);
-    if (error) return { ok: false, message: dbMessage(error) };
-    return done("Moved");
-  });
-}
-
 export async function skipPost(input: { id: string }): Promise<ActionResult> {
   return run(async () => {
     const { db, post } = await ownPost(input.id);
@@ -474,32 +405,6 @@ export async function retryPost(input: { id: string }): Promise<ActionResult> {
   });
 }
 
-/** New photo post through the n8n "Photo post (generate + publish)" workflow. */
-export async function createPost(input: { prompt: string; publish: boolean }): Promise<ActionResult> {
-  return run(async () => {
-    const { db, business, settings } = await requireBusiness();
-    const d = z.object({ prompt: z.string().trim().min(10, "Tell us a bit more (at least 10 characters)").max(1500), publish: z.boolean() }).parse(input);
-    if (!process.env.N8N_PHOTO_POST_URL) return { ok: false, message: "Post creation is not connected yet. Please message Retexia." };
-    if (d.publish && settings.paused) return { ok: false, message: "Publishing is paused (Settings). Save it as a draft, or turn publishing back on." };
-    const { data: sys } = await db.from("system_settings").select("publishing_paused").eq("id", 1).maybeSingle();
-    if (d.publish && sys?.publishing_paused) return { ok: false, message: "Publishing is paused by Retexia for a short while. Save it as a draft; it can go out later." };
-    const period = `${localDate(business.timezone).slice(0, 7)}-01`;
-    const { data: usage } = await db.from("usage_monthly").select("images").eq("business_id", business.id).eq("period", period).maybeSingle();
-    const limit = PLAN_LIMITS[business.plan].images;
-    if ((usage?.images ?? 0) >= limit) return { ok: false, message: `You've used all ${limit} AI designs this month. Use a library photo instead, or upgrade.` };
-    const r = await requestDesign({ business_id: business.id, prompt: d.prompt, publish: d.publish });
-    if (!r.ok) return { ok: false, message: "We couldn't start the design right now. Please try again in a minute." };
-    await db.from("events").insert({ business_id: business.id, type: "post_requested", payload: { prompt: d.prompt, publish: d.publish } });
-    return done(
-      d.publish
-        ? "Designing your post. It is published in about 2 minutes."
-        : settings.auto_publish
-          ? "Designing your post. It goes into your next free time slot and is published then, unless you change or deny it."
-          : "Designing your post. It goes into your next free time slot and waits for your approval.",
-    );
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Week plan and offers
 // ---------------------------------------------------------------------------
@@ -510,7 +415,7 @@ export async function saveWeekNote(input: { id?: string; date: string; slot: num
   return run(async () => {
     const { db, business } = await requireBusiness();
     if (!PLAN_LIMITS[business.plan].weekPlan) return { ok: false, message: "The week plan is not part of your plan." };
-    const d = z.object({ id: uuid.optional(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.number().int().min(1).max(3), note: z.string().trim().max(500), format: formats.nullable(), media_id: uuid.nullable() }).parse(input);
+    const d = z.object({ id: uuid.optional(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.number().int().min(1).max(5), note: z.string().trim().max(500), format: formats.nullable(), media_id: uuid.nullable() }).parse(input);
     if (d.media_id) {
       const { data: m } = await db.from("media").select("id").eq("id", d.media_id).eq("business_id", business.id).maybeSingle();
       if (!m) return { ok: false, message: "Photo not found." };
@@ -534,7 +439,7 @@ const offerInput = z.object({
   discount: z.string().trim().max(60),
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  slots_per_day: z.number().int().min(1).max(3),
+  slots_per_day: z.number().int().min(1).max(5),
   media_id: uuid.nullable(),
   active: z.boolean(),
 });

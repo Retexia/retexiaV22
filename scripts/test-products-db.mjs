@@ -105,16 +105,59 @@ const sid = (await q(`select post.save_secret(null, 'PAGE-TOKEN') id`))[0].id;
 ok((await q(`select post.read_secret($1) t`, [sid]))[0].t === "PAGE-TOKEN", "tokens are stored in Vault and read back on the server");
 await expectError(() => as("authenticated", amaya, `select post.read_secret($1)`, [sid]), "customers can't read tokens", /permission denied/);
 // Slots
-await q(`update post.businesses set settings = settings || '{"slots": ["08:00", "12:00", "18:00"]}' where id = $1`, [biz]);
+await q(`update post.businesses set settings = settings || '{"playlist": {"posts": 3, "stories": 2, "post_times": ["08:00", "12:00", "18:00"], "story_times": ["10:00", "20:00"]}}' where id = $1`, [biz]);
 const slot = (await q(`select * from post.next_free_slot($1)`, [biz]))[0];
 ok(slot && slot.scheduled_at > new Date(Date.now() + 19 * 60_000), "the next free slot is in the future");
 ok((await q(`select to_char(post.slot_time($1, '2026-10-10', 2) at time zone 'Asia/Colombo', 'HH24:MI') t`, [biz]))[0].t === "12:00", "slot times follow the business's posting times");
 
-console.log("Drafts from the n8n workflow");
-const tmr = (await q(`select ((now() at time zone 'Asia/Colombo')::date + 1)::text d`))[0].d;
-const draft = (await q(`insert into post.posts (business_id, local_date, slot, format, scheduled_at, status, source) values ($1, $2, 3, 'photo', now() + interval '1 day', 'ready', 'manual') returning scheduled_at`, [biz, tmr]))[0];
-const want = (await q(`select post.slot_time($1, $2, 3) t`, [biz, tmr]))[0].t;
-ok(new Date(draft.scheduled_at).getTime() === new Date(want).getTime(), "a draft saved by the workflow is scheduled at its slot's time");
+console.log("Daily playlist (0013)");
+ok((await q(`select to_char(post.item_time($1, '2026-10-10', 2, true) at time zone 'Asia/Colombo', 'HH24:MI') t`, [biz]))[0].t === "20:00", "story times follow the playlist settings");
+ok((await q(`select post.default_times(5, false) t`))[0].t.length === 5, "five default post times");
+const planDate = "2026-12-01";
+const added = (await q(`select post.add_planned_items($1, $2, $3::jsonb) n`, [biz, planDate, JSON.stringify([
+  { format: "post", slot: 1, title: "Mango cake", prompt: "Show the new mango cake", caption_language: "si", design_language: "si" },
+  { format: "post", slot: 2, prompt: "Behind the scenes" },
+  { format: "story", slot: 1, prompt: "Weekend offer story", time: "21:15" },
+])]))[0].n;
+ok(added === 3, "planned items are added to the playlist");
+ok((await q(`select post.add_planned_items($1, $2, $3::jsonb) n`, [biz, planDate, JSON.stringify([{ format: "post", slot: 1, prompt: "dup" }])]))[0].n === 0, "a playlist slot is never filled twice");
+const planned = await q(`select id, status::text, slot, is_story, brief, to_char(scheduled_at at time zone 'Asia/Colombo', 'HH24:MI') t from post.posts where business_id = $1 and local_date = $2 order by is_story, slot`, [biz, planDate]);
+ok(planned.every((p) => p.status === "planned") && planned[0].t === "08:00" && planned[2].t === "21:15", "planned items get their times (setting or given)");
+ok(planned[0].brief.caption_language === "si" && planned[1].brief.design_language === "en", "languages: per item, else the business default");
+await expectError(() => as("authenticated", amaya, `select post.add_planned_items($1, $2, '[]'::jsonb)`, [biz, planDate]), "customers can't call playlist functions directly", /permission denied/);
+
+// Designing: an item whose time is close is claimed once.
+await q(`update post.businesses set subscription_status = 'active' where id = $1`, [biz]);
+await q(`update post.posts set scheduled_at = now() + interval '1 hour' where id = $1`, [planned[0].id]);
+const claimed = await q(`select id, status::text from post.claim_design_items(10)`);
+ok(claimed.some((c) => c.id === planned[0].id && c.status === "generating"), "planned items close to their time are claimed for design");
+ok(!(await q(`select id from post.claim_design_items(10)`)).some((c) => c.id === planned[0].id), "an item being designed is not claimed twice");
+const fin = (await q(`select post.finish_design($1::jsonb) r`, [JSON.stringify({ post_id: planned[0].id, business_id: biz, format: "post", storage_path: `${biz}/ai/x.jpg`, bytes: 1000, alt_text: "cake", caption: "කේක්", variants: { facebook: { caption: "කේක්" } }, brief: { headline: "අලුත් කේක්" }, publish: false, image_cost: 0.04, text_cost: 0.002 })]))[0].r;
+const designed = (await q(`select status::text, media_id, brief from post.posts where id = $1`, [planned[0].id]))[0];
+ok(fin.status === "ready" && designed.media_id && designed.brief.headline === "අලුත් කේක්" && designed.brief.prompt === "Show the new mango cake", "a finished design makes the item ready and keeps its prompt");
+const handmade = (await q(`select post.finish_design($1::jsonb) r`, [JSON.stringify({ business_id: biz, format: "story", storage_path: `${biz}/ai/y.jpg`, bytes: 900, publish: true, brief: { prompt: "now" } })]))[0].r;
+const mrow = (await q(`select status::text, slot, is_story from post.posts where id = $1`, [handmade.post_id]))[0];
+ok(mrow.status === "approved" && mrow.slot >= 6 && mrow.is_story, "a story made by hand goes out now, in a slot outside the playlist");
+await q(`delete from post.posts where id = $1`, [planned[1].id]);
+ok((await q(`select post.finish_design($1::jsonb) r`, [JSON.stringify({ post_id: planned[1].id, business_id: biz, storage_path: `${biz}/ai/z.jpg` })]))[0].r.status === "gone", "a design for a deleted item changes nothing");
+await q(`select post.design_failed($1, 'OpenAI said no')`, [planned[2].id]);
+ok((await q(`select status::text, deny_reason from post.posts where id = $1`, [planned[2].id]))[0].deny_reason === "OpenAI said no", "a failed design is shown to the owner with the reason");
+await q(`update post.posts set status = 'planned', scheduled_at = now() - interval '1 hour' where id = $1`, [planned[2].id]);
+await q(`select post.expire_stale_posts()`);
+ok((await q(`select status::text s from post.posts where id = $1`, [planned[2].id]))[0].s === "expired", "items never designed are skipped after their time");
+
+// Planning: the 06:00 run claims each business once a day (pick a time zone where it is past 06:00 now).
+const zones = ["UTC", "Asia/Colombo", "Asia/Tokyo", "America/New_York", "Pacific/Auckland", "Europe/London", "America/Los_Angeles"];
+const tz = zones.find((z) => Number(new Intl.DateTimeFormat("en-GB", { timeZone: z, hour: "2-digit", hour12: false }).format(new Date())) >= 6);
+await q(`update post.businesses set timezone = $2, onboarding_done = true, subscription_status = 'active', last_plan_date = null where id = $1`, [biz, tz]);
+await q(`update post.businesses set onboarding_done = false where id <> $1`, [biz]);
+const runs = await q(`select * from post.claim_planning_businesses(10)`);
+ok(runs.length === 1 && runs[0].business_id === biz, "the 06:00 run picks up the business");
+const today = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+ok(new Date(runs[0].plan_date).toISOString().slice(0, 10) === new Date(new Date(`${today}T00:00:00Z`).getTime() + 86_400_000).toISOString().slice(0, 10), "it writes tomorrow's playlist");
+ok((await q(`select * from post.claim_planning_businesses(10)`)).length === 0, "and only once a day");
+const ctx = (await q(`select post.plan_context($1, $2) c`, [biz, planDate]))[0].c;
+ok(ctx.business.name && Array.isArray(ctx.products) && Array.isArray(ctx.offers) && Array.isArray(ctx.recent_prompts), "the AI gets the business, products, offers and recent prompts in one query");
 
 console.log("Paddle (0009)");
 const lingoP = (await q(`select id from public.products where slug = 'lingo'`))[0].id;

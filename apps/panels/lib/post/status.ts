@@ -1,7 +1,8 @@
 import type { PostStatus } from "./post-db.types";
 
 export const STATUS: Record<PostStatus, { label: string; tone: "neutral" | "brand" | "success" | "warning" | "danger" }> = {
-  generating: { label: "Being made", tone: "brand" },
+  planned: { label: "Planned", tone: "neutral" },
+  generating: { label: "Being designed", tone: "brand" },
   safety_review: { label: "Being checked", tone: "brand" },
   ready: { label: "Ready", tone: "warning" },
   approved: { label: "Approved", tone: "success" },
@@ -12,6 +13,7 @@ export const STATUS: Record<PostStatus, { label: string; tone: "neutral" | "bran
   blocked: { label: "Held back", tone: "danger" },
   expired: { label: "Skipped", tone: "neutral" },
   failed: { label: "Failed", tone: "danger" },
+  removed: { label: "Deleted", tone: "neutral" },
 };
 
 export const FORMAT_LABEL: Record<string, string> = { photo: "Photo", carousel: "Carousel", reel: "Reel", story_photo: "Story", story_video: "Video story" };

@@ -1,12 +1,12 @@
 "use client";
 
-import { Alert, Button, Card, Field, Input, Select, Textarea, cn } from "@retexia/ui";
+import { Alert, Button, Card, Field, Input, Textarea, cn } from "@retexia/ui";
 import { Check, ImageOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
-import { editPost, movePost } from "@/app/post/actions";
+import { editPost } from "@/app/post/actions";
 import type { PostView } from "@/lib/post/posts";
 
 type LibraryItem = { id: string; url: string | null; description: string | null };
@@ -14,15 +14,11 @@ type LibraryItem = { id: string; url: string | null; description: string | null 
 export function PostEditor({
   post,
   editable,
-  slots,
-  days,
   library,
   dropped,
 }: {
   post: PostView;
   editable: boolean;
-  slots: string[];
-  days: { value: string; label: string }[];
   library: LibraryItem[];
   dropped: string[];
 }) {
@@ -31,19 +27,21 @@ export function PostEditor({
   const [ig, setIg] = useState(post.instagram);
   const [tags, setTags] = useState(post.hashtags.join(" "));
   const [mediaId, setMediaId] = useState(post.mediaId);
-  const [date, setDate] = useState(post.date);
-  const [slot, setSlot] = useState(String(post.slot));
   const [busy, setBusy] = useState<string | null>(null);
   const dirty = fb !== post.facebook || ig !== post.instagram || tags !== post.hashtags.join(" ") || mediaId !== post.mediaId;
 
   if (!editable) {
     return (
       <Card className="flex flex-col gap-3">
-        <h2 className="type-h3 text-ink">This post can&apos;t be changed now</h2>
+        <h2 className="type-h3 text-ink">{post.status === "planned" ? "Not designed yet" : post.live ? "Published" : "This post can't be changed now"}</h2>
         <p className="type-body text-ink-muted">
-          {post.locked && ["ready", "approved"].includes(post.status)
-            ? "It is within 15 minutes of its time, so it is being prepared for publishing."
-            : "It has already gone out, been skipped, or is still being made."}
+          {post.status === "planned"
+            ? "Change its idea, languages or time with the buttons on the card. It is designed before its time; then you can edit the captions and picture here."
+            : post.live
+              ? "Edit the Facebook text or delete it from Facebook and Instagram with the buttons on the card. Instagram doesn't let apps change a published caption."
+              : post.locked && ["ready", "approved"].includes(post.status)
+                ? "It is within 15 minutes of its time, so it is being prepared for publishing."
+                : "It has been skipped, deleted, or is still being designed."}
         </p>
         {dropped.length ? <DroppedNote dropped={dropped} /> : null}
       </Card>
@@ -90,7 +88,7 @@ export function PostEditor({
       </Card>
 
       <div className="sticky bottom-4 z-10 flex items-center justify-between gap-3 rounded-full border border-line bg-surface-raised/95 px-4 py-2 shadow-float backdrop-blur">
-        <span className="type-small text-ink-muted">{dirty ? "Saving also approves the post" : "No changes"}</span>
+        <span className="type-small text-ink-muted">{dirty ? "Saving also approves it" : "Change the time or make a new version from the card"}</span>
         <Button
           size="sm"
           loading={busy === "save"}
@@ -114,33 +112,6 @@ export function PostEditor({
         </Button>
       </div>
 
-      <Card className="flex flex-col gap-4">
-        <h2 className="type-h2 text-ink">Time</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Day">
-            <Select value={date} onChange={(e) => setDate(e.target.value || post.date)} options={days} />
-          </Field>
-          <Field label="Time">
-            <Select value={slot} onChange={(e) => setSlot(e.target.value || String(post.slot))} options={slots.map((s, i) => ({ value: String(i + 1), label: s }))} />
-          </Field>
-        </div>
-        <Button
-          size="sm"
-          variant="secondary"
-          className="self-start"
-          loading={busy === "move"}
-          disabled={date === post.date && slot === String(post.slot)}
-          onClick={async () => {
-            setBusy("move");
-            const r = await movePost({ id: post.id, date, slot: Number(slot) });
-            setBusy(null);
-            toast[r.ok ? "success" : "error"](r.message ?? "");
-            if (r.ok) router.refresh();
-          }}
-        >
-          Move post
-        </Button>
-      </Card>
     </div>
   );
 }

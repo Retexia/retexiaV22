@@ -12,6 +12,7 @@ import { POST_PLANS } from "@/products/post/limits";
 export const metadata = { title: "Retexia Post business" };
 
 const STATUS_TONE: Record<string, "neutral" | "brand" | "success" | "warning" | "danger"> = {
+  planned: "neutral",
   generating: "neutral",
   safety_review: "neutral",
   ready: "brand",
@@ -23,6 +24,7 @@ const STATUS_TONE: Record<string, "neutral" | "brand" | "success" | "warning" | 
   failed: "danger",
   expired: "neutral",
   denied: "neutral",
+  removed: "neutral",
 };
 const nice = (s: string) => s.replace(/_/g, " ");
 /** Token expires within 7 days. */
@@ -178,8 +180,10 @@ export default async function PostBusinessPage({ params }: { params: Promise<{ i
           <PostBusinessControls id={b.id} plan={b.plan} status={b.subscription_status} paused={Boolean(b.settings?.paused)} canAdmin={canAdmin} />
           <Card className="flex flex-col gap-4">
             <h2 className="type-h3 text-ink">This month</h2>
-            <Meter label="AI images" used={stats.images} limit={plan.images} />
-            <Meter label="Videos" used={stats.videos} limit={plan.videos} />
+            <p className="type-small text-ink-muted">
+              Daily playlist: up to {plan.postsPerDay} posts and {plan.storiesPerDay} stories
+            </p>
+            <Meter label="AI designs" used={stats.images} limit={plan.images} />
             <Meter label="Redos" used={stats.regenerations} limit={plan.regenerations} />
             <Meter label="Connected accounts" used={stats.accounts_connected} limit={plan.accounts} />
           </Card>

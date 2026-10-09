@@ -52,11 +52,19 @@ accounts**. Until linked, the panel shows "almost ready".
 
 ## Post (post.retexia.com)
 
-Schema `post` (`supabase/migrations/0005_post_schema.sql`): today’s
-posts, calendar, new post (n8n photo workflow), library, products, week plan
-and offers, brand, accounts, schedule, activity. New posts call
-`N8N_PHOTO_POST_URL` with `X-Retexia-Key: N8N_POST_KEY`; set the n8n webhook
-node to Header Auth with that header.
+Schema `post` (`supabase/migrations/0005_post_schema.sql`, daily playlist in
+`0013_post_playlist.sql`): the day's playlist (posts and stories), calendar, new
+post, library, products, week plan and offers, brand, accounts, playlist and
+settings, activity. Customers edit, redo, reschedule and delete posts, also
+after they are published (deleted from Facebook and Instagram too).
+
+The daily cycle (`lib/post/playlist.ts`, `/api/post/batch` every 5 minutes):
+06:00 (business time) → tomorrow's playlist is written (prompts, editable all
+day); 00:00 → the day's items are designed (ready by 6 AM); each item is
+published at its time (auto-publish) or after approval. Captions and the text on
+the picture each have their own language (Sinhala, Sinhala + English, Singlish,
+English, Tamil / Sinhala, English, Tamil). The AI runs in the n8n workflow
+`n8n/retexia-post.json`, called at `N8N_POST_URL` with `X-Retexia-Key: N8N_POST_KEY`.
 
 ## Control from the admin (admin.retexia.com)
 
@@ -77,16 +85,16 @@ Needs `supabase/migrations/0007_product_controls.sql`.
 
 - **Lingo v6:** needs 0007 (its *Save Incoming* step relies on a unique
   WhatsApp message id). Postgres credential: user `lingo_n8n.<project-ref>`.
-- **Photo post:** in the *Config* node set `supabaseUrl` to the Retexia project
-  URL (not the old Post project), and protect *Webhook: photo post* with Header
-  Auth `X-Retexia-Key` = `N8N_POST_KEY`, otherwise anyone who finds the URL can
-  post for your customers. Postgres credential: user `post_n8n.<project-ref>`;
-  Supabase credential: the Retexia project.
+- **Post (plan + design):** import `n8n/retexia-post.json`. In *Config* set
+  `retexiaKey` = `N8N_POST_KEY` (the workflow refuses other calls). Postgres
+  credential: the Retexia project (user `post_n8n.<project-ref>` is enough);
+  Supabase credential: the Retexia project; OpenAI credential. It never
+  publishes: post.retexia.com does that with each customer's own access.
 
 ## Environment
 
 See `.env.example`: the Retexia project's URL, anon key and service-role key
-(server-side only), the n8n photo-post webhook and its key.
+(server-side only), the n8n Post webhook (`N8N_POST_URL`) and its key.
 
 ## Deploy (one Vercel project)
 

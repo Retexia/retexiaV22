@@ -2,13 +2,15 @@
  * Types for the "post" schema (supabase/migrations/0005_post_schema.sql), in
  * the format `supabase gen types` produces.
  */
+import type { CaptionLanguage, DesignLanguage } from "./languages";
+
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type PlanTier = "trial" | "starter" | "growth" | "pro";
 export type Platform = "facebook" | "instagram";
 export type PostFormat = "photo" | "carousel" | "reel" | "story_photo" | "story_video";
-export type PostStatus = "generating" | "safety_review" | "ready" | "approved" | "publishing" | "published" | "denied" | "needs_manual" | "blocked" | "expired" | "failed";
-export type PubStatus = "pending" | "publishing" | "published" | "retrying" | "failed";
+export type PostStatus = "planned" | "generating" | "safety_review" | "ready" | "approved" | "publishing" | "published" | "denied" | "needs_manual" | "blocked" | "expired" | "failed" | "removed";
+export type PubStatus = "pending" | "publishing" | "published" | "retrying" | "failed" | "removed";
 
 type Table<Row, Required extends keyof Row = never> = {
   Row: Row;
@@ -33,6 +35,7 @@ export type BusinessRow = {
   settings: Json;
   onboarding_done: boolean;
   last_batch_date: string | null;
+  last_plan_date: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -194,6 +197,11 @@ export type PostDatabase = {
       slot_time: { Args: { p_business: string; p_date: string; p_slot: number }; Returns: string };
       plan_for_owner: { Args: { p_owner: string }; Returns: { plan: PlanTier; subscription_status: BusinessRow["subscription_status"] }[] };
       handle_meta_deletion: { Args: { p_meta_user_id: string }; Returns: string };
+      add_planned_items: { Args: { p_business: string; p_date: string; p_items: Json }; Returns: number };
+      claim_planning_businesses: { Args: { p_limit?: number }; Returns: { business_id: string; plan_date: string; today: string; plan_today: boolean }[] };
+      claim_design_items: { Args: { p_limit?: number }; Returns: PostRow[] };
+      design_failed: { Args: { p_post: string; p_error: string }; Returns: undefined };
+      item_time: { Args: { p_business: string; p_date: string; p_slot: number; p_story: boolean }; Returns: string };
     };
     Enums: {
       plan_tier: PlanTier;
@@ -220,8 +228,14 @@ export type Brand = {
   contact?: { phone?: string; website?: string; address?: string; whatsapp?: string; instagram?: string } | null;
 };
 
+/** businesses.settings.playlist: how many posts and stories a day, and when they go out. */
+export type Playlist = { posts: number; stories: number; post_times: string[]; story_times: string[] };
+
 /** businesses.settings */
 export type Settings = {
+  playlist: Playlist;
+  caption_language: CaptionLanguage;
+  design_language: DesignLanguage;
   auto_publish: boolean;
   week_plan_enabled: boolean;
   slots: string[];
