@@ -2,7 +2,7 @@
 
 import { createServerClient } from "@retexia/supabase/server";
 import { z } from "zod";
-import { paddleApi, paddleReady } from "@/lib/paddle.server";
+import { PADDLE_CURRENCIES, checkoutItems, paddleApi, paddleReady } from "@/lib/paddle.server";
 import { getT } from "@/lib/strings.server";
 
 type Result<T> = { ok: true; data: T } | { ok: false; message: string };
@@ -24,17 +24,31 @@ export async function startCheckout(input: { ref: string }): Promise<Result<{ tr
   const supabase = await createServerClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return { ok: false, message: t("onboarding.error.signed_out", "Your session has ended. Please sign in again.") };
-  const { data: order } = await supabase.from("orders").select("id, ref, status, billing_cycle, package_id, setup_fee").eq("ref", ref.data).maybeSingle();
+  const { data: order } = await supabase
+    .from("orders")
+    .select("id, ref, status, billing_cycle, product_id, package_name, price_amount, setup_fee, currency")
+    .eq("ref", ref.data)
+    .maybeSingle();
   if (!order) return { ok: false, message: unavailable };
   if (!["submitted", "reviewing", "awaiting_payment"].includes(order.status)) {
     return { ok: false, message: t("order.paddle.already_paid", "This request is already paid.") };
   }
-  const { data: pkg } = await supabase.from("packages").select("paddle_price_monthly, paddle_price_yearly, paddle_price_setup, setup_fee").eq("id", order.package_id).maybeSingle();
-  const recurring = order.billing_cycle === "yearly" ? pkg?.paddle_price_yearly : pkg?.paddle_price_monthly;
-  if (!recurring) return { ok: false, message: unavailable };
-
-  const items = [{ price_id: recurring, quantity: 1 }];
-  if (pkg?.paddle_price_setup && Number(pkg.setup_fee ?? 0) > 0) items.push({ price_id: pkg.paddle_price_setup, quantity: 1 });
+  const { data: product } = await supabase.from("products").select("name, pay_online").eq("id", order.product_id).maybeSingle();
+  if (!product?.pay_online) return { ok: false, message: unavailable };
+  const currency = (order.currency ?? "USD").toUpperCase();
+  if (!PADDLE_CURRENCIES.has(currency)) {
+    return { ok: false, message: t("order.paddle.currency", "This request was priced in {currency}, which our payment partner doesn't accept. Message us and we'll update it.", { currency }) };
+  }
+  const price = Number(order.price_amount ?? 0);
+  if (price <= 0) return { ok: false, message: unavailable };
+  const items = checkoutItems({
+    product: product.name,
+    plan: order.package_name ?? product.name,
+    cycle: order.billing_cycle === "yearly" ? "yearly" : "monthly",
+    price,
+    setupFee: Number(order.setup_fee ?? 0),
+    currency,
+  });
   const r = await paddleApi<{ id: string }>("/transactions", {
     method: "POST",
     body: { items, collection_mode: "automatic", custom_data: { order_id: order.id, ref: order.ref, user_id: auth.user.id } },

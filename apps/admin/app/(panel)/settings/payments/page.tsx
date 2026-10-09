@@ -11,8 +11,8 @@ export default async function PaymentSettingsPage() {
   if (!s) return null;
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Payments and invoices" description="How customers pay, and what receipts look like." />
-      <PaddleCard currency={s.currency_code} />
+      <PageHeader title="Payments and invoices" description="Customers pay through Paddle. Receipts are made automatically for every payment." />
+      <PaddleCard onlinePayments={s.online_payments} />
       <PaymentsForm
         currency={s.currency_code}
         siteName={s.site_name}
@@ -20,7 +20,6 @@ export default async function PaymentSettingsPage() {
         email={s.contact_email}
         phone={s.contact_phone}
         initial={{
-          payment_instructions: s.payment_instructions ?? "",
           invoice_business_name: s.invoice_business_name ?? "",
           invoice_address: s.invoice_address ?? "",
           invoice_footer: s.invoice_footer ?? "",

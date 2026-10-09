@@ -25,6 +25,7 @@ export type ProductDetailsValue = ProductColors & {
   page_slug: string;
   panel_url: string;
   panel_live: boolean;
+  pay_online: boolean;
   onboarding_form_id: string;
 };
 
@@ -140,6 +141,12 @@ export function ProductDetailsForm({
           </Field>
           <div className="flex items-end pb-2">
             <Switch checked={v.panel_live} onCheckedChange={(c) => set("panel_live", c)} label="Panel is live" description="Shows “Open panel” on active orders." />
+            <Switch
+              checked={v.pay_online}
+              onCheckedChange={(c) => set("pay_online", c)}
+              label="Customers pay online with Paddle"
+              description="Off for anything Paddle doesn't allow (for example human services): those requests wait for your review and you record the payment."
+            />
           </div>
         </div>
       </Card>

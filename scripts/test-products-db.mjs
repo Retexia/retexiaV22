@@ -121,7 +121,11 @@ const lingoP = (await q(`select id from public.products where slug = 'lingo'`))[
 const corePk = (await q(`select id from public.packages where product_id = $1 and slug = 'core'`, [lingoP]))[0].id;
 await q(`update public.packages set paddle_price_monthly = 'pri_core_m', paddle_price_setup = 'pri_core_setup' where id = $1`, [corePk]);
 const paid = (await as("authenticated", kasun, `insert into public.orders (product_id, package_id, billing_cycle, answers) values ($1, $2, 'monthly', '[]') returning id, status, currency`, [lingoP, corePk])).rows[0];
-ok(paid.status === "awaiting_payment" && paid.currency === "USD", "a Paddle package order waits for payment, in USD");
+ok(paid.status === "awaiting_payment" && paid.currency === "USD", "with online payments on, a new request waits for payment, in USD (no Paddle catalog needed)");
+const webP = (await q(`insert into public.products (slug, code, name, short_name, status, pay_online) values ('custom-dev', 'CDV', 'Custom development', 'Custom', 'live', false) returning id`))[0].id;
+const webPk = (await q(`insert into public.packages (product_id, slug, name, price_monthly, is_active) values ($1, 'basic', 'Basic', 100, true) returning id`, [webP]))[0].id;
+const manual = (await as("authenticated", kasun, `insert into public.orders (product_id, package_id, billing_cycle, answers) values ($1, $2, 'monthly', '[]') returning status`, [webP, webPk])).rows[0];
+ok(manual.status === "submitted", "products with Paddle turned off wait for review instead");
 await expectError(() => as("authenticated", kasun, `select public.svc_paddle_payment('{}'::jsonb)`), "customers can't record Paddle payments", /permission denied/);
 const pay = { order_id: paid.id, transaction_id: "txn_1", subscription_id: "sub_1", customer_id: "ctm_1", amount: "64.00", currency: "usd", kind: "setup_fee", period_start: "2026-10-09T00:00:00Z", period_end: "2026-11-09T00:00:00Z", origin: "web" };
 await q(`select public.svc_paddle_payment($1::jsonb)`, [JSON.stringify(pay)]);

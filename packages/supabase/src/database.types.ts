@@ -1507,6 +1507,7 @@ export type Database = {
           page_slug: string | null
           panel_live: boolean
           panel_url: string | null
+          pay_online: boolean
           short_name: string
           slug: string
           sort_order: number
@@ -1532,6 +1533,7 @@ export type Database = {
           page_slug?: string | null
           panel_live?: boolean
           panel_url?: string | null
+          pay_online?: boolean
           short_name: string
           slug: string
           sort_order?: number
@@ -1557,6 +1559,7 @@ export type Database = {
           page_slug?: string | null
           panel_live?: boolean
           panel_url?: string | null
+          pay_online?: boolean
           short_name?: string
           slug?: string
           sort_order?: number
@@ -1698,6 +1701,7 @@ export type Database = {
           maintenance_message: string | null
           maintenance_mode: boolean
           og_image_url: string | null
+          online_payments: boolean
           payment_instructions: string | null
           receipt_prefix: string
           seo_default_description: string | null
@@ -1738,6 +1742,7 @@ export type Database = {
           maintenance_message?: string | null
           maintenance_mode?: boolean
           og_image_url?: string | null
+          online_payments?: boolean
           payment_instructions?: string | null
           receipt_prefix?: string
           seo_default_description?: string | null
@@ -1778,6 +1783,7 @@ export type Database = {
           maintenance_message?: string | null
           maintenance_mode?: boolean
           og_image_url?: string | null
+          online_payments?: boolean
           payment_instructions?: string | null
           receipt_prefix?: string
           seo_default_description?: string | null

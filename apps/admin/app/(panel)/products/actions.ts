@@ -118,6 +118,7 @@ export async function updateProduct(input: { id: string; changes: Record<string,
             page_slug: z.string().max(80).nullable(),
             panel_url: z.union([z.url(), z.literal("")]).nullable(),
             panel_live: z.boolean(),
+            pay_online: z.boolean(),
             onboarding_form_id: uuid.nullable(),
             is_visible: z.boolean(),
           })

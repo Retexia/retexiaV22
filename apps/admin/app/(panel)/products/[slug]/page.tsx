@@ -163,6 +163,7 @@ export default async function ProductHubPage({ params, searchParams }: { params:
               page_slug: product.page_slug ?? "",
               panel_url: product.panel_url ?? "",
               panel_live: product.panel_live,
+              pay_online: product.pay_online,
               onboarding_form_id: product.onboarding_form_id ?? "",
               color_light: product.color_light,
               color_dark: product.color_dark,

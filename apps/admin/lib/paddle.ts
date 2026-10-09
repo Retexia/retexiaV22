@@ -58,3 +58,27 @@ export const toMinor = (amount: number, currency: string) => String(Math.round(a
 
 /** Currencies Paddle can charge in (LKR is not one of them). */
 export const PADDLE_CURRENCIES = new Set(["USD", "EUR", "GBP", "AUD", "CAD", "CHF", "HKD", "SGD", "SEK", "NOK", "DKK", "NZD", "JPY", "KRW", "INR", "BRL", "MXN", "ZAR", "PLN", "CZK", "HUF", "ILS", "TRY", "TWD", "THB", "CNY", "ARS", "COP", "CLP", "PEN", "RUB", "UAH", "VND"]);
+
+/** Checkout lines priced from the request itself: the plan (monthly/yearly) + one-time setup fee. Same as the website. */
+export function checkoutItems(o: { product: string; plan: string; cycle: "monthly" | "yearly"; price: number; setupFee: number; currency: string }) {
+  const product = { name: o.product, tax_category: "standard" };
+  const items: { quantity: number; price: Record<string, unknown> }[] = [
+    {
+      quantity: 1,
+      price: {
+        name: `${o.plan} (${o.cycle})`,
+        description: `${o.product} · ${o.plan} · ${o.cycle}`,
+        unit_price: { amount: toMinor(o.price, o.currency), currency_code: o.currency },
+        billing_cycle: { interval: o.cycle === "yearly" ? "year" : "month", frequency: 1 },
+        product,
+      },
+    },
+  ];
+  if (o.setupFee > 0) {
+    items.push({
+      quantity: 1,
+      price: { name: `${o.plan} setup`, description: `${o.product} · ${o.plan} · one-time setup`, unit_price: { amount: toMinor(o.setupFee, o.currency), currency_code: o.currency }, product },
+    });
+  }
+  return items;
+}

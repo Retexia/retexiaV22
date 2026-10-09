@@ -6,13 +6,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { savePaymentSettings } from "@/app/(panel)/settings/actions";
-import { Markdown } from "@/components/common/markdown";
-import { MarkdownEditor } from "@/components/common/markdown-editor";
 import { MediaInput } from "@/components/website/media-picker";
 import { SaveBar } from "./save-bar";
 
 export type PaymentSettings = {
-  payment_instructions: string;
   invoice_business_name: string;
   invoice_address: string;
   invoice_footer: string;
@@ -30,21 +27,6 @@ export function PaymentsForm({ initial, currency, siteName, logoUrl, email, phon
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card className="flex flex-col gap-4">
-          <h2 className="type-h2 text-ink">Payment instructions</h2>
-          <p className="type-small text-ink-muted">Shown to customers on their order page while a request is awaiting payment, next to the proof upload.</p>
-          <MarkdownEditor value={v.payment_instructions} onChange={(payment_instructions) => setV({ ...v, payment_instructions })} rows={8} placeholder={"Bank: …\nAccount name: …\nAccount number: …\n\nUse your request reference (e.g. LIN-2026-0001) as the payment reference."} />
-        </Card>
-        <Card className="flex flex-col gap-3 bg-surface-sunk/40!">
-          <span className="type-small text-ink-muted">What the customer sees</span>
-          <div className="rounded-lg border border-warning/40 bg-warning-soft/40 p-4">
-            <p className="mb-2 type-label text-ink">How to pay</p>
-            {v.payment_instructions.trim() ? <Markdown>{v.payment_instructions}</Markdown> : <p className="type-body text-ink-muted">No instructions yet. Customers are told the team will send payment details.</p>}
-          </div>
-        </Card>
-      </div>
-
       <div className="grid gap-6 xl:grid-cols-2">
         <Card className="flex flex-col gap-4">
           <h2 className="type-h2 text-ink">Receipts</h2>

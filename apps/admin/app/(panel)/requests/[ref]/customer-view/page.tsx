@@ -1,7 +1,6 @@
 import { Alert, Card, ProductChip, StatusBadge, formatDate, formatPrice, type Tone } from "@retexia/ui";
 import { DescriptionList, PageHeader } from "@retexia/ui/admin";
 import { notFound } from "next/navigation";
-import { Markdown } from "@/components/common/markdown";
 import { requireStaffPage } from "@/lib/auth";
 
 export const metadata = { title: "Customer's view" };
@@ -15,16 +14,15 @@ export default async function CustomerViewPage({ params }: { params: Promise<{ r
   const { supabase } = await requireStaffPage("view");
   const { data: order } = await supabase.from("staff_orders").select("*").eq("ref", ref).maybeSingle();
   if (!order?.id) notFound();
-  const [statuses, events, payments, fields, settings] = await Promise.all([
+  const [statuses, events, payments, fields] = await Promise.all([
     supabase.from("order_statuses").select("key, label, description, tone").order("sort_order"),
     supabase.from("order_events").select("*").eq("order_id", order.id).order("created_at", { ascending: false }),
     supabase.from("payments").select("*").eq("order_id", order.id).in("status", ["confirmed", "refunded", "pending"]).order("created_at", { ascending: false }),
     supabase.from("product_service_fields").select("key, label, type").eq("product_id", order.product_id ?? "").eq("visible_to_customer", true).neq("type", "secret").order("sort_order"),
-    supabase.from("site_settings").select("payment_instructions").eq("id", 1).maybeSingle(),
   ]);
   const label = (k: string | null) => statuses.data?.find((s) => s.key === k)?.label ?? k ?? "";
   const current = statuses.data?.find((s) => s.key === order.status);
-  const currency = order.currency ?? "LKR";
+  const currency = order.currency ?? "USD";
   const data = (order.service_data ?? {}) as Record<string, unknown>;
   const visible = (fields.data ?? []).filter((f) => data[f.key] !== undefined && String(data[f.key]).trim() !== "");
   const dueNow = Number(order.setup_fee ?? 0) + Number(order.price_amount ?? 0);
@@ -46,11 +44,11 @@ export default async function CustomerViewPage({ params }: { params: Promise<{ r
         </header>
         {order.status === "awaiting_payment" ? (
           <Card className="flex flex-col gap-3">
-            <h3 className="type-h2 text-ink">How to pay</h3>
+            <h3 className="type-h2 text-ink">Pay to start</h3>
             <p className="type-body text-ink">
-              Amount due: <strong>{formatPrice(dueNow, currency)}</strong> (setup fee and first period). Use <span className="type-code">{ref}</span> as the payment reference.
+              The customer sees a <strong>Pay now</strong> button that opens Paddle&apos;s checkout for <strong>{formatPrice(dueNow, currency)}</strong> (first period
+              {Number(order.setup_fee ?? 0) > 0 ? " and setup fee" : ""}, plus tax where it applies).
             </p>
-            {settings.data?.payment_instructions ? <Markdown>{settings.data.payment_instructions}</Markdown> : <p className="type-body text-warning">No payment instructions are set in Settings → Payments and invoices.</p>}
           </Card>
         ) : null}
         {visible.length ? (

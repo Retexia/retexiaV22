@@ -117,7 +117,6 @@ export async function savePaymentSettings(input: unknown): Promise<ActionResult>
     const { supabase } = await requireRole("manageSettings");
     const d = z
       .object({
-        payment_instructions: text(4000),
         invoice_business_name: text(120),
         invoice_address: text(400),
         invoice_footer: text(600),

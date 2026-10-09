@@ -903,7 +903,9 @@ insert into public.site_strings (key, value, description) values
   ('order.open_panel', 'Open {name} panel', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.package', 'Package', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.paddle.already_paid', 'This request is already paid.', 'Used in apps/web/app/(site)/account/billing-actions.ts'),
+  ('order.paddle.by_team', 'We''ll send you a secure payment link for this request by email.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.paddle.confirming', 'Thank you! We''re confirming it with Paddle. This page updates by itself in a few seconds.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.paddle.currency', 'This request was priced in {currency}, which our payment partner doesn''t accept. Message us and we''ll update it.', 'Used in apps/web/app/(site)/account/billing-actions.ts'),
   ('order.paddle.failed', 'The checkout couldn''t open. Check your connection and try again.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.paddle.intro', '{plan}, billed {cycle}{setup}. Pay by card, Apple Pay, Google Pay or PayPal. Tax is added where it applies.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.paddle.manage', 'Manage billing', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
@@ -914,6 +916,7 @@ insert into public.site_strings (key, value, description) values
   ('order.paddle.portal_failed', 'We couldn''t open billing right now. Please try again shortly.', 'Used in apps/web/app/(site)/account/billing-actions.ts'),
   ('order.paddle.received', 'Payment received', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.paddle.secure', 'Secure checkout by Paddle', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.paddle.soon', 'Online payment opens in a moment. Please refresh this page shortly, or message us if it doesn''t appear.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.paddle.title', 'Pay to start', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.paddle.unavailable', 'Online payment isn''t available right now. Please try again shortly or message us.', 'Used in apps/web/app/(site)/account/billing-actions.ts'),
   ('order.paddle.with_setup', ', with the one-time setup fee on the first payment', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
@@ -921,9 +924,6 @@ insert into public.site_strings (key, value, description) values
   ('order.panel_pending', 'Your panel opens when setup is finished.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.paused_note', 'Why it is paused', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.paused_since', 'Paused since', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
-  ('order.pay.amount', 'Amount due now: {amount} (setup fee and first period).', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
-  ('order.pay.no_instructions', 'We have sent the payment details to your email and WhatsApp.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
-  ('order.pay.title', 'How to pay', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.payment.confirmed', 'Paid', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.payment.other', 'Payment', 'Used in apps/web/app/(print)/account/receipts/[id]/page.tsx'),
   ('order.payment.pending', 'Being checked', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
@@ -934,23 +934,6 @@ insert into public.site_strings (key, value, description) values
   ('order.payment.subscription', 'Subscription', 'Used in apps/web/app/(print)/account/receipts/[id]/page.tsx'),
   ('order.payments', 'Payments', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.price', 'Price', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
-  ('order.proof.change', 'Choose another file', 'Used in apps/web/components/account/payment-proof-form.tsx'),
-  ('order.proof.checking', 'Thank you. We are checking your payment from {date} and will confirm it soon.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
-  ('order.proof.choose', 'Choose a photo or PDF of your payment slip.', 'Used in apps/web/components/account/payment-proof-form.tsx'),
-  ('order.proof.done', 'Thank you. We will check your payment and confirm it soon.', 'Used in apps/web/app/(site)/account/actions.ts'),
-  ('order.proof.file', 'Payment slip or screenshot', 'Used in apps/web/components/account/payment-proof-form.tsx'),
-  ('order.proof.hint', 'JPG, PNG, WebP, HEIC or PDF, up to 5 MB.', 'Used in apps/web/components/account/payment-proof-form.tsx'),
-  ('order.proof.none', 'No file chosen', 'Used in apps/web/components/account/payment-proof-form.tsx'),
-  ('order.proof.not_waiting', 'This request is not waiting for a payment any more.', 'Used in apps/web/app/(site)/account/actions.ts'),
-  ('order.proof.note', 'Note for us', 'Used in apps/web/components/account/payment-proof-form.tsx'),
-  ('order.proof.pick', 'Choose file', 'Used in apps/web/components/account/payment-proof-form.tsx'),
-  ('order.proof.received', 'Payment proof received', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
-  ('order.proof.reference', 'Payment reference', 'Used in apps/web/components/account/payment-proof-form.tsx'),
-  ('order.proof.size', 'The file must be 5 MB or smaller.', 'Used in apps/web/app/(site)/account/actions.ts'),
-  ('order.proof.submit', 'Send payment proof', 'Used in apps/web/components/account/payment-proof-form.tsx'),
-  ('order.proof.title', 'Already paid? Send us the slip', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
-  ('order.proof.too_many', 'Too many uploads. Please try again later.', 'Used in apps/web/app/(site)/account/actions.ts'),
-  ('order.proof.type', 'Upload a photo (JPG, PNG, WebP, HEIC) or a PDF.', 'Used in apps/web/app/(site)/account/actions.ts'),
   ('order.ref', 'Ref', 'Used in apps/web/components/account/order-card.tsx'),
   ('order.renews', 'Next payment due', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.setup', 'Your setup', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
@@ -965,6 +948,7 @@ insert into public.site_strings (key, value, description) values
   ('order.summary', 'Summary', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.timeline', 'Timeline', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.view_details', 'View details', 'Used in apps/web/components/account/order-card.tsx'),
+  ('order.whatsapp', 'Message us on WhatsApp', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.whatsapp_message', 'Hi, I have a question about my request {ref}.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('pay.failed', 'The checkout couldn''t load. Check your connection and refresh the page.', 'Used in apps/web/app/(site)/pay/page.tsx'),
   ('pay.missing', 'This payment link is incomplete. Open your request in your account and press Pay now.', 'Used in apps/web/app/(site)/pay/page.tsx'),
@@ -996,6 +980,7 @@ insert into public.site_strings (key, value, description) values
   ('receipt.date', 'Date paid', 'Used in apps/web/app/(print)/account/receipts/[id]/page.tsx'),
   ('receipt.item', 'Description', 'Used in apps/web/app/(print)/account/receipts/[id]/page.tsx'),
   ('receipt.method', 'Payment method', 'Used in apps/web/app/(print)/account/receipts/[id]/page.tsx'),
+  ('receipt.method.paddle', 'Online (Paddle)', 'Used in apps/web/app/(print)/account/receipts/[id]/page.tsx'),
   ('receipt.number', 'Receipt number', 'Used in apps/web/app/(print)/account/receipts/[id]/page.tsx'),
   ('receipt.paid', 'Paid', 'Used in apps/web/app/(print)/account/receipts/[id]/page.tsx'),
   ('receipt.print', 'Print or save as PDF', 'Used in apps/web/app/(print)/account/receipts/[id]/page.tsx'),
@@ -1415,3 +1400,12 @@ on conflict (id) do nothing;
 insert into public.navigation_items (id, location, label, href, kind, open_in_new_tab, sort_order)
 values (md5('retexia:nav:footer_legal:3')::uuid, 'footer_legal', 'Refund policy', '/refund-policy', 'link', false, 3)
 on conflict (id) do nothing;
+
+-- Paddle checkout (same as migrations/0010_paddle_checkout.sql)
+update public.site_settings set online_payments = true where id = 1;
+update public.order_status_transitions
+   set customer_note_template = 'Good news: your request is approved. Open it in your Retexia account and press Pay now to start.'
+ where to_status = 'awaiting_payment';
+update public.order_statuses
+   set description = 'Pay securely with Paddle to start. Your request is saved; pay any time from your account.'
+ where key = 'awaiting_payment';

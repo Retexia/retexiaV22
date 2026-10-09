@@ -6,107 +6,59 @@ import { z } from "zod";
 import { run, type ActionResult } from "@/lib/action";
 import { audit } from "@/lib/audit";
 import { requireRole } from "@/lib/auth";
-import { PADDLE_CURRENCIES, paddleApi, paddleConfigured, toMinor } from "@/lib/paddle";
+import { PADDLE_CURRENCIES, checkoutItems, paddleApi, paddleConfigured } from "@/lib/paddle";
 
-type PriceBody = {
-  description: string;
-  name: string;
-  unit_price: { amount: string; currency_code: string };
-  billing_cycle?: { interval: "month" | "year"; frequency: 1 } | null;
-  quantity: { minimum: 1; maximum: 1 };
-  custom_data: Record<string, string>;
-};
-
-/** Creates or updates one Paddle price; archives it when the package no longer has that price. */
-async function ensurePrice(productId: string, existing: string | null, body: PriceBody | null): Promise<{ id: string | null; error?: string }> {
-  if (!body) {
-    if (existing) await paddleApi(`/prices/${existing}`, { method: "PATCH", body: { status: "archived" } });
-    return { id: null };
-  }
-  if (existing) {
-    const r = await paddleApi<{ id: string }>(`/prices/${existing}`, {
-      method: "PATCH",
-      body: { description: body.description, name: body.name, unit_price: body.unit_price, custom_data: body.custom_data, status: "active" },
-    });
-    if (r.ok) return { id: existing };
-    if (r.code !== "entity_not_found" && r.code !== "not_found") return { id: existing, error: r.error };
-  }
-  const r = await paddleApi<{ id: string }>("/prices", { method: "POST", body: { product_id: productId, ...body } });
-  return r.ok ? { id: r.data.id } : { id: null, error: r.error };
+/** Turn Paddle checkout on or off for the whole website. */
+export async function setOnlinePayments(input: { on: boolean }): Promise<ActionResult> {
+  return run(async () => {
+    const staff = await requireRole("manageSettings");
+    const on = z.boolean().parse(input.on);
+    const { error } = await createAdminClient().from("site_settings").update({ online_payments: on }).eq("id", 1);
+    if (error) return { ok: false, message: error.message };
+    await audit(staff, { action: "paddle.online", table: "site_settings", summary: `Online payments (Paddle) turned ${on ? "on" : "off"}` });
+    revalidatePath("/settings/payments");
+    return { ok: true, message: on ? "Customers pay through Paddle right after the form." : "Online payment off: requests wait for your review." };
+  });
 }
 
 /**
- * "Sync plans to Paddle": every orderable product becomes a Paddle product,
- * every package a monthly price, a yearly price and (if any) a one-time
- * setup fee price. Run it again after changing prices.
+ * A Paddle payment link for one request (e.g. for a customer on WhatsApp, or a
+ * request you approved by hand). Priced from the request; opens Paddle's checkout
+ * on retexia.com/pay (Paddle's default payment link).
  */
-export async function syncPaddleCatalog(): Promise<ActionResult<string[]>> {
+export async function createPaymentLink(input: { orderId: string }): Promise<ActionResult<string>> {
   return run(async () => {
-    const staff = await requireRole("manageSettings");
+    const staff = await requireRole("operate");
     if (!paddleConfigured()) return { ok: false, message: "Set PADDLE_API_KEY in the admin's environment first." };
+    const orderId = z.uuid().parse(input.orderId);
     const db = createAdminClient();
-    const [{ data: settings }, { data: products }] = await Promise.all([
-      db.from("site_settings").select("currency_code").eq("id", 1).single(),
-      db.from("products").select("id, slug, name, tagline, status, paddle_product_id").neq("status", "hidden").order("sort_order"),
-    ]);
-    const lines: string[] = [];
-    for (const p of products ?? []) {
-      const { data: packages } = await db
-        .from("packages")
-        .select("id, slug, name, price_monthly, price_yearly, setup_fee, currency, is_active, paddle_price_monthly, paddle_price_yearly, paddle_price_setup")
-        .eq("product_id", p.id)
-        .order("sort_order");
-      if (!packages?.length) continue;
-
-      let productId = p.paddle_product_id;
-      const productBody = { name: p.name, description: p.tagline ?? undefined, custom_data: { retexia_slug: p.slug } };
-      if (productId) {
-        const r = await paddleApi(`/products/${productId}`, { method: "PATCH", body: { ...productBody, status: "active" } });
-        if (!r.ok) productId = null;
-      }
-      if (!productId) {
-        let r = await paddleApi<{ id: string }>("/products", { method: "POST", body: { ...productBody, tax_category: "saas" } });
-        if (!r.ok) r = await paddleApi<{ id: string }>("/products", { method: "POST", body: { ...productBody, tax_category: "standard" } });
-        if (!r.ok) {
-          lines.push(`${p.name}: ${r.error}`);
-          continue;
-        }
-        productId = r.data.id;
-        await db.from("products").update({ paddle_product_id: productId }).eq("id", p.id);
-      }
-
-      for (const pkg of packages) {
-        const currency = (pkg.currency || settings?.currency_code || "USD").toUpperCase();
-        if (!PADDLE_CURRENCIES.has(currency)) {
-          lines.push(`${pkg.name}: Paddle can't charge in ${currency}. Set prices in USD (Settings → General → currency).`);
-          continue;
-        }
-        const price = (amount: number | null, cycle: "month" | "year" | null, label: string, kind: string): PriceBody | null =>
-          amount === null || amount <= 0 || !pkg.is_active
-            ? null
-            : {
-                name: `${pkg.name} (${label})`,
-                description: `${p.name} · ${pkg.name} · ${label}`,
-                unit_price: { amount: toMinor(Number(amount), currency), currency_code: currency },
-                billing_cycle: cycle ? { interval: cycle, frequency: 1 } : null,
-                quantity: { minimum: 1, maximum: 1 },
-                custom_data: { package_id: pkg.id, kind },
-              };
-        const [m, y, s] = await Promise.all([
-          ensurePrice(productId, pkg.paddle_price_monthly, price(Number(pkg.price_monthly), "month", "monthly", "monthly")),
-          ensurePrice(productId, pkg.paddle_price_yearly, price(pkg.price_yearly === null ? null : Number(pkg.price_yearly), "year", "yearly", "yearly")),
-          ensurePrice(productId, pkg.paddle_price_setup, price(Number(pkg.setup_fee ?? 0), null, "one-time setup", "setup")),
-        ]);
-        await db.from("packages").update({ paddle_price_monthly: m.id, paddle_price_yearly: y.id, paddle_price_setup: s.id }).eq("id", pkg.id);
-        const errors = [m.error, y.error, s.error].filter(Boolean);
-        lines.push(errors.length ? `${pkg.name}: ${errors.join("; ")}` : `${pkg.name}: ${[m.id && "monthly", y.id && "yearly", s.id && "setup fee"].filter(Boolean).join(", ")} ✓`);
-      }
-    }
-    await audit(staff, { action: "paddle.sync", table: "packages", summary: `Synced plans to Paddle: ${lines.join(" | ").slice(0, 900)}` });
-    revalidatePath("/settings/payments");
-    revalidatePath("/products", "layout");
-    const failed = lines.filter((l) => !l.endsWith("✓"));
-    return failed.length ? { ok: false, message: failed.join(" · ") } : { ok: true, message: `${lines.length} plans are in Paddle.`, data: lines };
+    const { data: order } = await db.from("orders").select("id, ref, user_id, status, billing_cycle, product_id, package_name, price_amount, setup_fee, currency").eq("id", orderId).maybeSingle();
+    if (!order) return { ok: false, message: "Request not found." };
+    if (!["submitted", "reviewing", "awaiting_payment"].includes(order.status)) return { ok: false, message: "This request isn't waiting for a payment." };
+    const currency = (order.currency ?? "USD").toUpperCase();
+    if (!PADDLE_CURRENCIES.has(currency)) return { ok: false, message: `Paddle can't charge in ${currency}. Change the request's price to USD first (Overview → Change pricing).` };
+    if (!Number(order.price_amount)) return { ok: false, message: "The request has no price." };
+    const { data: product } = await db.from("products").select("name").eq("id", order.product_id).maybeSingle();
+    const r = await paddleApi<{ id: string; checkout?: { url?: string | null } }>("/transactions", {
+      method: "POST",
+      body: {
+        items: checkoutItems({
+          product: product?.name ?? "Retexia",
+          plan: order.package_name ?? product?.name ?? "Plan",
+          cycle: order.billing_cycle === "yearly" ? "yearly" : "monthly",
+          price: Number(order.price_amount),
+          setupFee: Number(order.setup_fee ?? 0),
+          currency,
+        }),
+        collection_mode: "automatic",
+        custom_data: { order_id: order.id, ref: order.ref, user_id: order.user_id },
+      },
+    });
+    if (!r.ok) return { ok: false, message: r.code === "transaction_default_checkout_url_not_set" ? "Set Paddle → Checkout settings → Default payment link to https://www.retexia.com/pay first." : `Paddle: ${r.error}` };
+    const url = r.data.checkout?.url;
+    if (!url) return { ok: false, message: "Paddle didn't return a link. Set Checkout settings → Default payment link to https://www.retexia.com/pay." };
+    await audit(staff, { action: "paddle.link", table: "orders", recordId: order.id, summary: `Created a Paddle payment link for ${order.ref}` });
+    return { ok: true, message: "Payment link copied", data: url };
   });
 }
 

@@ -56,6 +56,11 @@ export function OrderCard({
         <Button href={`/account/products/${encodeURIComponent(order.ref ?? "")}`} variant="secondary" size="sm">
           {t("order.view_details", "View details")}
         </Button>
+        {order.status === "awaiting_payment" ? (
+          <Button href={`/account/products/${encodeURIComponent(order.ref ?? "")}?pay=1`} size="sm">
+            {t("order.paddle.pay", "Pay now")}
+          </Button>
+        ) : null}
         {panel && product?.panel_url ? (
           <Button href={product.panel_url} size="sm">
             {t("order.open_panel", "Open {name} panel", { name: product.short_name })}

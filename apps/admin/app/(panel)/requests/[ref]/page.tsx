@@ -8,6 +8,7 @@ import { notFound } from "next/navigation";
 import { AuditList, type AuditEntry } from "@/components/common/audit-list";
 import { OrderStatus, label } from "@/components/common/status";
 import { ChangePricingButton, EditAnswersButton } from "@/components/requests/overview-editors";
+import { PaddlePaymentLink } from "@/components/requests/paddle-payment-link";
 import { PaddleSubscription } from "@/components/requests/paddle-subscription";
 import { PaymentsPanel, type PaymentRow } from "@/components/requests/payments-panel";
 import { RequestActions, type TransitionOption } from "@/components/requests/request-actions";
@@ -315,6 +316,7 @@ export default async function RequestPage({ params, searchParams }: { params: Pa
         ? await Promise.all((productExtension(order.product_slug).requestPanels ?? []).map(async (panel) => <div key={panel.key}>{await panel.render({ staff, orderId, productSlug: order.product_slug ?? "" })}</div>))
         : null}
 
+      {tab === "payments" && ["submitted", "reviewing", "awaiting_payment"].includes(order.status ?? "") && canOperate ? <PaddlePaymentLink orderId={orderId} /> : null}
       {tab === "payments" && paddle.data?.paddle_subscription_id ? (
         <PaddleSubscription
           orderId={orderId}

@@ -16,7 +16,7 @@ type Transaction = {
   currency_code: string;
   custom_data?: { order_id?: string } | null;
   items?: Item[];
-  details?: { totals?: { grand_total?: string; total?: string } };
+  details?: { totals?: { grand_total?: string; total?: string; subtotal?: string; discount?: string } };
   billing_period?: { starts_at?: string; ends_at?: string } | null;
   billed_at?: string | null;
 };
@@ -35,20 +35,20 @@ const orderIdOf = (custom: { order_id?: string } | null | undefined) => (custom?
 /** A completed (paid) transaction → one confirmed payment, checked against the request's plan. */
 async function onTransaction(db: Db, t: Transaction) {
   const orderId = orderIdOf(t.custom_data);
-  const priceIds = (t.items ?? []).map((i) => i.price?.id ?? i.price_id).filter(Boolean) as string[];
   const oneTime = (t.items ?? []).some((i) => i.price && i.price.billing_cycle === null);
   const recurringOrigin = t.origin === "subscription_recurring";
   let status: "confirmed" | "pending" = "confirmed";
   let note = "Paddle";
 
-  // First payment: the plan paid for must be the plan of the request.
+  // First payment: what was paid (before tax) must cover the request's own price.
   if (!recurringOrigin && orderId) {
-    const { data: order } = await db.from("orders").select("billing_cycle, package_id").eq("id", orderId).maybeSingle();
-    const { data: pkg } = order ? await db.from("packages").select("paddle_price_monthly, paddle_price_yearly").eq("id", order.package_id).maybeSingle() : { data: null };
-    const expected = order?.billing_cycle === "yearly" ? pkg?.paddle_price_yearly : pkg?.paddle_price_monthly;
-    if (!expected || !priceIds.includes(expected)) {
+    const { data: order } = await db.from("orders").select("price_amount, setup_fee, currency").eq("id", orderId).maybeSingle();
+    const expected = Number(order?.price_amount ?? 0) + Number(order?.setup_fee ?? 0);
+    const paidNet = fromMinor(t.details?.totals?.subtotal, t.currency_code) - fromMinor(t.details?.totals?.discount, t.currency_code);
+    const sameCurrency = (order?.currency ?? "USD").toUpperCase() === t.currency_code.toUpperCase();
+    if (!order || !sameCurrency || paidNet + 0.01 < expected) {
       status = "pending";
-      note = `Paddle: the paid plan (${priceIds.join(", ") || "none"}) doesn't match this request's plan. Check it before confirming.`;
+      note = `Paddle: paid ${paidNet.toFixed(2)} ${t.currency_code}, the request costs ${expected.toFixed(2)} ${order?.currency ?? ""}. Check it before confirming.`;
     }
   }
 

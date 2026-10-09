@@ -8,14 +8,12 @@ import { CancelOrderButton } from "@/components/account/cancel-order";
 import { canOpenPanel } from "@/components/account/order-card";
 import { BillingButton } from "@/components/account/billing-button";
 import { PaddlePay } from "@/components/account/paddle-pay";
-import { PaymentProofForm } from "@/components/account/payment-proof-form";
-import { Markdown } from "@/components/markdown";
 import { requireUser } from "@/lib/auth";
 import { getForm, getOrderStatuses, getProducts, getSiteSettings } from "@/lib/content";
 import { formatDate, formatPrice } from "@/lib/format";
 import { whatsappHref } from "@/lib/links";
 import { getMyOrder, getOrderPayments, getVisibleServiceFields } from "@/lib/orders";
-import { paddleEnv, paddleReady } from "@/lib/paddle.server";
+import { PADDLE_CURRENCIES, paddleEnv, paddleReady } from "@/lib/paddle.server";
 import { getT } from "@/lib/strings.server";
 
 export async function generateMetadata({ params }: PageProps<"/account/products/[ref]">): Promise<Metadata> {
@@ -36,17 +34,14 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
   const data = await getMyOrder(supabase, ref);
   if (!data) notFound();
   const { order, events } = data;
-  const [payments, serviceFields, { data: pkgPrices }] = await Promise.all([
-    getOrderPayments(supabase, order.id),
-    getVisibleServiceFields(supabase, order.id),
-    supabase.from("packages").select("paddle_price_monthly, paddle_price_yearly").eq("id", order.package_id).maybeSingle(),
-  ]);
-  // Online payment through Paddle when it is set up and the plan is in the Paddle catalog.
-  const payOnline = paddleReady() && Boolean(order.billing_cycle === "yearly" ? pkgPrices?.paddle_price_yearly : pkgPrices?.paddle_price_monthly);
-  const pendingProof = payments.find((p) => p.status === "pending");
+  const [payments, serviceFields] = await Promise.all([getOrderPayments(supabase, order.id), getVisibleServiceFields(supabase, order.id)]);
   const awaitingPayment = order.status === "awaiting_payment";
 
   const product = products.find((p) => p.id === order.product_id);
+  // Every payment on the website goes through Paddle (products can opt out in the admin).
+  const online = settings.online_payments && product?.pay_online !== false;
+  const payCurrency = (order.currency ?? settings.currency_code).toUpperCase();
+  const payOnline = online && paddleReady() && PADDLE_CURRENCIES.has(payCurrency) && (order.price_amount ?? 0) > 0;
   const status = statuses.find((s) => s.key === order.status);
   const statusLabel = (key: string | null) => statuses.find((s) => s.key === key)?.label ?? key ?? "";
   const currency = order.currency ?? settings.currency_code;
@@ -179,32 +174,22 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
       ) : null}
 
       {awaitingPayment && !payOnline ? (
-        <Card as="section" aria-labelledby="pay-title" className="flex flex-col gap-5 border-warning/40!">
-          <div className="flex flex-col gap-1">
-            <h2 id="pay-title" className="type-h2 text-ink">
-              {t("order.pay.title", "How to pay")}
-            </h2>
-            <p className="type-body text-ink-muted">
-              {t("order.pay.amount", "Amount due now: {amount} (setup fee and first period).", { amount: fmt((order.setup_fee ?? 0) + (order.price_amount ?? 0)) })}
-            </p>
-          </div>
-          {settings.payment_instructions ? (
-            <div className="rounded-md bg-surface-sunk p-4">
-              <Markdown size="sm">{settings.payment_instructions}</Markdown>
-            </div>
-          ) : (
-            <p className="type-body text-ink-muted">{t("order.pay.no_instructions", "We have sent the payment details to your email and WhatsApp.")}</p>
-          )}
-          {pendingProof ? (
-            <Alert tone="info" title={t("order.proof.received", "Payment proof received")}>
-              {t("order.proof.checking", "Thank you. We are checking your payment from {date} and will confirm it soon.", { date: formatDate(pendingProof.created_at, settings.currency_locale) })}
-            </Alert>
-          ) : (
-            <div className="flex flex-col gap-3 border-t border-line pt-5">
-              <h3 className="type-h3 text-ink">{t("order.proof.title", "Already paid? Send us the slip")}</h3>
-              <PaymentProofForm orderId={order.id} orderRef={order.ref ?? ""} />
-            </div>
-          )}
+        <Card as="section" aria-labelledby="pay-title" className="flex flex-col gap-3 border-warning/40!">
+          <h2 id="pay-title" className="type-h2 text-ink">
+            {t("order.paddle.title", "Pay to start")}
+          </h2>
+          <p className="type-body text-ink-muted">
+            {!online
+              ? t("order.paddle.by_team", "We'll send you a secure payment link for this request by email.")
+              : !PADDLE_CURRENCIES.has(payCurrency)
+                ? t("order.paddle.currency", "This request was priced in {currency}, which our payment partner doesn't accept. Message us and we'll update it.", { currency: payCurrency })
+                : t("order.paddle.soon", "Online payment opens in a moment. Please refresh this page shortly, or message us if it doesn't appear.")}
+          </p>
+          {wa ? (
+            <Button href={wa} variant="secondary" className="self-start" target="_blank">
+              {t("order.whatsapp", "Message us on WhatsApp")}
+            </Button>
+          ) : null}
         </Card>
       ) : null}
 

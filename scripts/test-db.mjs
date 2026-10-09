@@ -95,6 +95,8 @@ await expectError(
   /permission denied/,
 );
 
+// These checks cover the review flow (online payment off); the Paddle flow is tested in test-products-db.mjs.
+await db.query(`update public.site_settings set online_payments = false where id = 1`);
 const year = new Date().getFullYear();
 const o1 = await as(
   "authenticated",

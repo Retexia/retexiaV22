@@ -15,13 +15,20 @@ What happens automatically (admin.retexia.com/api/paddle/webhook):
 | Payment failed (past due) | Customer and team emailed; Paddle retries by itself |
 | Refund approved | Refund recorded, payment marked refunded |
 
-Prices are in **USD** (Paddle can't charge in LKR). Manual payments can still be
-recorded on a request in the admin (Payments tab).
+Prices are in **USD** (Paddle can't charge in LKR). Checkout uses each request's
+own price (plan + setup fee), so there is no catalog to sync. Payments can still be
+recorded by hand on a request in the admin (Payments tab), and **Copy payment link**
+there sends a customer straight to Paddle's checkout.
+
+Switches: Admin → Settings → Payments → **Customers pay online with Paddle** (whole
+site), and Admin → Products → a product → Details → **Customers pay online with
+Paddle** (turn off for human services, which Paddle doesn't allow).
 
 ## 1. Database
 
-Supabase → SQL Editor → run `supabase/migrations/0009_paddle.sql`. It switches
-prices to USD, adds the refund policy page and Paddle wording to the terms.
+Supabase → SQL Editor → run `supabase/migrations/0009_paddle.sql`, then
+`supabase/migrations/0010_paddle_checkout.sql`. They switch prices to USD, turn
+online payment on, and add the refund policy page and Paddle wording to the terms.
 
 ## 2. Paddle sandbox (sandbox-vendors.paddle.com)
 
@@ -47,11 +54,9 @@ prices to USD, adds the refund policy page and Paddle wording to the terms.
 
 Redeploy both.
 
-## 4. Put your plans in Paddle
+## 4. (Nothing to sync)
 
-Admin → Settings → **Payments and invoices** → **Sync plans to Paddle**. It creates
-a Paddle product per product and a monthly, yearly and setup-fee price per plan.
-Run it again whenever you change a price in the admin.
+There is no catalog step: each checkout sends the request's own price to Paddle.
 
 ## 5. Test a payment
 
@@ -69,4 +74,4 @@ Run it again whenever you change a price in the admin.
 2. Repeat step 2 in the live dashboard (live API key, `live_` client token,
    live webhook destination and secret).
 3. Set `NEXT_PUBLIC_PADDLE_ENV=production` and the live keys in both Vercel
-   projects, redeploy, then press **Sync plans to Paddle** again (the live catalog is separate).
+   projects and redeploy.

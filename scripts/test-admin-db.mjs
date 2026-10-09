@@ -10,6 +10,8 @@ const { db, ok, expectError, as, summary } = await createHarness();
 await db.exec(migration);
 await db.exec(seed);
 await db.exec(migration); // re-runnable
+// Admin workflow checks use the review flow (online payment off); Paddle is tested in test-products-db.mjs.
+await db.exec("update public.site_settings set online_payments = false where id = 1");
 console.log("Admin migration applied twice");
 
 const year = new Date().getFullYear();
