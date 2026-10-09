@@ -12,8 +12,8 @@ export function OnlinePaymentsSwitch({ initial }: { initial: boolean }) {
   return (
     <Switch
       checked={on}
-      label="Customers pay online with Paddle"
-      description="On: after the form, customers pay in Paddle's checkout and setup starts by itself. Off: requests wait for your review, then you send a payment link."
+      label="Customers pay online"
+      description="On: right after the form, customers pay online and setup starts by itself. Off: requests wait for your review first."
       onCheckedChange={async (v) => {
         setOn(v);
         const r = await setOnlinePayments({ on: v });

@@ -7,6 +7,7 @@ import { run, type ActionResult } from "@/lib/action";
 import { audit } from "@/lib/audit";
 import { requireRole } from "@/lib/auth";
 import { PADDLE_CURRENCIES, checkoutItems, paddleApi, paddleConfigured } from "@/lib/paddle";
+import { recordPaddleTransaction } from "@/lib/paddle-webhook";
 
 /** Turn Paddle checkout on or off for the whole website. */
 export async function setOnlinePayments(input: { on: boolean }): Promise<ActionResult> {
@@ -77,5 +78,32 @@ export async function cancelPaddleSubscription(input: { orderId: string; when: "
       ok: true,
       message: d.when === "immediately" ? "Cancelled. The request is cancelled as soon as Paddle confirms." : "Cancels at the end of the paid period. The request is cancelled then.",
     };
+  });
+}
+
+/**
+ * Looks the request's payment up in Paddle and records it if it is paid
+ * (for a missed webhook). Uses the checkout remembered on the request, or a
+ * transaction id copied from Paddle → Transactions.
+ */
+export async function checkPaddlePayment(input: { orderId: string; transactionId?: string }): Promise<ActionResult> {
+  return run(async () => {
+    const staff = await requireRole("operate");
+    if (!paddleConfigured()) return { ok: false, message: "Set PADDLE_API_KEY in the admin's environment first." };
+    const d = z.object({ orderId: z.uuid(), transactionId: z.string().trim().regex(/^(txn_[a-z0-9]+)?$/, "Paste a Paddle transaction id (txn_…)").optional() }).parse(input);
+    const db = createAdminClient();
+    const { data: order } = await db.from("orders").select("id, ref, paddle_transaction_id").eq("id", d.orderId).maybeSingle();
+    if (!order) return { ok: false, message: "Request not found." };
+    const txn = d.transactionId || order.paddle_transaction_id;
+    if (!txn) return { ok: false, message: "No Paddle checkout is remembered for this request. Paste the transaction id from Paddle → Transactions." };
+    const r = await paddleApi<Record<string, unknown> & { status: string; custom_data?: { order_id?: string } | null }>(`/transactions/${txn}`);
+    if (!r.ok) return { ok: false, message: `Paddle: ${r.error}` };
+    if (r.data.custom_data?.order_id && r.data.custom_data.order_id !== order.id) return { ok: false, message: "That Paddle transaction belongs to another request." };
+    if (!["completed", "paid"].includes(r.data.status)) return { ok: false, message: `Not paid yet in Paddle (status: ${r.data.status}).` };
+    await recordPaddleTransaction({ ...r.data, custom_data: { ...(r.data.custom_data ?? {}), order_id: order.id } });
+    await audit(staff, { action: "paddle.check", table: "orders", recordId: order.id, summary: `Recorded Paddle payment ${txn} for ${order.ref} from Paddle's API` });
+    revalidatePath(`/requests/${encodeURIComponent(order.ref ?? "")}`);
+    revalidatePath("/payments");
+    return { ok: true, message: "Payment found in Paddle and recorded." };
   });
 }

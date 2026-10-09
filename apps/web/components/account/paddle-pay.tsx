@@ -9,7 +9,7 @@ import { startCheckout } from "@/app/(site)/account/billing-actions";
 type PaddleEvent = { name?: string };
 type PaddleGlobal = {
   Environment: { set: (env: string) => void };
-  Initialize: (o: { token: string; eventCallback?: (e: PaddleEvent) => void }) => void;
+  Initialize: (o: { token: string; eventCallback?: (e: PaddleEvent) => void; pwCustomer?: { id: string } }) => void;
   Checkout: { open: (o: Record<string, unknown>) => void; close: () => void };
 };
 declare global {
@@ -22,13 +22,14 @@ let listener: ((e: PaddleEvent) => void) | null = null;
 let ready: Promise<PaddleGlobal> | null = null;
 
 /** Loads Paddle.js once per page and initialises it with the public client token. */
-export function loadPaddle(env: string, token: string): Promise<PaddleGlobal> {
+export function loadPaddle(env: string, token: string, customerId?: string | null): Promise<PaddleGlobal> {
   ready ??= new Promise((resolve, reject) => {
     const init = () => {
       const P = window.Paddle;
       if (!P) return reject(new Error("Paddle.js missing"));
       if (env === "sandbox") P.Environment.set("sandbox");
-      P.Initialize({ token, eventCallback: (e) => listener?.(e) });
+      // pwCustomer: the Paddle customer id (ctm_…), for Paddle Retain.
+      P.Initialize({ token, eventCallback: (e) => listener?.(e), ...(customerId ? { pwCustomer: { id: customerId } } : {}) });
       resolve(P);
     };
     if (window.Paddle) return init();
@@ -51,7 +52,7 @@ export type PaddlePayLabels = { pay: string; paying: string; received: string; c
  * "Pay now": opens Paddle's checkout (card, Apple Pay, Google Pay, PayPal) for
  * the request. After payment, refreshes until the webhook has recorded it.
  */
-export function PaddlePay({ refId, env, token, autoOpen, labels }: { refId: string; env: string; token: string; autoOpen: boolean; labels: PaddlePayLabels }) {
+export function PaddlePay({ refId, env, token, customerId, autoOpen, labels }: { refId: string; env: string; token: string; customerId?: string | null; autoOpen: boolean; labels: PaddlePayLabels }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +63,7 @@ export function PaddlePay({ refId, env, token, autoOpen, labels }: { refId: stri
     setBusy(true);
     setError(null);
     try {
-      const [P, r] = await Promise.all([loadPaddle(env, token), startCheckout({ ref: refId })]);
+      const [P, r] = await Promise.all([loadPaddle(env, token, customerId), startCheckout({ ref: refId })]);
       if (!r.ok) {
         setError(r.message);
         return;
@@ -81,7 +82,7 @@ export function PaddlePay({ refId, env, token, autoOpen, labels }: { refId: stri
     } finally {
       setBusy(false);
     }
-  }, [env, token, refId, labels.failed]);
+  }, [env, token, customerId, refId, labels.failed]);
 
   useEffect(() => {
     if (autoOpen && !opened.current) {

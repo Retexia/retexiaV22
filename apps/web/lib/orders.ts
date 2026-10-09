@@ -5,7 +5,7 @@ import type { Answer } from "@retexia/forms";
 
 /** Every orders column a customer may read (admin_note is not granted). */
 const ORDER_COLUMNS =
-  "id, ref, status, status_note, billing_cycle, package_name, price_amount, setup_fee, currency, answers, form_version, product_id, package_id, created_at, updated_at, starts_at, renews_at, cancelled_at, paused_at, paddle_subscription_id, paddle_customer_id";
+  "id, ref, status, status_note, billing_cycle, package_name, price_amount, setup_fee, currency, answers, form_version, product_id, package_id, created_at, updated_at, starts_at, renews_at, cancelled_at, paused_at, paddle_subscription_id, paddle_customer_id, payhere_subscription_id";
 
 export type CustomerOrder = Omit<Tables<"orders">, "admin_note" | "user_id" | "form_id" | "customer_note"> & {
   answers: Answer[];

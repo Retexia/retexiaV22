@@ -840,6 +840,7 @@ export type Database = {
           paddle_subscription_id: string | null
           paddle_transaction_id: string | null
           paused_at: string | null
+          payhere_subscription_id: string | null
           price_amount: number | null
           price_override_reason: string | null
           product_id: string
@@ -873,6 +874,7 @@ export type Database = {
           paddle_subscription_id?: string | null
           paddle_transaction_id?: string | null
           paused_at?: string | null
+          payhere_subscription_id?: string | null
           price_amount?: number | null
           price_override_reason?: string | null
           product_id: string
@@ -906,6 +908,7 @@ export type Database = {
           paddle_subscription_id?: string | null
           paddle_transaction_id?: string | null
           paused_at?: string | null
+          payhere_subscription_id?: string | null
           price_amount?: number | null
           price_override_reason?: string | null
           product_id?: string
@@ -1234,6 +1237,44 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payhere_events: {
+        Row: {
+          error: string | null
+          id: string
+          message: string
+          order_id: string | null
+          payload: Json
+          processed_at: string | null
+          received_at: string
+        }
+        Insert: {
+          error?: string | null
+          id: string
+          message: string
+          order_id?: string | null
+          payload?: Json
+          processed_at?: string | null
+          received_at?: string
+        }
+        Update: {
+          error?: string | null
+          id?: string
+          message?: string
+          order_id?: string | null
+          payload?: Json
+          processed_at?: string | null
+          received_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payhere_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -2067,7 +2108,9 @@ export type Database = {
       admin_start_action_run: { Args: { p_order_id: string; p_action_id: string }; Returns: Json }
       admin_update_order: { Args: { p_order_id: string; p_changes: Json; p_reason?: string }; Returns: Json }
       cancel_order: { Args: { p_order_id: string; p_reason?: string }; Returns: string }
+      customer_cancelled_subscription: { Args: { p_order_id: string }; Returns: undefined }
       customer_order_service_fields: { Args: { p_order_id: string }; Returns: Json }
+      customer_set_paddle_transaction: { Args: { p_order_id: string; p_transaction_id: string }; Returns: undefined }
       customer_submit_payment_proof: { Args: { p_order_id: string; p_proof_path: string; p_reference?: string; p_note?: string }; Returns: string }
       has_role: { Args: { roles: string[] }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
@@ -2082,6 +2125,8 @@ export type Database = {
       svc_paddle_payment: { Args: { p: Json }; Returns: Json }
       svc_paddle_refund: { Args: { p: Json }; Returns: Json }
       svc_paddle_subscription: { Args: { p: Json }; Returns: Json }
+      svc_payhere_payment: { Args: { p: Json }; Returns: Json }
+      svc_payhere_subscription: { Args: { p: Json }; Returns: Json }
     }
     Enums: {
       [_ in never]: never

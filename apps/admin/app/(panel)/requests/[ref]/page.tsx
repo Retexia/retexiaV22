@@ -9,6 +9,7 @@ import { AuditList, type AuditEntry } from "@/components/common/audit-list";
 import { OrderStatus, label } from "@/components/common/status";
 import { ChangePricingButton, EditAnswersButton } from "@/components/requests/overview-editors";
 import { PaddlePaymentLink } from "@/components/requests/paddle-payment-link";
+import { PayhereAwaiting, PayhereSubscription } from "@/components/requests/payhere-controls";
 import { PaddleSubscription } from "@/components/requests/paddle-subscription";
 import { PaymentsPanel, type PaymentRow } from "@/components/requests/payments-panel";
 import { RequestActions, type TransitionOption } from "@/components/requests/request-actions";
@@ -16,6 +17,8 @@ import { ServiceSetup, type ServiceField } from "@/components/requests/service-s
 import { Timeline, type TimelineItem } from "@/components/requests/timeline";
 import { requireStaffPage } from "@/lib/auth";
 import { paddleDashboard } from "@/lib/paddle";
+import { paymentProvider } from "@/lib/payhere";
+import { webUrl } from "@/lib/env";
 import { param, type SearchParams } from "@/lib/list-params";
 import { productExtension } from "@/products/registry";
 
@@ -52,7 +55,7 @@ export default async function RequestPage({ params, searchParams }: { params: Pa
     supabase.from("order_statuses").select("key, label, description").order("sort_order"),
     supabase.from("order_status_transitions").select("*").eq("from_status", order.status ?? "").order("sort_order"),
     supabase.from("payments").select("*").eq("order_id", orderId).order("created_at", { ascending: false }),
-    supabase.from("orders").select("paddle_subscription_id, paddle_customer_id").eq("id", orderId).maybeSingle(),
+    supabase.from("orders").select("paddle_subscription_id, paddle_customer_id, payhere_subscription_id").eq("id", orderId).maybeSingle(),
     supabase.from("profiles").select("id, full_name, email, role").in("role", ["support", "editor", "admin", "owner"]),
     supabase.from("products").select("id, panel_url, panel_live, onboarding_form_id").eq("id", order.product_id ?? "").maybeSingle(),
     supabase.from("packages").select("id, name, price_monthly, price_yearly, setup_fee").eq("product_id", order.product_id ?? "").order("sort_order"),
@@ -316,7 +319,16 @@ export default async function RequestPage({ params, searchParams }: { params: Pa
         ? await Promise.all((productExtension(order.product_slug).requestPanels ?? []).map(async (panel) => <div key={panel.key}>{await panel.render({ staff, orderId, productSlug: order.product_slug ?? "" })}</div>))
         : null}
 
-      {tab === "payments" && ["submitted", "reviewing", "awaiting_payment"].includes(order.status ?? "") && canOperate ? <PaddlePaymentLink orderId={orderId} /> : null}
+      {tab === "payments" && ["submitted", "reviewing", "awaiting_payment"].includes(order.status ?? "") && canOperate ? (
+        paymentProvider() === "payhere" ? (
+          <PayhereAwaiting orderId={orderId} payUrl={`${webUrl()}/account/products/${encodeURIComponent(ref)}?pay=1`} />
+        ) : (
+          <PaddlePaymentLink orderId={orderId} />
+        )
+      ) : null}
+      {tab === "payments" && paddle.data?.payhere_subscription_id ? (
+        <PayhereSubscription orderId={orderId} subscriptionId={paddle.data.payhere_subscription_id} canAdmin={canAdmin} final={Boolean(order.status_is_final)} />
+      ) : null}
       {tab === "payments" && paddle.data?.paddle_subscription_id ? (
         <PaddleSubscription
           orderId={orderId}

@@ -10,7 +10,7 @@ import { NextResponse, type NextRequest } from "next/server";
  * 4. staff without MFA → /mfa/setup; staff with MFA but an aal1 session → /mfa/verify.
  * Server actions and the database check roles again.
  */
-const PUBLIC = /^\/(login|forgot-password|auth|api\/n8n\/callback|api\/notifications\/dispatch|api\/paddle\/webhook|robots\.txt)(\/|$)/;
+const PUBLIC = /^\/(login|forgot-password|auth|api\/n8n\/callback|api\/notifications\/dispatch|api\/paddle\/webhook|api\/payhere\/notify|robots\.txt)(\/|$)/;
 const SIGNED_IN_ONLY = /^\/(no-access|reset-password)(\/|$)/;
 const MFA = /^\/mfa(\/|$)/;
 

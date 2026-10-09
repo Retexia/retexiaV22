@@ -37,17 +37,24 @@ export async function paddleApi<T>(path: string, init: { method?: string; body?:
 }
 
 /** Paddle-Signature: "ts=…;h1=…" (h1 = HMAC-SHA256 of "ts:rawBody" with the webhook secret). Rejects stale timestamps. */
-export function verifyPaddleSignature(rawBody: string, header: string | null, secret: string | undefined, toleranceSeconds = 300): boolean {
-  if (!header || !secret) return false;
-  const parts = header.split(";").map((p) => p.split("=") as [string, string]);
+export function verifyPaddleSignature(rawBody: string, header: string | null, secretSetting: string | undefined, toleranceSeconds = 300): boolean {
+  // Tolerate copy-paste slips in the env var: spaces, line breaks, quotes. Several secrets: comma-separated (rotation).
+  const secrets = (secretSetting ?? "")
+    .split(",")
+    .map((s) => s.trim().replace(/^["']|["']$/g, "").trim())
+    .filter(Boolean);
+  if (!header || !secrets.length) return false;
+  const parts = header.split(";").map((p) => p.trim().split("=") as [string, string]);
   const ts = parts.find(([k]) => k === "ts")?.[1];
   const sigs = parts.filter(([k]) => k === "h1").map(([, v]) => v);
   if (!ts || !sigs.length || !/^\d+$/.test(ts)) return false;
   if (Math.abs(Date.now() / 1000 - Number(ts)) > toleranceSeconds) return false;
-  const expected = createHmac("sha256", secret).update(`${ts}:${rawBody}`).digest();
-  return sigs.some((h) => {
-    const given = Buffer.from(h, "hex");
-    return given.length === expected.length && timingSafeEqual(given, expected);
+  return secrets.some((secret) => {
+    const expected = createHmac("sha256", secret).update(`${ts}:${rawBody}`).digest();
+    return sigs.some((h) => {
+      const given = Buffer.from(h.trim(), "hex");
+      return given.length === expected.length && timingSafeEqual(given, expected);
+    });
   });
 }
 
@@ -81,4 +88,38 @@ export function checkoutItems(o: { product: string; plan: string; cycle: "monthl
     });
   }
   return items;
+}
+
+// ---------------------------------------------------------------------------
+// Webhook IP allowlist: Paddle publishes its sending IPs at /ips (source of truth, can change).
+// ---------------------------------------------------------------------------
+let ipCache: { cidrs: string[]; at: number } | null = null;
+
+async function paddleIps(): Promise<string[] | null> {
+  if (ipCache && Date.now() - ipCache.at < 60 * 60_000) return ipCache.cidrs;
+  try {
+    const res = await fetch(`${base()}/ips`, { signal: AbortSignal.timeout(5000), cache: "no-store" });
+    const json = (await res.json()) as { data?: { ipv4_cidrs?: string[] } };
+    const cidrs = json.data?.ipv4_cidrs ?? [];
+    if (res.ok && cidrs.length) ipCache = { cidrs, at: Date.now() };
+  } catch {
+    // keep the last known list
+  }
+  return ipCache?.cidrs ?? null;
+}
+
+const ipToInt = (ip: string) => ip.split(".").reduce((n, p) => (n << 8) + (Number(p) & 255), 0) >>> 0;
+function inCidr(ip: string, cidr: string) {
+  const [net, bitsRaw] = cidr.split("/");
+  const bits = Number(bitsRaw ?? 32);
+  if (!net || !/^\d+\.\d+\.\d+\.\d+$/.test(ip)) return false;
+  const mask = bits === 0 ? 0 : (~0 << (32 - bits)) >>> 0;
+  return (ipToInt(ip) & mask) === (ipToInt(net) & mask);
+}
+
+/** true: from Paddle; false: not; null: Paddle's IP list couldn't be loaded (answer 503 so Paddle retries). */
+export async function fromPaddleIp(clientIp: string | null): Promise<boolean | null> {
+  const cidrs = await paddleIps();
+  if (!cidrs) return null;
+  return Boolean(clientIp && cidrs.some((c) => inCidr(clientIp, c)));
 }

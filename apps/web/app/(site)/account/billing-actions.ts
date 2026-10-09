@@ -57,6 +57,8 @@ export async function startCheckout(input: { ref: string }): Promise<Result<{ tr
     console.error("[paddle] transaction failed:", r.code, r.error);
     return { ok: false, message: unavailable };
   }
+  // Remembered on the request so the team can look the payment up in Paddle if a webhook is missed.
+  await supabase.rpc("customer_set_paddle_transaction", { p_order_id: order.id, p_transaction_id: r.data.id });
   return { ok: true, data: { transactionId: r.data.id, email: auth.user.email ?? null } };
 }
 

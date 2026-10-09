@@ -151,4 +151,15 @@ await q(`select public.svc_paddle_payment($1::jsonb)`, [JSON.stringify({ order_i
 ok((await q(`select status from public.orders where id = $1`, [postOrder.id]))[0].status === "active", "a paid Post request goes straight to active");
 ok(Number((await q(`select price_monthly from public.packages where id = $1`, [starter]))[0].price_monthly) === 19, "Post Starter costs US$19 a month");
 
+console.log("PayHere (0012)");
+const phOrder = (await as("authenticated", kasun, `insert into public.orders (product_id, package_id, billing_cycle, answers) values ($1, $2, 'monthly', '[]') returning id, ref`, [lingoP, corePk])).rows[0];
+await expectError(() => as("authenticated", kasun, `select public.svc_payhere_payment('{}'::jsonb)`), "customers can't record PayHere payments", /permission denied/);
+await q(`select public.svc_payhere_payment($1::jsonb)`, [JSON.stringify({ order_id: phOrder.id, transaction_id: "ph_1001", subscription_id: "420075000001", amount: "64.00", currency: "USD", kind: "setup_fee", origin: "web", period_end: "2026-11-09T00:00:00Z" })]);
+const ph = (await q(`select status, payhere_subscription_id from public.orders where id = $1`, [phOrder.id]))[0];
+ok(ph.status === "setting_up" && ph.payhere_subscription_id === "420075000001", "a PayHere payment moves the request on and keeps its subscription");
+await q(`select public.svc_payhere_payment($1::jsonb)`, [JSON.stringify({ subscription_id: "420075000001", transaction_id: "ph_1002", amount: "25.00", currency: "USD", kind: "subscription", origin: "subscription_recurring", period_end: "2026-12-09T00:00:00Z" })]);
+ok((await q(`select count(*)::int n from public.payments where order_id = $1 and status = 'confirmed'`, [phOrder.id]))[0].n === 2, "PayHere renewals are matched by subscription");
+await q(`select public.svc_payhere_subscription($1::jsonb)`, [JSON.stringify({ subscription_id: "420075000001", status: "canceled" })]);
+ok((await q(`select status from public.orders where id = $1`, [phOrder.id]))[0].status === "cancelled", "a stopped PayHere subscription cancels the request");
+
 summary();

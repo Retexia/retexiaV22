@@ -207,7 +207,7 @@ function OnboardingForm({ userId, product, packages, initialPackage, initialCycl
             {t("onboarding.change_package", "Change package")}
           </Button>
           <p className="border-t border-line pt-4 type-small text-ink-muted">
-            {t("onboarding.pay_next", "Next: pay securely with Paddle (card, Apple Pay, Google Pay or PayPal). We start as soon as the payment goes through.")}
+            {t("onboarding.pay_next_card", "Next: pay securely by card. We start as soon as the payment goes through.")}
           </p>
         </Card>
       </aside>

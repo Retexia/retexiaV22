@@ -75,3 +75,19 @@ There is no catalog step: each checkout sends the request's own price to Paddle.
    live webhook destination and secret).
 3. Set `NEXT_PUBLIC_PADDLE_ENV=production` and the live keys in both Vercel
    projects and redeploy.
+
+### Live checklist (what the code expects)
+
+- No Paddle catalog IDs in code: checkout sends each request's own price, so there are no
+  `pri_`/`pro_` IDs to migrate. Live catalog entries are optional (Paddle creates the
+  plan lines per checkout).
+- `NEXT_PUBLIC_PADDLE_ENV=production` switches everything at once: `api.paddle.com`,
+  no `Paddle.Environment.set("sandbox")`, live dashboard links.
+- `pwCustomer` (Paddle Retain) is passed to `Paddle.Initialize()` when the request already
+  has a Paddle customer (`ctm_…`).
+- The webhook only accepts Paddle's IPs, loaded from `https://api.paddle.com/ips`
+  (`sandbox-api.paddle.com/ips` in sandbox) and cached for an hour.
+- Live notification destination: create ONE in the live dashboard and copy its secret key into the
+  admin's `PADDLE_WEBHOOK_SECRET` (the key is shown only once; recreating the destination
+  changes it).
+

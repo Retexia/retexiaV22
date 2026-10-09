@@ -116,3 +116,8 @@ export async function handlePaddleEvent(event: { event_id: string; event_type: s
     throw e;
   }
 }
+
+/** "Check payment in Paddle": records a completed transaction fetched from Paddle's API (same rules as the webhook). */
+export async function recordPaddleTransaction(t: Record<string, unknown>) {
+  return onTransaction(createAdminClient(), t as unknown as Transaction);
+}

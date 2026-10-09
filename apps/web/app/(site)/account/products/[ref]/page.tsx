@@ -7,6 +7,8 @@ import { notFound } from "next/navigation";
 import { CancelOrderButton } from "@/components/account/cancel-order";
 import { canOpenPanel } from "@/components/account/order-card";
 import { BillingButton } from "@/components/account/billing-button";
+import { CancelSubscriptionButton } from "@/components/account/cancel-subscription";
+import { PayherePay } from "@/components/account/payhere-pay";
 import { PaddlePay } from "@/components/account/paddle-pay";
 import { requireUser } from "@/lib/auth";
 import { getForm, getOrderStatuses, getProducts, getSiteSettings } from "@/lib/content";
@@ -14,6 +16,7 @@ import { formatDate, formatPrice } from "@/lib/format";
 import { whatsappHref } from "@/lib/links";
 import { getMyOrder, getOrderPayments, getVisibleServiceFields } from "@/lib/orders";
 import { PADDLE_CURRENCIES, paddleEnv, paddleReady } from "@/lib/paddle.server";
+import { PAYHERE_CURRENCIES, paymentProvider, payhereReady } from "@/lib/payhere.server";
 import { getT } from "@/lib/strings.server";
 
 export async function generateMetadata({ params }: PageProps<"/account/products/[ref]">): Promise<Metadata> {
@@ -41,7 +44,9 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
   // Every payment on the website goes through Paddle (products can opt out in the admin).
   const online = settings.online_payments && product?.pay_online !== false;
   const payCurrency = (order.currency ?? settings.currency_code).toUpperCase();
-  const payOnline = online && paddleReady() && PADDLE_CURRENCIES.has(payCurrency) && (order.price_amount ?? 0) > 0;
+  const provider = paymentProvider();
+  const currencyOk = provider === "payhere" ? PAYHERE_CURRENCIES.has(payCurrency) : PADDLE_CURRENCIES.has(payCurrency);
+  const payOnline = online && (provider === "payhere" ? payhereReady() : paddleReady()) && currencyOk && (order.price_amount ?? 0) > 0;
   const status = statuses.find((s) => s.key === order.status);
   const statusLabel = (key: string | null) => statuses.find((s) => s.key === key)?.label ?? key ?? "";
   const currency = order.currency ?? settings.currency_code;
@@ -146,30 +151,50 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
               {t("order.paddle.title", "Pay to start")}
             </h2>
             <p className="type-body text-ink-muted">
-              {t("order.paddle.intro", "{plan}, billed {cycle}{setup}. Pay by card, Apple Pay, Google Pay or PayPal. Tax is added where it applies.", {
+              {t(provider === "payhere" ? "order.pay.intro" : "order.paddle.intro", provider === "payhere" ? "{plan}, renews {cycle}{setup}. Pay by Visa, Mastercard or other cards. Cancel any time from this page." : "{plan}, billed {cycle}{setup}. Pay by card, Apple Pay, Google Pay or PayPal. Tax is added where it applies.", {
                 plan: order.package_name ?? "",
                 cycle: order.billing_cycle === "yearly" ? t("order.paddle.yearly", "yearly") : t("order.paddle.monthly", "monthly"),
                 setup: (order.setup_fee ?? 0) > 0 ? t("order.paddle.with_setup", ", with the one-time setup fee on the first payment") : "",
               })}
             </p>
           </div>
-          <PaddlePay
-            refId={order.ref ?? ""}
-            env={paddleEnv()}
-            token={process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN ?? ""}
-            autoOpen={sp.pay === "1"}
-            labels={{
-              pay: t("order.paddle.pay", "Pay now"),
-              paying: t("order.paddle.opening", "Opening checkout…"),
-              received: t("order.paddle.received", "Payment received"),
-              confirming: t("order.paddle.confirming", "Thank you! We're confirming it with Paddle. This page updates by itself in a few seconds."),
-              secure: t("order.paddle.secure", "Secure checkout by Paddle"),
-              failed: t("order.paddle.failed", "The checkout couldn't open. Check your connection and try again."),
-            }}
-          />
-          <p className="type-small text-ink-muted">
-            {t("order.paddle.mor", "Our order process is conducted by our online reseller Paddle.com, the Merchant of Record for all our orders.")}
-          </p>
+          {provider === "payhere" ? (
+            <PayherePay
+              refId={order.ref ?? ""}
+              autoOpen={sp.pay === "1"}
+              alreadyPaid={sp.paid === "1"}
+              labels={{
+                pay: t("order.pay.pay", "Pay now"),
+                paying: t("order.pay.opening", "Opening secure payment…"),
+                received: t("order.pay.received", "Payment received"),
+                confirming: t("order.pay.confirming", "Thank you! We're confirming it with PayHere. This page updates by itself in a few seconds."),
+                secure: t("order.pay.secure", "Secure payment by PayHere"),
+                failed: t("order.pay.failed", "The payment window couldn't open. Check your connection and try again."),
+                profile: t("order.pay.add_phone", "Add phone number"),
+              }}
+            />
+          ) : (
+            <>
+              <PaddlePay
+                refId={order.ref ?? ""}
+                env={paddleEnv()}
+                token={process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN ?? ""}
+                customerId={order.paddle_customer_id}
+                autoOpen={sp.pay === "1"}
+                labels={{
+                  pay: t("order.paddle.pay", "Pay now"),
+                  paying: t("order.paddle.opening", "Opening checkout…"),
+                  received: t("order.paddle.received", "Payment received"),
+                  confirming: t("order.paddle.confirming", "Thank you! We're confirming it with Paddle. This page updates by itself in a few seconds."),
+                  secure: t("order.paddle.secure", "Secure checkout by Paddle"),
+                  failed: t("order.paddle.failed", "The checkout couldn't open. Check your connection and try again."),
+                }}
+              />
+              <p className="type-small text-ink-muted">
+                {t("order.paddle.mor", "Our order process is conducted by our online reseller Paddle.com, the Merchant of Record for all our orders.")}
+              </p>
+            </>
+          )}
         </Card>
       ) : null}
 
@@ -181,7 +206,7 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
           <p className="type-body text-ink-muted">
             {!online
               ? t("order.paddle.by_team", "We'll send you a secure payment link for this request by email.")
-              : !PADDLE_CURRENCIES.has(payCurrency)
+              : !currencyOk
                 ? t("order.paddle.currency", "This request was priced in {currency}, which our payment partner doesn't accept. Message us and we'll update it.", { currency: payCurrency })
                 : t("order.paddle.soon", "Online payment opens in a moment. Please refresh this page shortly, or message us if it doesn't appear.")}
           </p>
@@ -195,6 +220,18 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
 
       <div className="flex flex-wrap gap-3">
         {order.paddle_customer_id && paddleReady() ? <BillingButton refId={order.ref ?? ""} label={t("order.paddle.manage", "Manage billing")} /> : null}
+        {order.payhere_subscription_id && !status?.is_final && order.status !== "awaiting_payment" ? (
+          <CancelSubscriptionButton
+            refId={order.ref ?? ""}
+            labels={{
+              button: t("order.pay.cancel", "Cancel subscription"),
+              title: t("order.pay.cancel_title", "Cancel your subscription?"),
+              body: t("order.pay.cancel_body", "PayHere stops charging you and this request is closed. Refunds follow our refund policy."),
+              confirm: t("order.pay.cancel_confirm", "Cancel subscription"),
+              keep: t("order.pay.cancel_keep", "Keep it"),
+            }}
+          />
+        ) : null}
         {product?.panel_url ? (
           panel ? (
             <Button href={product.panel_url}>{t("order.open_panel", "Open {name} panel", { name: product.short_name })}</Button>

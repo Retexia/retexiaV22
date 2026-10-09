@@ -1035,8 +1035,8 @@
     "file": "apps/web/components/onboarding/onboarding-flow.tsx"
   },
   {
-    "key": "onboarding.pay_next",
-    "fallback": "Next: pay securely with Paddle (card, Apple Pay, Google Pay or PayPal). We start as soon as the payment goes through.",
+    "key": "onboarding.pay_next_card",
+    "fallback": "Next: pay securely by card. We start as soon as the payment goes through.",
     "file": "apps/web/components/onboarding/onboarding-flow.tsx"
   },
   {
@@ -1200,11 +1200,6 @@
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
   },
   {
-    "key": "order.paddle.intro",
-    "fallback": "{plan}, billed {cycle}{setup}. Pay by card, Apple Pay, Google Pay or PayPal. Tax is added where it applies.",
-    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
     "key": "order.paddle.manage",
     "fallback": "Manage billing",
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
@@ -1283,6 +1278,91 @@
     "key": "order.paused_since",
     "fallback": "Paused since",
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.pay.add_phone",
+    "fallback": "Add phone number",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.pay.already_paid",
+    "fallback": "This request is already paid.",
+    "file": "apps/web/app/(site)/account/payhere-actions.ts"
+  },
+  {
+    "key": "order.pay.cancel",
+    "fallback": "Cancel subscription",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.pay.cancel_body",
+    "fallback": "PayHere stops charging you and this request is closed. Refunds follow our refund policy.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.pay.cancel_confirm",
+    "fallback": "Cancel subscription",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.pay.cancel_failed",
+    "fallback": "We couldn't cancel it right now. Please try again, or message us.",
+    "file": "apps/web/app/(site)/account/payhere-actions.ts"
+  },
+  {
+    "key": "order.pay.cancel_keep",
+    "fallback": "Keep it",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.pay.cancel_title",
+    "fallback": "Cancel your subscription?",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.pay.cancelled",
+    "fallback": "Your subscription is cancelled. You won't be charged again.",
+    "file": "apps/web/app/(site)/account/payhere-actions.ts"
+  },
+  {
+    "key": "order.pay.confirming",
+    "fallback": "Thank you! We're confirming it with PayHere. This page updates by itself in a few seconds.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.pay.failed",
+    "fallback": "The payment window couldn't open. Check your connection and try again.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.pay.needs_phone",
+    "fallback": "PayHere needs your phone number. Add it in My account → Profile, then press Pay now again.",
+    "file": "apps/web/app/(site)/account/payhere-actions.ts"
+  },
+  {
+    "key": "order.pay.opening",
+    "fallback": "Opening secure payment…",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.pay.pay",
+    "fallback": "Pay now",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.pay.received",
+    "fallback": "Payment received",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.pay.secure",
+    "fallback": "Secure payment by PayHere",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.pay.unavailable",
+    "fallback": "Online payment isn't available right now. Please try again shortly or message us.",
+    "file": "apps/web/app/(site)/account/payhere-actions.ts"
   },
   {
     "key": "order.payment.confirmed",

@@ -1,5 +1,7 @@
 import { PageHeader } from "@retexia/ui/admin";
 import { PaddleCard } from "@/components/settings/paddle-card";
+import { PayhereCard } from "@/components/settings/payhere-card";
+import { paymentProvider } from "@/lib/payhere";
 import { PaymentsForm } from "@/components/settings/payments-form";
 import { requireStaffPage } from "@/lib/auth";
 
@@ -11,8 +13,8 @@ export default async function PaymentSettingsPage() {
   if (!s) return null;
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Payments and invoices" description="Customers pay through Paddle. Receipts are made automatically for every payment." />
-      <PaddleCard onlinePayments={s.online_payments} />
+      <PageHeader title="Payments and invoices" description="How customers pay online. Receipts are made automatically for every payment." />
+      {paymentProvider() === "payhere" ? <PayhereCard onlinePayments={s.online_payments} /> : <PaddleCard onlinePayments={s.online_payments} />}
       <PaymentsForm
         currency={s.currency_code}
         siteName={s.site_name}

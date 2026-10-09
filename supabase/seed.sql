@@ -874,7 +874,7 @@ insert into public.site_strings (key, value, description) values
   ('onboarding.not_ready_text', 'Online sign-up for {name} opens soon. Talk to us and we will set it up for you.', 'Used in apps/web/app/(site)/[slug]/get-started/page.tsx'),
   ('onboarding.not_ready_title', 'Almost ready', 'Used in apps/web/app/(site)/[slug]/get-started/page.tsx'),
   ('onboarding.package_changed', 'Package updated', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
-  ('onboarding.pay_next', 'Next: pay securely with Paddle (card, Apple Pay, Google Pay or PayPal). We start as soon as the payment goes through.', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
+  ('onboarding.pay_next_card', 'Next: pay securely by card. We start as soon as the payment goes through.', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
   ('onboarding.pay_yearly', 'Pay yearly', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
   ('onboarding.progress', 'Form progress', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
   ('onboarding.restored_text', 'We restored the answers you saved on this device.', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
@@ -907,7 +907,6 @@ insert into public.site_strings (key, value, description) values
   ('order.paddle.confirming', 'Thank you! We''re confirming it with Paddle. This page updates by itself in a few seconds.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.paddle.currency', 'This request was priced in {currency}, which our payment partner doesn''t accept. Message us and we''ll update it.', 'Used in apps/web/app/(site)/account/billing-actions.ts'),
   ('order.paddle.failed', 'The checkout couldn''t open. Check your connection and try again.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
-  ('order.paddle.intro', '{plan}, billed {cycle}{setup}. Pay by card, Apple Pay, Google Pay or PayPal. Tax is added where it applies.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.paddle.manage', 'Manage billing', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.paddle.monthly', 'monthly', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.paddle.mor', 'Our order process is conducted by our online reseller Paddle.com, the Merchant of Record for all our orders.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
@@ -924,6 +923,23 @@ insert into public.site_strings (key, value, description) values
   ('order.panel_pending', 'Your panel opens when setup is finished.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.paused_note', 'Why it is paused', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.paused_since', 'Paused since', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.pay.add_phone', 'Add phone number', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.pay.already_paid', 'This request is already paid.', 'Used in apps/web/app/(site)/account/payhere-actions.ts'),
+  ('order.pay.cancel', 'Cancel subscription', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.pay.cancel_body', 'PayHere stops charging you and this request is closed. Refunds follow our refund policy.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.pay.cancel_confirm', 'Cancel subscription', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.pay.cancel_failed', 'We couldn''t cancel it right now. Please try again, or message us.', 'Used in apps/web/app/(site)/account/payhere-actions.ts'),
+  ('order.pay.cancel_keep', 'Keep it', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.pay.cancel_title', 'Cancel your subscription?', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.pay.cancelled', 'Your subscription is cancelled. You won''t be charged again.', 'Used in apps/web/app/(site)/account/payhere-actions.ts'),
+  ('order.pay.confirming', 'Thank you! We''re confirming it with PayHere. This page updates by itself in a few seconds.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.pay.failed', 'The payment window couldn''t open. Check your connection and try again.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.pay.needs_phone', 'PayHere needs your phone number. Add it in My account → Profile, then press Pay now again.', 'Used in apps/web/app/(site)/account/payhere-actions.ts'),
+  ('order.pay.opening', 'Opening secure payment…', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.pay.pay', 'Pay now', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.pay.received', 'Payment received', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.pay.secure', 'Secure payment by PayHere', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.pay.unavailable', 'Online payment isn''t available right now. Please try again shortly or message us.', 'Used in apps/web/app/(site)/account/payhere-actions.ts'),
   ('order.payment.confirmed', 'Paid', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.payment.other', 'Payment', 'Used in apps/web/app/(print)/account/receipts/[id]/page.tsx'),
   ('order.payment.pending', 'Being checked', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
@@ -1409,3 +1425,50 @@ update public.order_status_transitions
 update public.order_statuses
    set description = 'Pay securely with Paddle to start. Your request is saved; pay any time from your account.'
  where key = 'awaiting_payment';
+
+-- PayHere wording (same as migrations/0012_payhere.sql)
+-- ---------------------------------------------------------------------
+-- Website wording: PayHere
+-- ---------------------------------------------------------------------
+update public.order_statuses
+   set description = 'Pay securely with PayHere to start. Your request is saved; pay any time from your account.'
+ where key = 'awaiting_payment';
+
+update public.faqs set answer = 'Choose a plan, answer a few questions, then pay securely by Visa, Mastercard or other cards through PayHere. Your plan renews automatically and we start as soon as the payment goes through.'
+ where id = md5('retexia:faq:general:3')::uuid;
+update public.faqs set answer = 'Yes. Open the request in your account and press **Cancel subscription**. Your service runs until the end of the period you paid for.'
+ where id = md5('retexia:faq:lingo:7')::uuid;
+update public.faqs set answer = 'Yes. Press **Cancel subscription** on your request in your account. Posting stops at the end of the period you paid for; your posts stay on Facebook and Instagram.'
+ where id = md5('retexia:faq:post:6')::uuid;
+update public.faqs set answer = 'Yes. Message us and we switch your plan from your next billing date.'
+ where id = md5('retexia:faq:lingo:6')::uuid;
+
+update public.page_sections s
+   set content = jsonb_set(s.content, '{body}', to_jsonb(
+     replace(replace(s.content ->> 'body',
+       'Our order process is conducted by our online reseller Paddle.com. Paddle.com is the Merchant of Record for all our orders, handles payments and billing questions, and may add sales tax or VAT where it applies. Prices are shown in US dollars.',
+       'Payments are processed securely by PayHere (PayHere (Private) Limited, Sri Lanka). Prices are shown in the currency on the pricing page.'),
+       'You can cancel any time from your account: open the request and press Manage billing.',
+       'You can cancel any time from your account: open the request and press Cancel subscription.')))
+  from public.pages g
+ where g.id = s.page_id and g.slug = 'terms' and s.type = 'rich_text';
+
+update public.page_sections s
+   set content = jsonb_set(s.content, '{body}', to_jsonb(
+     replace(s.content ->> 'body',
+       'Payments are handled by Paddle.com, our reseller and Merchant of Record: Paddle processes your card or PayPal details, and we never see or store them.',
+       'Payments are handled by PayHere, a licensed Sri Lankan payment gateway: PayHere processes your card details, and we never see or store them.')))
+  from public.pages g
+ where g.id = s.page_id and g.slug = 'privacy' and s.type = 'rich_text';
+
+update public.page_sections s
+   set content = jsonb_set(s.content, '{body}', to_jsonb(
+     replace(replace(replace(s.content ->> 'body',
+       'Email hello@retexia.com with your request reference (for example LNG-2026-0001), or reply to your Paddle receipt. Refunds go back to the card or PayPal account you paid with, through Paddle, usually within 5 to 10 working days.',
+       'Email hello@retexia.com with your request reference (for example LNG-2026-0001). Refunds go back to the card you paid with, through PayHere, usually within 5 to 10 working days.'),
+       E'## Who processes refunds\n\nOur order process is conducted by our online reseller Paddle.com. Paddle.com is the Merchant of Record for all our orders and handles refunds and billing questions.',
+       E'## Who processes payments\n\nPayments and refunds are processed securely by PayHere.'),
+       'Cancel first from your account (**Manage billing**)',
+       'Cancel first from your account (**Cancel subscription**)')))
+  from public.pages g
+ where g.id = s.page_id and g.slug = 'refund-policy' and s.type = 'rich_text';
