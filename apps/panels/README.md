@@ -88,8 +88,11 @@ Needs `supabase/migrations/0007_product_controls.sql`.
 - **Post (plan + design):** import `n8n/retexia-post.json`. In *Config* set
   `retexiaKey` = `N8N_POST_KEY` (the workflow refuses other calls). Postgres
   credential: the Retexia project (user `post_n8n.<project-ref>` is enough);
-  Supabase credential: the Retexia project; OpenAI credential. It never
-  publishes: post.retexia.com does that with each customer's own access.
+  Supabase credential: the Retexia project; OpenAI credential. It is the
+  worker: this app decides what happens and when, and asks it to plan, design,
+  publish, delete, edit a Facebook text or send a WhatsApp message (migration
+  0016). Customers' Page tokens are added in Supabase with
+  `post.admin_connect_page()`; this app needs no Meta keys.
 
 ## Environment
 

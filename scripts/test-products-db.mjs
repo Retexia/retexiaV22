@@ -193,8 +193,76 @@ ok((await q(`select product_ids from post.product_groups where id = $1`, [grp]))
 await q(`delete from post.posts where business_id = $1 and local_date = '2026-12-20'`, [biz]);
 await q(`select post.add_planned_items($1, '2026-12-20', $2::jsonb)`, [biz, JSON.stringify([{ format: "post", slot: 1, prompt: "Cake", focus: { type: "product", id: cake, name: "Chocolate cake" } }])]);
 ok((await q(`select brief from post.posts where business_id = $1 and local_date = '2026-12-20'`, [biz]))[0].brief.focus.id === cake, "playlist items keep their focus");
-const ctx = (await q(`select post.plan_context($1, $2) c`, [biz, planDate]))[0].c;
-ok(ctx.business.name && Array.isArray(ctx.products) && Array.isArray(ctx.offers) && Array.isArray(ctx.recent_prompts), "the AI gets the business, products, offers and recent prompts in one query");
+
+console.log("n8n worker: accounts, publishing, delete, edit (0016)");
+await q(`update post.businesses set settings = settings || '{"paused": false, "auto_publish": true}', subscription_status = 'active' where id = $1`, [biz]);
+await q(`delete from post.social_accounts where business_id = $1`, [biz]);
+await expectError(() => as("authenticated", amaya, `select * from post.admin_connect_page($1, 'page1', 'TOKEN')`, [biz]), "customers can't add accounts or tokens", /permission denied/);
+const conn = await q(`select * from post.admin_connect_page($1, 'page1', 'PAGE-TOKEN-1', 'ig1', 'Amaya Cakes', 'amayacakes')`, [biz]);
+ok(conn.length === 2 && conn.every((c) => c.status === "connected"), "Retexia adds a customer's Facebook Page and Instagram with one call");
+const acc = await q(`select platform::text, token_secret_id, display_name from post.social_accounts where business_id = $1 order by platform`, [biz]);
+ok(acc[0].token_secret_id && acc[0].token_secret_id === acc[1].token_secret_id && (await q(`select post.read_secret($1) t`, [acc[0].token_secret_id]))[0].t === "PAGE-TOKEN-1", "the token is kept in Vault, shared by the Page and its Instagram");
+await q(`select * from post.admin_connect_page($1, 'page1', 'PAGE-TOKEN-2')`, [biz]);
+ok((await q(`select post.read_secret($1) t`, [acc[0].token_secret_id]))[0].t === "PAGE-TOKEN-2" && (await q(`select count(*)::int n from post.social_accounts where business_id = $1`, [biz]))[0].n === 2, "running it again replaces the token (no duplicates)");
+const overview = await q(`select * from post.admin_accounts where business_id = $1`, [biz]);
+ok(overview.length === 2 && overview.every((r) => r.has_token && !("token" in r) && r.owner_email), "the overview shows who is ready to post (owner email, no tokens)");
+await expectError(() => as("authenticated", amaya, `select * from post.admin_accounts`), "customers can't read the overview", /permission denied/);
+
+const pic = (await q(`insert into post.media (business_id, kind, source, storage_path) values ($1, 'photo', 'ai', $2) returning id`, [biz, `${biz}/ai/pub.jpg`]))[0].id;
+await q(`update post.posts set status = 'expired' where business_id = $1 and status::text in ('ready', 'approved', 'publishing')`, [biz]);
+const due = (await q(`insert into post.posts (business_id, local_date, slot, format, scheduled_at, status, caption, variants, media_id) values ($1, '2027-01-05', 1, 'photo', now() - interval '1 minute', 'ready', 'Hello', '{"facebook": {"caption": "FB text"}, "instagram": {"caption": "IG text #cake"}}', $2) returning id`, [biz, pic]))[0].id;
+ok((await q(`select * from post.worker_publish_rows($1)`, [due])).length === 0, "n8n gets nothing for a post the website hasn't claimed");
+ok((await q(`select id from post.claim_due_posts(20)`)).some((r) => r.id === due), "the website claims the due post");
+await expectError(() => as("authenticated", amaya, `select * from post.worker_publish_rows($1)`, [due]), "customers can't read publishing jobs (they carry tokens)", /permission denied/);
+const jobs = await q(`select * from post.worker_publish_rows($1)`, [due]);
+ok(jobs.length === 2 && jobs.every((j) => j.token === "PAGE-TOKEN-2" && j.storage_path.endsWith("pub.jpg")), "n8n gets one job per account with the customer's token");
+ok(jobs.find((j) => j.platform === "facebook").caption === "FB text" && jobs.find((j) => j.platform === "instagram").caption === "IG text #cake", "each platform gets its own caption");
+ok((await q(`select * from post.worker_publish_rows($1)`, [due])).length === 0, "the same job twice never posts twice");
+const fbJob = jobs.find((j) => j.platform === "facebook");
+const igJob = jobs.find((j) => j.platform === "instagram");
+let r1 = (await q(`select post.n8n_publish_result($1::jsonb) r`, [JSON.stringify({ publication_id: fbJob.publication_id, ok: true, external_id: "page1_99" })]))[0].r;
+ok(r1.post_status === "publishing", "the post waits until every account has answered");
+r1 = (await q(`select post.n8n_publish_result($1::jsonb) r`, [JSON.stringify({ publication_id: igJob.publication_id, ok: false, error_kind: "temporary", error: "Media not ready" })]))[0].r;
+const retryRow = (await q(`select status::text s, scheduled_at > now() + interval '90 seconds' later from post.posts where id = $1`, [due]))[0];
+ok(r1.post_status === "retrying" && retryRow.s === "approved" && retryRow.later, "a temporary error is tried again in 2 minutes");
+await q(`update post.posts set scheduled_at = now() - interval '1 second' where id = $1`, [due]);
+await q(`select post.claim_due_posts(20)`);
+const again = await q(`select * from post.worker_publish_rows($1)`, [due]);
+ok(again.length === 1 && again[0].platform === "instagram" && again[0].attempt === 2, "the retry only posts to the account that failed");
+await q(`select post.n8n_publish_result($1::jsonb)`, [JSON.stringify({ publication_id: again[0].publication_id, ok: true, external_id: "ig_77" })]);
+ok((await q(`select status::text s from post.posts where id = $1`, [due]))[0].s === "published", "when every account is done the post is published");
+
+// Delete and edit (n8n does the Meta calls)
+await expectError(() => as("authenticated", amaya, `select * from post.worker_delete_rows($1)`, [due]), "customers can't read delete jobs", /permission denied/);
+const del = await q(`select * from post.worker_delete_rows($1)`, [due]);
+ok(del.length === 2 && del.every((d) => d.token === "PAGE-TOKEN-2" && d.external_id), "delete: where the post is online, with the token");
+const edits = await q(`select * from post.worker_edit_rows($1)`, [due]);
+ok(edits.length === 1 && edits[0].external_id === "page1_99", "edit: only the Facebook post (Instagram can't be edited)");
+await q(`select post.worker_delete_result($1::jsonb)`, [JSON.stringify({ publication_id: del[0].publication_id, ok: true })]);
+ok((await q(`select status::text s from post.posts where id = $1`, [due]))[0].s === "published", "half deleted: still published");
+await q(`select post.worker_delete_result($1::jsonb)`, [JSON.stringify({ publication_id: del[1].publication_id, ok: true })]);
+ok((await q(`select status::text s from post.posts where id = $1`, [due]))[0].s === "removed", "deleted everywhere: removed");
+
+// Lost access, no accounts, stuck
+const due2 = (await q(`insert into post.posts (business_id, local_date, slot, format, scheduled_at, status, caption, media_id) values ($1, '2027-01-05', 2, 'photo', now() - interval '1 minute', 'approved', 'x', $2) returning id`, [biz, pic]))[0].id;
+await q(`select post.claim_due_posts(20)`);
+for (const j of await q(`select * from post.worker_publish_rows($1)`, [due2])) await q(`select post.n8n_publish_result($1::jsonb)`, [JSON.stringify({ publication_id: j.publication_id, ok: false, error_kind: "needs_user", error: "Token expired" })]);
+ok((await q(`select deny_reason from post.posts where id = $1`, [due2]))[0].deny_reason === "Token expired", "lost access fails the post with the reason");
+ok((await q(`select count(*)::int n from post.social_accounts where business_id = $1 and status = 'reconnect_needed'`, [biz]))[0].n === 2, "and marks the accounts \"reconnect needed\"");
+await q(`select * from post.admin_connect_page($1, 'page1', 'PAGE-TOKEN-3', 'ig1')`, [biz]);
+ok((await q(`select count(*)::int n from post.social_accounts where business_id = $1 and status = 'connected'`, [biz]))[0].n === 2, "a new token reconnects them");
+await q(`update post.social_accounts set enabled = false where business_id = $1`, [biz]);
+const due3 = (await q(`insert into post.posts (business_id, local_date, slot, format, scheduled_at, status, media_id) values ($1, '2027-01-05', 3, 'photo', now() - interval '1 minute', 'approved', $2) returning id`, [biz, pic]))[0].id;
+await q(`select post.claim_due_posts(20)`);
+ok((await q(`select * from post.worker_publish_rows($1)`, [due3])).length === 0 && (await q(`select deny_reason from post.posts where id = $1`, [due3]))[0].deny_reason.startsWith("No Facebook or Instagram account"), "with no connected account the post fails and says why");
+await q(`update post.social_accounts set enabled = true where business_id = $1`, [biz]);
+const stuck = (await q(`insert into post.posts (business_id, local_date, slot, format, scheduled_at, status, media_id) values ($1, '2027-01-05', 4, 'photo', now() - interval '1 hour', 'approved', $2) returning id`, [biz, pic]))[0].id;
+await q(`select post.claim_due_posts(20)`);
+await q(`select * from post.worker_publish_rows($1)`, [stuck]);
+await q(`alter table post.posts disable trigger posts_updated`);
+await q(`update post.posts set updated_at = now() - interval '30 minutes' where id = $1`, [stuck]);
+await q(`alter table post.posts enable trigger posts_updated`);
+ok((await q(`select post.recover_publishing() n`))[0].n >= 1 && (await q(`select status::text s from post.posts where id = $1`, [stuck]))[0].s === "approved", "a publish that never came back is tried again");
 
 console.log("Paddle (0009)");
 const lingoP = (await q(`select id from public.products where slug = 'lingo'`))[0].id;

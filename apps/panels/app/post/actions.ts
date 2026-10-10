@@ -128,7 +128,7 @@ export async function sendWhatsAppTest(input: { number: string }): Promise<Actio
   return run(async () => {
     const { business } = await requireBusiness();
     const number = z.string().trim().regex(/^\+?\d{8,15}$/, "Use international format, e.g. +94771234567").parse(input.number);
-    const r = await sendTestMessage(number, business.name);
+    const r = await sendTestMessage(number, business.name, business.id);
     return r.ok ? { ok: true, message: "Sent. Check WhatsApp." } : { ok: false, message: r.error };
   });
 }

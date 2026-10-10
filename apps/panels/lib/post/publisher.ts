@@ -1,6 +1,7 @@
 import "server-only";
 
 import { graphGet, graphPost, type GraphError } from "./meta";
+import { panelPublishes, requestPublish } from "./n8n";
 import { postDb, type PostDb } from "./post-db";
 import type { Json, PostRow, PublicationRow, SocialAccountRow, Variants } from "./post-db.types";
 
@@ -172,13 +173,37 @@ export async function publishPost(db: PostDb, post: PostRow): Promise<"published
   return "failed";
 }
 
-/** Claim due posts and publish them (a few at a time, so one call stays short). */
-export async function publishDuePosts(limit = 8) {
+/**
+ * Claim due posts and publish them. Normally n8n posts them (the worker): this
+ * hands each claimed post to it and n8n saves each account's result. With
+ * POST_PUBLISHER=panel this app posts them itself (fallback).
+ */
+export async function publishDuePosts(limit = 20) {
   const db = postDb();
+  await db.rpc("recover_publishing");
   const { data: claimed, error } = await db.rpc("claim_due_posts", { p_limit: limit });
   if (error) throw new Error(error.message);
-  const summary = { claimed: claimed?.length ?? 0, published: 0, retrying: 0, failed: 0 };
-  for (const post of (claimed ?? []) as PostRow[]) {
+  const posts = (claimed ?? []) as PostRow[];
+  const summary = { claimed: posts.length, sent_to_worker: 0, published: 0, retrying: 0, failed: 0 };
+
+  if (!panelPublishes()) {
+    for (let i = 0; i < posts.length; i += 5) {
+      const accepted = await Promise.all(posts.slice(i, i + 5).map((post) => requestPublish({ post_id: post.id, business_id: post.business_id })));
+      for (const [n, ok] of accepted.entries()) {
+        const post = posts[i + n]!;
+        if (ok) {
+          summary.sent_to_worker++;
+          continue;
+        }
+        // n8n didn't take it: try again in 5 minutes.
+        await finish(db, post, "approved", "publish_retry", { reason: "The Post worker (n8n) didn't answer." }, { scheduled_at: new Date(Date.now() + 5 * 60_000).toISOString() });
+        summary.retrying++;
+      }
+    }
+    return summary;
+  }
+
+  for (const post of posts) {
     try {
       summary[await publishPost(db, post)]++;
     } catch (e) {

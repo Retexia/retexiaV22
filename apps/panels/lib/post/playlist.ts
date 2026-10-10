@@ -160,7 +160,7 @@ export async function planDay(db: PostDb, b: BusinessRow, date: string, mode: "a
 }
 
 /** 06:00 runs that are due: tomorrow's playlist (and today's, on a business's first day). */
-export async function runPlanning(db: PostDb, limit = 4) {
+export async function runPlanning(db: PostDb, limit = 8) {
   const { data: due, error } = await db.rpc("claim_planning_businesses", { p_limit: limit });
   if (error) throw new Error(error.message);
   // In parallel: each business waits up to ~2 minutes for the AI, and the route has 5.
@@ -246,6 +246,7 @@ export async function runCycle() {
   const [planning, designs, whatsapp] = await Promise.all([
     runPlanning(db),
     dispatchDesigns(db),
+    // This app picks the messages (quiet hours, nothing twice); the n8n worker sends them.
     sendOwnerMessages(db).catch((e) => {
       console.error("[playlist] WhatsApp messages", e);
       return { sent: 0, configured: true, error: true };

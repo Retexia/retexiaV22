@@ -72,6 +72,12 @@ export async function createHarness() {
     create function vault.update_secret(secret_id uuid, new_secret text default null, new_name text default null, new_description text default null) returns void
       language sql as $$ update vault.secrets set secret = coalesce(new_secret, secret) where id = secret_id $$;
 
+    -- pg_net stand-in: requests are recorded in net.calls instead of being sent.
+    create schema net;
+    create table net.calls (id bigint generated always as identity primary key, url text, body jsonb, headers jsonb, created_at timestamptz default now());
+    create function net.http_post(url text, body jsonb default '{}', params jsonb default '{}', headers jsonb default '{}', timeout_milliseconds int default 5000) returns bigint
+      language sql as $$ insert into net.calls (url, body, headers) values (url, body, headers) returning id $$;
+
     create schema storage;
     grant usage on schema storage to anon, authenticated, service_role;
     create table storage.buckets (id text primary key, name text, public boolean default false, file_size_limit bigint, allowed_mime_types text[]);

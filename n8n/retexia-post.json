@@ -1,5 +1,5 @@
 {
-  "name": "Retexia — Post (plan + design)",
+  "name": "Retexia — Post (worker)",
   "nodes": [
     {
       "parameters": {
@@ -20,7 +20,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Retexia — Post (plan + design). EDIT only the values marked EDIT. API keys live in n8n credentials.\nconst CONFIG = {\n  retexiaKey: 'EDIT: the same value as N8N_POST_KEY in the Retexia panels (Vercel)',\n  supabaseUrl: 'https://axommwxevnfpljroejmc.supabase.co', // the Retexia Supabase project\n  openaiBase: 'https://api.openai.com/v1',\n  textModel: 'gpt-6-luna',\n  imageModel: 'gpt-image-2.5-flare', // new design from text\n  imageEditModel: 'gpt-image-2.5-sunburst', // design that includes the brand logo\n  imageQuality: 'medium', // 'high' = sharper text on the design (better for Sinhala/Tamil letters), costs more\n  feedSize: '1088x1360', // 4:5 feed post\n  storySize: '1088x1920', // 9:16 story\n  useLogo: true, // put brand.logo_path on the design when the business has one\n  costs: { text: 0.002, image: 0.04, imageEdit: 0.05 }, // USD, only for usage_monthly\n};\n\n// Only Retexia may call this webhook (header X-Retexia-Key).\nconst input = $input.first().json;\nconst headers = input.headers || {};\nif (!CONFIG.retexiaKey || CONFIG.retexiaKey.startsWith('EDIT') || String(headers['x-retexia-key'] || '') !== CONFIG.retexiaKey) {\n  throw new Error('Unauthorized: missing or wrong X-Retexia-Key (set retexiaKey in Config).');\n}\nconst body = input.body || {};\nconst UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;\nconst uuidOr = (v) => (UUID.test(String(v || '').toLowerCase()) ? String(v).toLowerCase() : '');\nconst businessId = uuidOr(body.business_id);\nif (!businessId) throw new Error('business_id is missing or not a UUID.');\nconst action = body.action === 'plan' ? 'plan' : 'design';\nconst CAPTION = ['si', 'si_en', 'singlish', 'en', 'ta'];\nconst DESIGN = ['si', 'en', 'ta'];\nconst captionLanguage = CAPTION.includes(body.caption_language) ? body.caption_language : 'en';\nconst designLanguage = DESIGN.includes(body.design_language) ? body.design_language : 'en';\n\nif (action === 'plan') {\n  const slots = (Array.isArray(body.slots) ? body.slots : []).slice(0, 10).map((s) => ({\n    key: String(s.key || ''), format: s.format === 'story' ? 'story' : 'post', time: String(s.time || ''), hint: s.hint ? String(s.hint).slice(0, 400) : '',\n  })).filter((s) => s.key);\n  if (!slots.length) throw new Error('No slots to plan.');\n  const date = /^\\d{4}-\\d{2}-\\d{2}$/.test(String(body.date || '')) ? body.date : new Date().toISOString().slice(0, 10);\n  const promptLanguage = ['si', 'en', 'ta'].includes(body.prompt_language) ? body.prompt_language : 'en';\n  return [{ json: { ...CONFIG, action, businessId, date, slots, captionLanguage, designLanguage, promptLanguage } }];\n}\n\n// What the post is about: one product, a group of products, or the whole business.\nconst f = body.focus && typeof body.focus === 'object' ? body.focus : {};\nconst focus = ['product', 'group'].includes(f.type) && uuidOr(f.id) ? { type: f.type, id: uuidOr(f.id) } : { type: 'business' };\n\nconst prompt = String(body.prompt || '').trim();\nif (prompt.length < 3) throw new Error('Send a prompt describing the post.');\nreturn [{ json: {\n  ...CONFIG, action, businessId,\n  postId: uuidOr(body.post_id),\n  focus,\n  prompt: prompt.slice(0, 1600),\n  format: body.format === 'story' ? 'story' : 'post',\n  captionLanguage, designLanguage,\n  publish: body.publish === true,\n  scheduledAt: typeof body.scheduled_at === 'string' ? body.scheduled_at : '',\n} }];\n"
+        "jsCode": "// Retexia — Post. EDIT only the values marked EDIT. API keys live in n8n credentials.\nconst CONFIG = {\n  retexiaKey: 'EDIT: the same value as N8N_POST_KEY in the Retexia panels (Vercel)',\n  supabaseUrl: 'https://axommwxevnfpljroejmc.supabase.co', // the Retexia Supabase project\n  openaiBase: 'https://api.openai.com/v1',\n  textModel: 'gpt-6-luna',\n  imageModel: 'gpt-image-2.5-flare', // new design from text\n  imageEditModel: 'gpt-image-2.5-sunburst', // design that includes the brand logo\n  imageQuality: 'medium', // 'high' = sharper text on the design (better for Sinhala/Tamil letters), costs more\n  feedSize: '1088x1360', // 4:5 feed post\n  storySize: '1088x1920', // 9:16 story\n  useLogo: true, // put brand.logo_path on the design when the business has one\n  costs: { text: 0.002, image: 0.04, imageEdit: 0.05 }, // USD, only for usage_monthly\n  graphVersion: 'v26.0', // Facebook Graph API version (publishing)\n  panelUrl: 'https://post.retexia.com', // links in WhatsApp messages\n  // Retexia's own WhatsApp line on your Evolution server (owners' messages). Until set, none are sent.\n  evolutionUrl: 'EDIT: https://your-evolution-server',\n  evolutionKey: 'EDIT: the Evolution API key',\n  evolutionInstance: 'EDIT: the instance name, e.g. retexia-post',\n};\n\n// Only Retexia may call this webhook (header X-Retexia-Key).\nconst input = $input.first().json;\nconst headers = input.headers || {};\nif (!CONFIG.retexiaKey || CONFIG.retexiaKey.startsWith('EDIT') || String(headers['x-retexia-key'] || '') !== CONFIG.retexiaKey) {\n  throw new Error('Unauthorized: missing or wrong X-Retexia-Key (set retexiaKey in Config).');\n}\nconst body = input.body || {};\nconst UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;\nconst uuidOr = (v) => (UUID.test(String(v || '').toLowerCase()) ? String(v).toLowerCase() : '');\nconst businessId = uuidOr(body.business_id);\nif (!businessId) throw new Error('business_id is missing or not a UUID.');\nconst ACTIONS = ['plan', 'design', 'publish', 'delete', 'edit_text', 'whatsapp'];\nconst action = ACTIONS.includes(body.action) ? body.action : 'design';\nconst CAPTION = ['si', 'si_en', 'singlish', 'en', 'ta'];\nconst DESIGN = ['si', 'en', 'ta'];\nconst captionLanguage = CAPTION.includes(body.caption_language) ? body.caption_language : 'en';\nconst designLanguage = DESIGN.includes(body.design_language) ? body.design_language : 'en';\n\n// Jobs from post.retexia.com (it decides what and when; this workflow does the work).\nif (['publish', 'delete', 'edit_text'].includes(action)) {\n  const postId = uuidOr(body.post_id);\n  if (!postId) throw new Error(action + ' needs post_id.');\n  return [{ json: { ...CONFIG, action, businessId, postId, message: String(body.message || '').slice(0, 5000) } }];\n}\nif (action === 'whatsapp') {\n  if (String(CONFIG.evolutionUrl).startsWith('EDIT') || String(CONFIG.evolutionInstance).startsWith('EDIT')) throw new Error('WhatsApp is not set up: fill in the Evolution settings in Config.');\n  const number = String(body.number || '').replace(/[^0-9]/g, '');\n  if (number.length < 8) throw new Error('WhatsApp number missing.');\n  const imageUrl = /^https:\\/\\//.test(String(body.image_url || '')) ? String(body.image_url) : '';\n  return [{ json: { ...CONFIG, action, businessId, number, text: String(body.text || '').slice(0, 4000), image_url: imageUrl } }];\n}\n\nif (action === 'plan') {\n  const slots = (Array.isArray(body.slots) ? body.slots : []).slice(0, 10).map((s) => ({\n    key: String(s.key || ''), format: s.format === 'story' ? 'story' : 'post', time: String(s.time || ''), hint: s.hint ? String(s.hint).slice(0, 400) : '',\n  })).filter((s) => s.key);\n  if (!slots.length) throw new Error('No slots to plan.');\n  const date = /^\\d{4}-\\d{2}-\\d{2}$/.test(String(body.date || '')) ? body.date : new Date().toISOString().slice(0, 10);\n  const promptLanguage = ['si', 'en', 'ta'].includes(body.prompt_language) ? body.prompt_language : 'en';\n  return [{ json: { ...CONFIG, action, businessId, date, slots, captionLanguage, designLanguage, promptLanguage } }];\n}\n\n// What the post is about: one product, a group of products, or the whole business.\nconst f = body.focus && typeof body.focus === 'object' ? body.focus : {};\nconst focus = ['product', 'group'].includes(f.type) && uuidOr(f.id) ? { type: f.type, id: uuidOr(f.id) } : { type: 'business' };\n\nconst prompt = String(body.prompt || '').trim();\nif (prompt.length < 3) throw new Error('Send a prompt describing the post.');\nreturn [{ json: {\n  ...CONFIG, action, businessId,\n  postId: uuidOr(body.post_id),\n  focus,\n  prompt: prompt.slice(0, 1600),\n  format: body.format === 'story' ? 'story' : 'post',\n  captionLanguage, designLanguage,\n  publish: body.publish === true,\n  scheduledAt: typeof body.scheduled_at === 'string' ? body.scheduled_at : '',\n} }];\n"
       },
       "id": "866c2439-f0f7-4bd8-a4a9-e59d9d5cdd87",
       "name": "Config",
@@ -34,11 +34,11 @@
     {
       "parameters": {
         "mode": "expression",
-        "numberOutputs": 2,
-        "output": "={{ $json.action === 'plan' ? 0 : 1 }}"
+        "numberOutputs": 6,
+        "output": "={{ ['plan', 'design', 'publish', 'delete', 'edit_text', 'whatsapp'].indexOf($json.action) }}"
       },
       "id": "fc66311d-6a5f-4c6f-b237-422520ee0fd7",
-      "name": "Plan or design?",
+      "name": "Which job?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
@@ -398,9 +398,9 @@
     },
     {
       "parameters": {
-        "content": "## Retexia — Post (plan + design)\nOne webhook for post.retexia.com, header **X-Retexia-Key** (Config → `retexiaKey` = N8N_POST_KEY).\n\n**plan** `{action:'plan', business_id, date, slots:[{key, format, time, hint}], caption_language, design_language, prompt_language}` → one text call → answers `{items:[{key, title, prompt, angle, product}]}`.\n\n**design** `{action:'design', business_id, post_id?, prompt, format:'post'|'story', caption_language, design_language, focus:{type:'product'|'group'|'business', id?}, publish, scheduled_at?}` → answers at once → captions + picture (4:5 or 9:16) → Storage → `post.finish_design()`. Errors → `post.design_failed()`.\n\nLanguages: captions si / si_en / singlish / en / ta; picture text si / en / ta.\nPublishing is done by post.retexia.com with each customer's own Facebook/Instagram access.\n\nActivate, then copy the Production URL of the webhook into **N8N_POST_URL**.",
-        "height": 420,
-        "width": 720
+        "content": "## Retexia — Post (worker)\nThe only Post workflow (deactivate the old \"Photo post\"). **post.retexia.com decides what happens and when; this workflow only does the job it is given.** No schedules, no waiting: each run takes seconds (a design about a minute).\n\nOne webhook, header **X-Retexia-Key** = Config → `retexiaKey` = N8N_POST_KEY.\n- **plan** → tomorrow's ideas → answers `{items}`.\n- **design** → captions + picture → Storage → `post.finish_design()` (errors → `post.design_failed()`).\n- **publish** (a post whose time has come) → `post.worker_publish_rows()`: each account with that customer's token from Supabase → Facebook post / story, Instagram post / story → `post.n8n_publish_result()` (retries, \"reconnect needed\").\n- **delete** → `post.worker_delete_rows()` → Meta DELETE → `post.worker_delete_result()` → answers `{results}`.\n- **edit_text** → `post.worker_edit_rows()` → Facebook text → answers `{results}`.\n- **whatsapp** → Evolution (picture + caption, or text) → answers `{ok}`.\n\nCustomers' Facebook / Instagram: add them in Supabase with `post.admin_connect_page()`.\nEDIT in Config: retexiaKey, and the Evolution settings for WhatsApp.",
+        "height": 560,
+        "width": 760
       },
       "id": "dba624d4-7f0a-4788-87a0-428db3591696",
       "name": "About",
@@ -409,6 +409,999 @@
       "position": [
         0,
         0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- The post post.retexia.com just claimed: one row per Facebook/Instagram account, with that customer's own access token (from Supabase).\nSELECT * FROM post.worker_publish_rows(($1::jsonb ->> 'post_id')::uuid);",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ JSON.stringify({ post_id: $('Config').first().json.postId }) }}"
+        }
+      },
+      "id": "9c52313c-811b-437a-a523-a092a476d3cf",
+      "name": "Claim post to publish",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1200,
+        1340
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "7WXuOi0d08vPAtmW",
+          "name": "Postgres account(Isuru_personal)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabaseUrl }}/storage/v1/object/sign/media/{{ $json.storage_path }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"expiresIn\": 86400}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "739dfc18-f804-4d52-934e-4aab2c2c4529",
+      "name": "Sign image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        1340
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "FAwULRjyWYGUT6gf",
+          "name": "Supabase account (Isuru_personal)"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// One account of one post: what to call on Facebook / Instagram.\nconst s = $('Config').first().json;\nconst job = $('Claim post to publish').item.json;\nconst signed = $json.signedURL;\nconst base = String(s.supabaseUrl).replace(/\\/$/, '');\nconst route = !job.token ? 'skip'\n  : job.platform === 'facebook' ? (job.is_story ? 'fb_story' : 'fb_post')\n  : job.is_story ? 'ig_story' : 'ig_post';\nreturn { json: {\n  publication_id: job.publication_id,\n  post_id: job.post_id,\n  route,\n  graph: `https://graph.facebook.com/${s.graphVersion}`,\n  node: job.external_id, // Facebook Page id or Instagram account id\n  token: job.token || '',\n  caption: job.caption || '',\n  image_url: signed ? (String(signed).startsWith('http') ? signed : base + '/storage/v1' + signed) : '',\n  error: !job.token ? { message: 'Not connected through Retexia yet. Reconnect with Facebook.', code: 190 } : undefined,\n} };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "df496e71-1ed5-49cf-83c4-dd17efc0d8cd",
+      "name": "Prepare publish",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        1340
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 5,
+        "output": "={{ ['fb_post', 'fb_story', 'ig_post', 'ig_story', 'skip'].indexOf($json.route) }}"
+      },
+      "id": "508eb098-8c66-4499-90aa-e4dda552b3f9",
+      "name": "Where to post?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        2160,
+        1340
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Prepare publish').item.json.graph }}/{{ $('Prepare publish').item.json.node }}/photos",
+        "options": {
+          "timeout": 120000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ $('Prepare publish').item.json.image_url }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $('Prepare publish').item.json.caption }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $('Prepare publish').item.json.token }}"
+            }
+          ]
+        }
+      },
+      "id": "300a6afc-86f9-45d5-9b70-a52c8bf0f75c",
+      "name": "FB: post photo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2460,
+        1040
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Prepare publish').item.json.graph }}/{{ $('Prepare publish').item.json.node }}/photos",
+        "options": {
+          "timeout": 120000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ $('Prepare publish').item.json.image_url }}"
+            },
+            {
+              "name": "published",
+              "value": "false"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $('Prepare publish').item.json.token }}"
+            }
+          ]
+        }
+      },
+      "id": "aa35a555-2c58-488e-af35-abf3430177da",
+      "name": "FB: story photo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2460,
+        1200
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "41ccfa70-ae57-47d2-a467-aefe2ac28d17",
+              "leftValue": "={{ !$json.error && !!$json.id }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "835ba87d-8b71-42cd-abec-20c5d26b24d8",
+      "name": "FB photo ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2700,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Prepare publish').item.json.graph }}/{{ $('Prepare publish').item.json.node }}/photo_stories",
+        "options": {
+          "timeout": 120000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "photo_id",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $('Prepare publish').item.json.token }}"
+            }
+          ]
+        }
+      },
+      "id": "6c1057d3-2adc-4a9e-a861-ea97799c2375",
+      "name": "FB: publish story",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2940,
+        1180
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Prepare publish').item.json.graph }}/{{ $('Prepare publish').item.json.node }}/media",
+        "options": {
+          "timeout": 120000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "image_url",
+              "value": "={{ $('Prepare publish').item.json.image_url }}"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $('Prepare publish').item.json.caption }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $('Prepare publish').item.json.token }}"
+            }
+          ]
+        }
+      },
+      "id": "8a80a248-87e2-44de-a3f8-e2845de22cc7",
+      "name": "IG: create post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2460,
+        1400
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Prepare publish').item.json.graph }}/{{ $('Prepare publish').item.json.node }}/media",
+        "options": {
+          "timeout": 120000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "image_url",
+              "value": "={{ $('Prepare publish').item.json.image_url }}"
+            },
+            {
+              "name": "media_type",
+              "value": "STORIES"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $('Prepare publish').item.json.token }}"
+            }
+          ]
+        }
+      },
+      "id": "8dd20f50-0fe8-4f98-a0d4-0ec3985993d8",
+      "name": "IG: create story",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2700,
+        1460
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "61a7d623-3a1b-4b47-bf94-4107076060f8",
+              "leftValue": "={{ !$json.error && !!$json.id }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "09537628-34c8-4a97-be8d-822d1d0c83f0",
+      "name": "IG container ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2940,
+        1380
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 15,
+        "unit": "seconds"
+      },
+      "id": "5a67982e-ce6e-4001-9a07-833c61945c1f",
+      "name": "Wait for Instagram",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3180,
+        1360
+      ],
+      "webhookId": "f01201d4-5bb4-4492-a548-be2520ee70c1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Prepare publish').item.json.graph }}/{{ $('Prepare publish').item.json.node }}/media_publish",
+        "options": {
+          "timeout": 120000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "creation_id",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $('Prepare publish').item.json.token }}"
+            }
+          ]
+        }
+      },
+      "id": "f4fa83e6-120a-44f2-bf0e-e466a0b2ddd9",
+      "name": "IG: publish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3420,
+        1360
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "bac77924-ce52-47f5-ad3e-a8ed8761bef0",
+              "leftValue": "={{ !$json.error && !!$json.id }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "25e81307-8afb-42a3-acc1-af8dcf1d93f5",
+      "name": "IG published?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3660,
+        1360
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Prepare publish').item.json.graph }}/{{ $json.id }}",
+        "options": {
+          "timeout": 120000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "permalink"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $('Prepare publish').item.json.token }}"
+            }
+          ]
+        }
+      },
+      "id": "916a8591-c6de-4d3d-a646-181ec1e53aeb",
+      "name": "IG: permalink",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3900,
+        1340
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Published on Instagram: its id and link.\nreturn { json: {\n  id: $('IG published?').item.json.id,\n  permalink: $json.permalink || null,\n  container_id: $('Wait for Instagram').item.json.id,\n} };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "c0caba9a-6f15-4807-af2d-db5600c89bb3",
+      "name": "IG: done",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4140,
+        1340
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Turns Meta's answer into a result for post.n8n_publish_result().\nlet job;\ntry { job = $('Prepare publish').item.json; } catch (e) { job = { ...$('Claim post to publish').item.json, route: 'sign' }; }\nconst r = $json || {};\n\n// Same rules as before: retry, ask the owner to reconnect, or a problem with the content.\nfunction classify(e) {\n  if (!e || typeof e !== 'object' || typeof e.code !== 'number') {\n    const message = typeof e === 'string' ? e : (e && (e.description || e.message)) || 'Meta did not answer';\n    return { kind: 'temporary', message: String(message).slice(0, 500) };\n  }\n  const code = e.code, sub = e.error_subcode;\n  const message = String(e.error_user_msg || e.message || 'Meta error ' + code).slice(0, 500);\n  if (code === 190 || code === 102 || code === 10 || (code >= 200 && code < 300) || [463, 467, 2207050].includes(sub)) return { kind: 'needs_user', message };\n  if (e.is_transient || [1, 2, 4, 17, 32, 341, 368, 613].includes(code) || sub === 2207027 || code === 9007) return { kind: 'temporary', message };\n  return { kind: 'content', message };\n}\n\nconst id = r.post_id || r.id;\nif (!r.error && id && job.route !== 'sign') {\n  return { json: {\n    publication_id: job.publication_id, ok: true, external_id: String(id),\n    permalink: r.permalink || (job.route === 'fb_post' ? `https://www.facebook.com/${id}` : null),\n    container_id: r.container_id || null,\n  } };\n}\nconst c = classify(r.error || (job.route === 'sign' ? 'Could not read the picture file' : 'Meta did not return an id'));\nreturn { json: { publication_id: job.publication_id, ok: false, error_kind: c.kind, error: c.message } };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "0e84cd5c-f138-468b-85d8-eb5306739447",
+      "name": "Publish result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4140,
+        1300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Saves Meta's answer for one account; retries, \"reconnect needed\" and the post's status follow.\nSELECT post.n8n_publish_result($1::jsonb) AS result;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ JSON.stringify($json) }}"
+        }
+      },
+      "id": "dcb62843-78e4-4374-a03b-e3d18bc1cbef",
+      "name": "Save publish result",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        4380,
+        1300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "7WXuOi0d08vPAtmW",
+          "name": "Postgres account(Isuru_personal)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.evolutionUrl }}/message/sendMedia/{{ $('Config').first().json.evolutionInstance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Config').first().json.evolutionKey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $json.number, mediatype: 'image', mimetype: 'image/jpeg', media: $json.image_url, caption: $json.text, fileName: 'retexia.jpg' }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "WA · Send Image",
+      "id": "6ee41ea5-1064-4e9a-9c17-764c16f72969",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        3120
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.evolutionUrl }}/message/sendText/{{ $('Config').first().json.evolutionInstance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Config').first().json.evolutionKey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $json.number, text: $json.text, delay: 1200, linkPreview: false }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "WA · Send Text",
+      "id": "df350920-cd38-4b6d-bc3b-7a561dbac6b1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        3300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "64bd74f6-7426-41fd-b530-2679eb501c63",
+              "leftValue": "={{ $json.publication_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d0187fa6-0784-40b3-acaa-83822cc3da6d",
+      "name": "Anything to post?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1440,
+        1340
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"accepted\": true}",
+        "options": {}
+      },
+      "id": "e8867f6a-4e98-4819-8425-f6ed7938a63a",
+      "name": "Respond: publish accepted",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        1340
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Where this post is online, with that customer's access token.\nSELECT * FROM post.worker_delete_rows(($1::jsonb ->> 'post_id')::uuid);",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify({ post_id: $('Config').first().json.postId }) }}",
+          "queryBatching": "independently"
+        }
+      },
+      "id": "5f946963-8688-4d46-a329-8abf39ad6277",
+      "name": "Load delete jobs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        720,
+        2400
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "7WXuOi0d08vPAtmW",
+          "name": "Postgres account(Isuru_personal)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "840fc219-1e42-4cbe-af75-e52411735121",
+              "leftValue": "={{ !!$json.publication_id }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "fba6efd7-f82b-4133-b48d-574ffaa772d5",
+      "name": "Anything to delete?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        2400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.graphVersion }}/{{ $json.external_id }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{ $json.token }}"
+            }
+          ]
+        }
+      },
+      "id": "7ab41c22-a4f2-49d4-9aad-db835a947c9d",
+      "name": "Meta: delete",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        2380
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Meta's answer for one account.\nconst job = $('Load delete jobs').item.json;\nconst r = $json || {};\nconst e = r.error;\nconst gone = e && e.code === 100 && e.error_subcode === 33; // already deleted on Facebook / Instagram\nconst ok = !e ? (r.success === true || r.success === undefined) : gone;\nconst error = ok ? null : String((e && (e.error_user_msg || e.message || e.description)) || (typeof e === 'string' ? e : 'Meta did not accept it')).slice(0, 300);\nreturn { json: { publication_id: job.publication_id, platform: job.platform || 'facebook', ok, error } };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "2bbb8f50-517e-4b2a-be07-998c3e90a46f",
+      "name": "Delete result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        2400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Deleted → \"removed\" (the post too, once it is gone everywhere).\nSELECT post.worker_delete_result($1::jsonb) AS result;",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify($('Delete result').item.json) }}",
+          "queryBatching": "independently"
+        }
+      },
+      "id": "658d94de-01c2-45c9-8328-b775700b80aa",
+      "name": "Save delete result",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1680,
+        2400
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "7WXuOi0d08vPAtmW",
+          "name": "Postgres account(Isuru_personal)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// One answer for post.retexia.com.\nconst results = $('Delete result').all().map((i) => ({ platform: i.json.platform, ok: i.json.ok, error: i.json.error }));\nreturn [{ json: { results } }];\n"
+      },
+      "id": "3ccf5fcf-8195-41e5-b0a5-126212a79b36",
+      "name": "Delete summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        2400
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ results: $json.results }) }}",
+        "options": {}
+      },
+      "id": "14d38cbe-d0c7-4e04-821b-7db88b8b9360",
+      "name": "Respond: results",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2160,
+        2520
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"results\": []}",
+        "options": {}
+      },
+      "id": "4edd52ca-49f1-486d-a176-2c8f987d9dfe",
+      "name": "Respond: nothing to change",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        2600
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Where this post is on Facebook, with that customer's access token.\nSELECT * FROM post.worker_edit_rows(($1::jsonb ->> 'post_id')::uuid);",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify({ post_id: $('Config').first().json.postId }) }}",
+          "queryBatching": "independently"
+        }
+      },
+      "id": "b5384779-4a20-4dbc-9dc7-a2ee5b9f5115",
+      "name": "Load Facebook posts",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        720,
+        2800
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "7WXuOi0d08vPAtmW",
+          "name": "Postgres account(Isuru_personal)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "db2d6953-ce66-4d51-9980-73caeb6d3c5e",
+              "leftValue": "={{ !!$json.publication_id }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "800b6662-f37f-4c38-bfed-e89d8e4d41ca",
+      "name": "Anything to edit?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        2800
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.graphVersion }}/{{ $json.external_id }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ $('Config').first().json.message }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $json.token }}"
+            }
+          ]
+        }
+      },
+      "id": "0f7dc11a-0828-41a2-920f-003cfed8f73c",
+      "name": "Meta: change text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        2780
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Meta's answer for one account.\nconst job = $('Load Facebook posts').item.json;\nconst r = $json || {};\nconst e = r.error;\nconst gone = e && e.code === 100 && e.error_subcode === 33; // already deleted on Facebook / Instagram\nconst ok = !e && r.success !== false;\nconst error = ok ? null : String((e && (e.error_user_msg || e.message || e.description)) || (typeof e === 'string' ? e : 'Meta did not accept it')).slice(0, 300);\nreturn { json: { publication_id: job.publication_id, platform: job.platform || 'facebook', ok, error } };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "2436050f-e3e1-4a05-ad57-c2ad96f9feec",
+      "name": "Edit result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        2800
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// One answer for post.retexia.com.\nconst results = $('Edit result').all().map((i) => ({ platform: i.json.platform, ok: i.json.ok, error: i.json.error }));\nreturn [{ json: { results } }];\n"
+      },
+      "id": "5fe40183-a77a-4f0f-bc3f-ef2df812efe5",
+      "name": "Edit summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        2800
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "8c80e5d1-7335-42b7-bd3a-c8f7b646c311",
+              "leftValue": "={{ !!$json.image_url }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6906fab5-8bc2-48f6-9303-3895ec6bec36",
+      "name": "Picture or text?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        3200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"ok\": true}",
+        "options": {}
+      },
+      "id": "b50bff0d-c559-4d43-9a99-3cc4781f0f9c",
+      "name": "Respond: sent",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1240,
+        3200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"ok\": false}",
+        "options": {}
+      },
+      "id": "d82dfe6b-5783-4f79-940c-96aa3a41a318",
+      "name": "Respond: not sent",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1240,
+        3360
       ]
     }
   ],
@@ -429,25 +1422,7 @@
       "main": [
         [
           {
-            "node": "Plan or design?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Plan or design?": {
-      "main": [
-        [
-          {
-            "node": "Load plan context",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Respond: accepted",
+            "node": "Which job?",
             "type": "main",
             "index": 0
           }
@@ -652,6 +1627,570 @@
         [
           {
             "node": "Mark failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sign image": {
+      "main": [
+        [
+          {
+            "node": "Prepare publish",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Publish result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare publish": {
+      "main": [
+        [
+          {
+            "node": "Where to post?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Where to post?": {
+      "main": [
+        [
+          {
+            "node": "FB: post photo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FB: story photo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IG: create post",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IG: create story",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Publish result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB: post photo": {
+      "main": [
+        [
+          {
+            "node": "Publish result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Publish result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB: story photo": {
+      "main": [
+        [
+          {
+            "node": "FB photo ok?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Publish result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB photo ok?": {
+      "main": [
+        [
+          {
+            "node": "FB: publish story",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Publish result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB: publish story": {
+      "main": [
+        [
+          {
+            "node": "Publish result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Publish result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG: create post": {
+      "main": [
+        [
+          {
+            "node": "IG container ok?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Publish result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG: create story": {
+      "main": [
+        [
+          {
+            "node": "IG container ok?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Publish result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG container ok?": {
+      "main": [
+        [
+          {
+            "node": "Wait for Instagram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Publish result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Instagram": {
+      "main": [
+        [
+          {
+            "node": "IG: publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG: publish": {
+      "main": [
+        [
+          {
+            "node": "IG published?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Publish result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG published?": {
+      "main": [
+        [
+          {
+            "node": "IG: permalink",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Publish result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG: permalink": {
+      "main": [
+        [
+          {
+            "node": "IG: done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IG: done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG: done": {
+      "main": [
+        [
+          {
+            "node": "Publish result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish result": {
+      "main": [
+        [
+          {
+            "node": "Save publish result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WA · Send Image": {
+      "main": [
+        [
+          {
+            "node": "Respond: sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: not sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WA · Send Text": {
+      "main": [
+        [
+          {
+            "node": "Respond: sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: not sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anything to post?": {
+      "main": [
+        [
+          {
+            "node": "Sign image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Claim post to publish": {
+      "main": [
+        [
+          {
+            "node": "Anything to post?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Which job?": {
+      "main": [
+        [
+          {
+            "node": "Load plan context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: accepted",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: publish accepted",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load delete jobs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load Facebook posts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Picture or text?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond: publish accepted": {
+      "main": [
+        [
+          {
+            "node": "Claim post to publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load delete jobs": {
+      "main": [
+        [
+          {
+            "node": "Anything to delete?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anything to delete?": {
+      "main": [
+        [
+          {
+            "node": "Meta: delete",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: nothing to change",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta: delete": {
+      "main": [
+        [
+          {
+            "node": "Delete result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delete result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete result": {
+      "main": [
+        [
+          {
+            "node": "Save delete result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save delete result": {
+      "main": [
+        [
+          {
+            "node": "Delete summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete summary": {
+      "main": [
+        [
+          {
+            "node": "Respond: results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Facebook posts": {
+      "main": [
+        [
+          {
+            "node": "Anything to edit?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anything to edit?": {
+      "main": [
+        [
+          {
+            "node": "Meta: change text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: nothing to change",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta: change text": {
+      "main": [
+        [
+          {
+            "node": "Edit result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit result": {
+      "main": [
+        [
+          {
+            "node": "Edit summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit summary": {
+      "main": [
+        [
+          {
+            "node": "Respond: results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Picture or text?": {
+      "main": [
+        [
+          {
+            "node": "WA · Send Image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "WA · Send Text",
             "type": "main",
             "index": 0
           }

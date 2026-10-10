@@ -13,6 +13,7 @@ export default async function SettingsPage() {
       <PageHeader title="Playlist and settings" description={`${PLAN_LIMITS[business.plan].label} plan · subscription ${customer.order.ref}`} />
       <SettingsForm
         whatsAppReady={whatsAppConfigured()}
+        canTestWhatsApp={whatsAppConfigured()}
         limits={PLAN_LIMITS[business.plan]}
         basics={{ name: business.name, category: business.category ?? "", country: business.country, timezone: business.timezone, languages: business.languages }}
         settings={settings}

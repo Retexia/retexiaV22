@@ -203,6 +203,7 @@ export type PostDatabase = {
     Functions: {
       bump_usage: { Args: { p_business: string; p_field: string; p_amount?: number; p_cost?: number }; Returns: undefined };
       claim_due_posts: { Args: { p_limit?: number }; Returns: PostRow[] };
+      recover_publishing: { Args: Record<string, never>; Returns: number };
       claim_batch_businesses: { Args: Record<string, never>; Returns: { business_id: string; local_date: string }[] };
       save_secret: { Args: { p_secret: string | null; p_value: string }; Returns: string };
       read_secret: { Args: { p_secret: string }; Returns: string | null };

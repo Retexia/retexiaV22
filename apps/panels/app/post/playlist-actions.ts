@@ -8,7 +8,7 @@ import { parseFocus, readFocus } from "@/lib/post/focus";
 import { focusChoices } from "@/lib/post/focus-server";
 import { CAPTION_LANGUAGES, DESIGN_LANGUAGES } from "@/lib/post/languages";
 import { deletePublished, updateFacebookText } from "@/lib/post/meta";
-import { designConfigured, requestDesign } from "@/lib/post/n8n";
+import { designConfigured, panelPublishes, requestDelete, requestDesign, requestEditText } from "@/lib/post/n8n";
 import { PLAN_LIMITS, defaultTimes } from "@/lib/post/plans";
 import { PLAYLIST_SLOTS, designItem, dispatchDesigns, refreshPlaylist } from "@/lib/post/playlist";
 import { postDb } from "@/lib/post/post-db";
@@ -246,6 +246,16 @@ export async function deletePost(input: { id: string }): Promise<ActionResult> {
       await db.from("events").insert({ business_id: business.id, type: "item_deleted", payload: { date: post.local_date, slot: post.slot, story: post.is_story } });
       return done("Deleted from the playlist.");
     }
+    // The n8n worker deletes it on Facebook / Instagram with the tokens stored in Supabase.
+    if (!panelPublishes()) {
+      const r = await requestDelete({ post_id: post.id, business_id: business.id });
+      if (!r.ok) return { ok: false, message: r.error };
+      const failedRemote = r.results.filter((x) => !x.ok).map((x) => `${x.platform === "facebook" ? "Facebook" : "Instagram"}: ${x.error ?? "not deleted"}`);
+      await db.from("events").insert({ business_id: business.id, type: "post_deleted", payload: { post_id: post.id, failed: failedRemote } });
+      revalidatePath("/", "layout");
+      if (failedRemote.length === r.results.length && r.results.length) return { ok: false, message: `Couldn't delete it: ${failedRemote.join("; ")}` };
+      return failedRemote.length ? { ok: false, message: `Deleted in part. Still up: ${failedRemote.join("; ")}` } : { ok: true, message: "Deleted from Facebook and Instagram." };
+    }
     const { data: accounts } = await db.from("social_accounts").select("id, platform, display_name, token_secret_id").eq("business_id", business.id);
     const failed: string[] = [];
     for (const p of live) {
@@ -275,6 +285,17 @@ export async function editPublishedText(input: { id: string; facebook: string })
     const { db, post, business } = await ownPost(d.id);
     if (!post) return { ok: false, message: "Post not found." };
     if (post.is_story) return { ok: false, message: "Stories have no text to edit." };
+    const variants: Variants = { ...((post.variants ?? {}) as Variants), facebook: { caption: d.facebook } };
+    // The n8n worker changes it on Facebook with the token stored in Supabase.
+    if (!panelPublishes()) {
+      const r = await requestEditText({ post_id: post.id, business_id: business.id, message: d.facebook });
+      if (!r.ok) return { ok: false, message: r.error };
+      if (!r.results.length) return { ok: false, message: "It isn't published on Facebook." };
+      const bad = r.results.find((x) => !x.ok);
+      if (bad) return { ok: false, message: `Facebook: ${bad.error ?? "not changed"}` };
+      await db.from("posts").update({ variants: variants as unknown as Json }).eq("id", post.id);
+      return done("Facebook text updated. Instagram captions can't be changed by apps: delete and post again to change it there.");
+    }
     const { data: pubs } = await db.from("publications").select("id, status, external_id, social_account_id").eq("post_id", post.id).eq("status", "published");
     const { data: accounts } = await db.from("social_accounts").select("id, platform, token_secret_id").eq("business_id", business.id).eq("platform", "facebook");
     const fb = (pubs ?? []).filter((p) => (accounts ?? []).some((a) => a.id === p.social_account_id) && p.external_id);
@@ -286,7 +307,6 @@ export async function editPublishedText(input: { id: string; facebook: string })
       const r = await updateFacebookText(p.external_id!, d.facebook, token);
       if (!r.ok) return { ok: false, message: `Facebook: ${r.error.message}` };
     }
-    const variants: Variants = { ...((post.variants ?? {}) as Variants), facebook: { caption: d.facebook } };
     await db.from("posts").update({ variants: variants as unknown as Json }).eq("id", post.id);
     return done("Facebook text updated. Instagram captions can't be changed by apps: delete and post again to change it there.");
   });

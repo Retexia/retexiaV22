@@ -2,7 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { cronAuthorized } from "@/lib/cron";
 import { publishDuePosts } from "@/lib/post/publisher";
 
-/** Publishes Retexia Post posts whose time has come. Called every minute by the scheduler. */
+/**
+ * Posts whose time has come: claimed here and handed to the n8n worker (which
+ * posts them to Facebook / Instagram). The Supabase scheduler calls this only
+ * when a post is due.
+ */
 export const maxDuration = 120;
 
 async function handle(request: NextRequest) {

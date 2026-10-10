@@ -54,28 +54,105 @@ request* nodes) so the designer only sees the product(s) a post is about. It add
 playlist (posts and stories, slots 1–10), the functions the workflow calls, and
 the new plan texts on retexia.com/post. Safe to run again.
 
-### n8n workflow "Retexia — Post (plan + design)"
+### How it works: the website decides, n8n is the worker
 
-1. n8n → **Import from file** → `n8n/retexia-post.json`.
-2. Open each node with a credential and pick yours: **Postgres** (the Retexia
-   project), **Supabase** (the Retexia project, for Storage), **OpenAI**.
-3. **Config** node: set `retexiaKey` to a long random value
-   (`openssl rand -hex 32`). Models, image quality and sizes are there too
-   (`imageQuality: 'high'` draws Sinhala/Tamil letters more accurately).
-4. **Activate** it, then copy *Webhook: Retexia Post* → **Production URL**
-   (ends in `/webhook/retexia-post`).
-5. Deactivate the old "Retexia — Photo post (generate + publish)" workflow: it
-   published with a fixed Page token, and the panel no longer calls it.
+post.retexia.com decides **what** happens and **when** (planning, designing,
+publishing times, retries, WhatsApp quiet hours). The n8n workflow
+"Retexia — Post (worker)" only does the job it is asked to do, and each run takes
+seconds (a design about a minute). Nothing waits or polls inside n8n, so it
+stays light as customers grow.
 
-The workflow only designs; it never publishes. post.retexia.com publishes with
-each customer's own Facebook/Instagram access.
-
-| Call from the panel | What the workflow does |
+| Job (post.retexia.com → n8n) | What n8n does |
 | --- | --- |
-| `plan` (06:00 each day) | Reads `post.plan_context()`, writes one idea per slot for tomorrow (offers and week-plan notes first, no repeats), answers with the prompts. If n8n is down the panel writes simple product prompts itself. |
-| `design` (from 00:00, or "Design now"/"Redo"/"New post") | Answers at once, then writes the captions and the design text in the chosen languages, draws the picture (feed 4:5, story 9:16, logo when set), uploads it and calls `post.finish_design()`. Errors call `post.design_failed()`: the item shows "needs you" with the reason. |
+| `plan` (at each business's planning time) | Writes one idea per slot for tomorrow, answers with them. |
+| `design` (from midnight, "Design now", "Redo", "New post") | Captions + picture → Storage → `post.finish_design()`. Errors → `post.design_failed()`. |
+| `publish` (a post whose time has come) | `post.worker_publish_rows()` gives each account with that customer's token from Supabase → Facebook post / story, Instagram post / story → `post.n8n_publish_result()` per account. |
+| `delete` (owner deletes a published post) | `post.worker_delete_rows()` → Meta delete → `post.worker_delete_result()`. |
+| `edit_text` (owner changes a published Facebook text) | `post.worker_edit_rows()` → Facebook. |
+| `whatsapp` (a message for an owner) | Sends it through Retexia's Evolution line (picture + caption, or text). |
 
-### Meta app (Facebook and Instagram)
+The clocks are in Supabase and only call the website when something is due:
+`retexia-post-publish-tick` (checked every minute inside the database; calls
+post.retexia.com only when a post is due) and `retexia-post-batch-tick`
+(planning and designs). Temporary Meta errors retry after 2, 5, 15 and 30
+minutes; lost access marks the account "reconnect needed" and the owner is told.
+
+### Set it up
+
+1. Run `supabase/migrations/0016_post_n8n_publish.sql` (after 0015; safe to run again,
+   also over earlier versions of it).
+2. n8n → **Import from file** → `n8n/retexia-post.json` ("Retexia — Post (worker)").
+   Pick your credentials on the Postgres, Supabase and OpenAI nodes. Deactivate
+   the old "Retexia — Photo post (generate + publish)" workflow and any earlier
+   "Retexia — Post" copy.
+3. **Config** node: `retexiaKey` = a long random value (`openssl rand -hex 32`),
+   and the Evolution URL, API key and instance of Retexia's own WhatsApp line.
+4. **Activate**, copy *Webhook: Retexia Post* → **Production URL**.
+5. Vercel → panels: `N8N_POST_URL` (that URL), `N8N_POST_KEY` (= `retexiaKey`),
+   `POST_PUBLISHER=n8n`, `POST_CRON_KEY`. No Meta keys are needed. Redeploy.
+6. The Vault secrets from step 1 of this guide must exist: `post_publish_url`,
+   `post_batch_url`, `post_cron_key`.
+
+The Postgres user in n8n must be able to run the `post.worker_*` and
+`post.n8n_publish_result` functions (`post_n8n.<project-ref>` or `postgres`).
+These return customers' tokens, which n8n keeps in its run history: keep your
+n8n private, and turn on pruning (`EXECUTIONS_DATA_PRUNE=true`,
+`EXECUTIONS_DATA_MAX_AGE=168`) so the history stays small.
+
+### Add a customer's Facebook Page and Instagram (Supabase → SQL Editor)
+
+You need the customer's **Page id**, a **Page access token** (long-lived, with
+`pages_manage_posts`, `pages_read_engagement`, `instagram_basic`,
+`instagram_content_publish`; for deleting Instagram posts also
+`instagram_manage_contents`) and their **Instagram business account id** (linked to the Page).
+
+```sql
+-- Find the business
+select business_id, business, owner_email, platform, status, has_token from post.admin_accounts;
+
+-- Connect the Page and its Instagram (run again with a new token to replace it)
+select * from post.admin_connect_page(
+  'BUSINESS-ID',            -- from the query above
+  'PAGE-ID',
+  'PAGE-ACCESS-TOKEN',
+  'INSTAGRAM-ACCOUNT-ID',   -- or null for Facebook only
+  'Page name',              -- optional, shown in the panel
+  'instagram_username');    -- optional
+```
+
+The token is stored encrypted in Supabase Vault; the panel shows the accounts
+as connected straight away. Tip: with a Meta **Business Manager**, customers
+add your business as a partner on their Page, and a **system user** token
+from your Business Manager does not expire.
+
+### A post was designed but not published: check
+
+```sql
+-- 1. Does the business have connected accounts with a token?
+select business, platform, status, enabled, has_token from post.admin_accounts;
+-- 2. What happened to the latest posts (deny_reason says why it failed)?
+select local_date, slot, is_story, status, scheduled_at, deny_reason from post.posts order by updated_at desc limit 20;
+-- 3. Each account's result
+select x.status, x.attempts, x.last_error, x.created_at from post.publications x order by x.created_at desc limit 20;
+-- 4. Is the publishing clock running, and does it reach the website?
+select jobname, schedule, active from cron.job where jobname like 'retexia-post%';
+select status_code, left(content::text, 200), created from net._http_response order by created desc limit 10;
+select name from vault.decrypted_secrets where name like 'post_%';
+```
+
+- A post stays **ready** after its time: the clock isn't running (step 4) or
+  auto publish is off (it then needs Approve).
+- **failed** with "No Facebook or Instagram account is connected": add them with
+  `post.admin_connect_page`, then press **Retry** on the post.
+- **failed** with a Meta message: the token or its permissions; add a new token.
+- n8n → Executions shows each publish job and Meta's answer.
+
+Deleting a published post and changing a Facebook post's text are also done by
+n8n, when the owner presses the button in the panel.
+
+### Meta app (optional: only for "Continue with Facebook" in the panel)
+
+Not needed when you add customers' Pages in Supabase (above).
 
 1. developers.facebook.com → **Create app** → type **Business**.
 2. Add **Facebook Login for Business**. Settings → Valid OAuth Redirect URIs:
@@ -99,19 +176,16 @@ each customer's own Facebook/Instagram access.
 
 ### WhatsApp messages to owners
 
-Owners turn them on under **Playlist and settings → WhatsApp messages**: each
+The website picks them (nothing twice, quiet hours respected) and n8n sends them. Owners turn them on under **Playlist and settings → WhatsApp messages**: each
 post and story with its picture and caption as soon as it is ready (again after
 a redo), a note when it is published, and an alert when something needs them.
 Nothing is sent in their quiet hours; those messages go out when it ends.
 
-They are sent from Retexia's own WhatsApp line on your Evolution server:
-
-1. On the Evolution server, create an instance for Retexia (e.g. `retexia-post`)
-   and scan its QR code with the Retexia business WhatsApp.
-2. Vercel → panels: `POST_WHATSAPP_INSTANCE=retexia-post` (it uses
-   `EVOLUTION_API_URL` and `EVOLUTION_API_KEY`; set `POST_WHATSAPP_KEY` only if
-   the instance has its own key). Redeploy.
-3. In Settings, press **Send a test message**.
+They come from Retexia's own WhatsApp line: on the Evolution server, create an
+instance (e.g. `retexia-post`), scan its QR code with the Retexia business
+WhatsApp, and put its details in the workflow's **Config** node.
+(Optional: with `POST_WHATSAPP_INSTANCE` also set in Vercel, the panel's
+**Send a test message** button works too.)
 
 ### What happens then (the daily playlist)
 
@@ -149,8 +223,7 @@ They are sent from Retexia's own WhatsApp line on your Evolution server:
 ## 4. Check it
 
 - `https://post.retexia.com/api/health` and `https://lingo.retexia.com/api/health`.
-- Supabase → Integrations → Cron → `retexia-post-publish-tick` runs every minute
-  (it only calls the panel when a post is due) and `retexia-post-batch-tick`
+- Supabase → Integrations → Cron → `retexia-post-publish-tick` and `retexia-post-batch-tick`
   every 5 minutes (`/api/post/batch` answers with what it planned and sent to
   design, and `designer: connected` when `N8N_POST_URL` is set).
 - Admin → Settings → Audit log shows bot links, account changes and plan changes.

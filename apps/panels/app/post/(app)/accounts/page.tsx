@@ -62,8 +62,16 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
         )
       ) : null}
 
-      <Alert tone="info" title="Before you connect">
-        You need a Facebook Page you manage. For Instagram, switch it to a <strong>Business</strong> account and link it to that Page (Instagram → Settings → Account type and tools). Your plan allows {limit} accounts.
+      <Alert tone="info" title={canConnect ? "Before you connect" : "Retexia connects your accounts for you"}>
+        {canConnect ? (
+          <>
+            You need a Facebook Page you manage. For Instagram, switch it to a <strong>Business</strong> account and link it to that Page (Instagram → Settings → Account type and tools). Your plan allows {limit} accounts.
+          </>
+        ) : (
+          <>
+            Send us your Facebook Page and Instagram (switched to a <strong>Business</strong> account and linked to the Page) and we connect them for you. They show up here once they are connected. Your plan allows {limit} accounts.
+          </>
+        )}
         {waHref ? (
           <span className="mt-2 block">
             <Button href={waHref} size="sm" variant="secondary" target="_blank">

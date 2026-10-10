@@ -29,12 +29,15 @@ export function SettingsForm({
   basics: initialBasics,
   settings: initial,
   whatsAppReady,
+  canTestWhatsApp,
   limits,
 }: {
   basics: Basics;
   settings: Settings;
   /** Retexia's WhatsApp line is set up (POST_WHATSAPP_INSTANCE). */
   whatsAppReady: boolean;
+  /** The panel itself can reach the WhatsApp line (for the test button). */
+  canTestWhatsApp: boolean;
   limits: { label: string; postsPerDay: number; storiesPerDay: number };
 }) {
   const router = useRouter();
@@ -60,7 +63,7 @@ export function SettingsForm({
             <Field label="WhatsApp number" hint="International format, e.g. +94771234567" error={errors["whatsapp.number"]} required>
               <Input value={s.whatsapp.number ?? ""} onChange={(e) => setS({ ...s, whatsapp: { ...s.whatsapp, number: e.target.value } })} />
             </Field>
-            {whatsAppReady ? (
+            {canTestWhatsApp ? (
               <Button
                 className="self-start"
                 size="sm"
