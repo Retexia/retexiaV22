@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { addPlaylistItem, editPublishedText, redoDesign, savePlaylistItem, setItemTime } from "@/app/post/playlist-actions";
 import { CAPTION_LANGUAGES, DESIGN_LANGUAGES } from "@/lib/post/languages";
+import { FocusSelect } from "./focus-select";
 
 type Result = { ok: boolean; message?: string; fieldErrors?: Record<string, string> };
 
@@ -32,7 +33,7 @@ function useSubmit(onDone: () => void) {
 const captionOptions = CAPTION_LANGUAGES.map((l) => ({ value: l.value, label: l.label }));
 const designOptions = DESIGN_LANGUAGES.map((l) => ({ value: l.value, label: l.label }));
 
-export type ItemDraft = { id?: string; title: string; prompt: string; time: string; caption_language: string; design_language: string };
+export type ItemDraft = { id?: string; title: string; prompt: string; time: string; caption_language: string; design_language: string; focus: string };
 
 /** Write or change a playlist item's prompt, languages and time (new item: date + format given). */
 export function ItemDialog({
@@ -66,8 +67,8 @@ export function ItemDialog({
             onClick={() =>
               submit(() =>
                 create
-                  ? addPlaylistItem({ date: create.date, format: create.format, prompt: v.prompt, time: v.time || undefined, caption_language: v.caption_language, design_language: v.design_language })
-                  : savePlaylistItem({ id: v.id!, title: v.title, prompt: v.prompt, time: v.time, caption_language: v.caption_language, design_language: v.design_language }),
+                  ? addPlaylistItem({ date: create.date, format: create.format, prompt: v.prompt, time: v.time || undefined, caption_language: v.caption_language, design_language: v.design_language, focus: v.focus })
+                  : savePlaylistItem({ id: v.id!, title: v.title, prompt: v.prompt, time: v.time, caption_language: v.caption_language, design_language: v.design_language, focus: v.focus }),
               )
             }
           >
@@ -82,7 +83,8 @@ export function ItemDialog({
             <Input value={v.title} maxLength={120} onChange={(e) => setV({ ...v, title: e.target.value })} />
           </Field>
         ) : null}
-        <Field label="What should it be about?" error={errors.prompt} required>
+        <FocusSelect value={v.focus} onChange={(focus) => setV({ ...v, focus })} />
+        <Field label="What should it say?" error={errors.prompt} required>
           <Textarea
             rows={4}
             value={v.prompt}
@@ -116,8 +118,27 @@ const CHANGES = [
 ];
 
 /** A new version of a designed item (optionally with a changed prompt or languages). */
-export function RedoDialog({ open, onOpenChange, id, prompt, captionLanguage, designLanguage, left }: { open: boolean; onOpenChange: (o: boolean) => void; id: string; prompt: string; captionLanguage: string; designLanguage: string; left: number }) {
+export function RedoDialog({
+  open,
+  onOpenChange,
+  id,
+  prompt,
+  captionLanguage,
+  designLanguage,
+  focus,
+  left,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  id: string;
+  prompt: string;
+  captionLanguage: string;
+  designLanguage: string;
+  focus: string;
+  left: number;
+}) {
   const [change, setChange] = useState("both");
+  const [f, setF] = useState(focus);
   const [p, setP] = useState(prompt);
   const [cl, setCl] = useState(captionLanguage);
   const [dl, setDl] = useState(designLanguage);
@@ -136,7 +157,7 @@ export function RedoDialog({ open, onOpenChange, id, prompt, captionLanguage, de
           </Button>
           <Button
             loading={busy}
-            onClick={() => submit(() => redoDesign({ id, change: change as "both", prompt: p.trim() && p.trim() !== prompt ? p : undefined, caption_language: cl, design_language: dl }))}
+            onClick={() => submit(() => redoDesign({ id, change: change as "both", prompt: p.trim() && p.trim() !== prompt ? p : undefined, caption_language: cl, design_language: dl, focus: f !== focus ? f : undefined }))}
           >
             Make a new version
           </Button>
@@ -147,7 +168,8 @@ export function RedoDialog({ open, onOpenChange, id, prompt, captionLanguage, de
         <Field label="What should change?" labelAs="legend">
           <RadioCards name={`redo-${id}`} options={CHANGES} value={change} onChange={setChange} columns={2} compact />
         </Field>
-        <Field label="What it should be about" hint="Change it to steer the new version." optionalLabel="Optional">
+        <FocusSelect value={f} onChange={setF} hint="Wrong product? Pick the right one here." />
+        <Field label="What it should say" hint="Change it to steer the new version." optionalLabel="Optional">
           <Textarea rows={3} value={p} maxLength={1500} onChange={(e) => setP(e.target.value)} />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">

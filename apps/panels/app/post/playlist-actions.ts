@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { z } from "zod";
 import { dbMessage, run, type ActionResult } from "@/lib/action";
+import { parseFocus, readFocus } from "@/lib/post/focus";
+import { focusChoices } from "@/lib/post/focus-server";
 import { CAPTION_LANGUAGES, DESIGN_LANGUAGES } from "@/lib/post/languages";
 import { deletePublished, updateFacebookText } from "@/lib/post/meta";
 import { designConfigured, requestDesign } from "@/lib/post/n8n";
@@ -20,6 +22,8 @@ const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const captionLang = z.enum(CAPTION_LANGUAGES.map((l) => l.value) as [string, ...string[]]);
 const designLang = z.enum(DESIGN_LANGUAGES.map((l) => l.value) as [string, ...string[]]);
 const prompt = z.string().trim().min(5, "Describe the post in a few words (at least 5 letters)").max(1500);
+/** The "About" drop-down: "business", "product:<id>" or "group:<id>". */
+const focusField = z.string().max(80).optional();
 
 const done = (message: string): ActionResult => {
   revalidatePath("/", "layout");
@@ -50,6 +54,7 @@ const itemInput = z.object({
   caption_language: captionLang,
   design_language: designLang,
   time,
+  focus: focusField,
 });
 
 /** Change a planned item: its prompt, languages and time. */
@@ -61,7 +66,16 @@ export async function savePlaylistItem(input: z.input<typeof itemInput>): Promis
     if (!UNDESIGNED.includes(post.status)) return { ok: false, message: "This item is already designed. Use Redo to change it." };
     const at = zonedToUtc(post.local_date, d.time, business.timezone);
     if (new Date(at).getTime() < Date.now() + 20 * 60_000) return { ok: false, message: "Pick a time at least 20 minutes from now.", fieldErrors: { time: "Too soon" } };
-    const brief = { ...((post.brief ?? {}) as Record<string, unknown>), title: d.title || null, prompt: d.prompt, caption_language: d.caption_language, design_language: d.design_language };
+    const focus = d.focus === undefined ? readFocus(post.brief) : parseFocus(d.focus, await focusChoices(db, business.id));
+    const brief = {
+      ...((post.brief ?? {}) as Record<string, unknown>),
+      title: d.title || null,
+      prompt: d.prompt,
+      caption_language: d.caption_language,
+      design_language: d.design_language,
+      focus,
+      product: focus.type === "product" ? focus.name : null,
+    };
     const { error } = await db
       .from("posts")
       .update({ brief: brief as Json, scheduled_at: at, status: "planned", deny_reason: null })
@@ -72,7 +86,7 @@ export async function savePlaylistItem(input: z.input<typeof itemInput>): Promis
   });
 }
 
-const addInput = z.object({ date: dateStr, format: z.enum(["post", "story"]), prompt, time: time.optional(), caption_language: captionLang.optional(), design_language: designLang.optional() });
+const addInput = z.object({ date: dateStr, format: z.enum(["post", "story"]), prompt, time: time.optional(), caption_language: captionLang.optional(), design_language: designLang.optional(), focus: focusField });
 
 /** Add an item to a day's playlist (up to the plan's posts / stories a day). */
 export async function addPlaylistItem(input: z.input<typeof addInput>): Promise<ActionResult> {
@@ -92,6 +106,7 @@ export async function addPlaylistItem(input: z.input<typeof addInput>): Promise<
     if (new Date(zonedToUtc(d.date, at, business.timezone)).getTime() < Date.now() + 20 * 60_000) {
       return { ok: false, message: "That time has passed. Pick a time at least 20 minutes from now.", fieldErrors: { time: "Too soon" } };
     }
+    const focus = parseFocus(d.focus, await focusChoices(db, business.id));
     const { data: n, error } = await db.rpc("add_planned_items", {
       p_business: business.id,
       p_date: d.date,
@@ -103,6 +118,8 @@ export async function addPlaylistItem(input: z.input<typeof addInput>): Promise<
           prompt: d.prompt,
           title: d.prompt.slice(0, 60),
           source: "manual",
+          focus,
+          product: focus.type === "product" ? focus.name : undefined,
           caption_language: d.caption_language ?? settings.caption_language,
           design_language: d.design_language ?? settings.design_language,
         },
@@ -130,7 +147,7 @@ export async function designNow(input: { id: string }): Promise<ActionResult> {
   });
 }
 
-const redoInput = z.object({ id: uuid, prompt: prompt.optional(), caption_language: captionLang.optional(), design_language: designLang.optional(), change: z.enum(["caption", "image", "both", "wrong_product"]) });
+const redoInput = z.object({ id: uuid, prompt: prompt.optional(), caption_language: captionLang.optional(), design_language: designLang.optional(), focus: focusField, change: z.enum(["caption", "image", "both", "wrong_product"]) });
 
 /** Make a new version of a designed item (counts toward 10 per post and the month's redos). */
 export async function redoDesign(input: z.input<typeof redoInput>): Promise<ActionResult> {
@@ -151,6 +168,11 @@ export async function redoDesign(input: z.input<typeof redoInput>): Promise<Acti
     if (d.prompt) brief.prompt = d.prompt;
     if (d.caption_language) brief.caption_language = d.caption_language;
     if (d.design_language) brief.design_language = d.design_language;
+    if (d.focus !== undefined) {
+      const focus = parseFocus(d.focus, await focusChoices(db, business.id));
+      brief.focus = focus;
+      brief.product = focus.type === "product" ? focus.name : null;
+    }
     const feedback = { caption: "Write a different caption; keep the picture idea.", image: "Make a different picture.", both: "Make a different picture and caption.", wrong_product: "It showed the wrong product; follow the request exactly." }[d.change];
     // A redo of a skipped or failed item moves to the next free time today, at least 30 minutes away.
     const at = ["expired", "failed"].includes(post.status) && new Date(post.scheduled_at).getTime() < Date.now() + 30 * 60_000 ? new Date(Date.now() + 45 * 60_000).toISOString() : post.scheduled_at;
@@ -168,6 +190,7 @@ export async function redoDesign(input: z.input<typeof redoInput>): Promise<Acti
       format: post.is_story ? "story" : "post",
       caption_language: (brief.caption_language as never) ?? "si",
       design_language: (brief.design_language as never) ?? "si",
+      focus: readFocus(brief),
       publish: false,
     });
     if (!r.ok) {
@@ -379,6 +402,7 @@ const createInput = z.object({
   when: z.enum(["now", "later"]),
   date: dateStr.optional(),
   time: time.optional(),
+  focus: focusField,
 });
 
 /** A post or story made by hand (outside the playlist): publish now, or at a time. */
@@ -401,8 +425,10 @@ export async function createPost(input: z.input<typeof createInput>): Promise<Ac
     const { data: usage } = await db.from("usage_monthly").select("images").eq("business_id", business.id).eq("period", monthStart(business.timezone)).maybeSingle();
     const limit = PLAN_LIMITS[business.plan].images;
     if ((usage?.images ?? 0) >= limit) return { ok: false, message: `You've used all ${limit} AI designs this month. Use a library photo instead, or upgrade.` };
+    const focus = parseFocus(d.focus, await focusChoices(db, business.id));
     const r = await requestDesign({
       business_id: business.id,
+      focus,
       prompt: d.prompt,
       format: d.format,
       caption_language: d.caption_language as never,
@@ -411,7 +437,7 @@ export async function createPost(input: z.input<typeof createInput>): Promise<Ac
       scheduled_at: scheduled,
     });
     if (!r.ok) return { ok: false, message: "We couldn't start the design right now. Please try again in a minute." };
-    await db.from("events").insert({ business_id: business.id, type: "post_requested", payload: { prompt: d.prompt, format: d.format, when: d.when } });
+    await db.from("events").insert({ business_id: business.id, type: "post_requested", payload: { prompt: d.prompt, format: d.format, when: d.when, focus } });
     return done(d.when === "now" ? `Designing your ${d.format}. It is published in about 2 minutes.` : `Designing your ${d.format}. It goes out on ${d.date} at ${d.time}.`);
   });
 }

@@ -172,6 +172,27 @@ await db.exec(readFileSync(new URL("../supabase/migrations/0014_post_today_whats
 ok((await q(`select settings ->> 'auto_publish' a from post.businesses where id = $1`, [biz]))[0].a === "true", "businesses held back by their type publish automatically again");
 await q(`update post.posts set wa_media_id = media_id, wa_alert = 'failed', wa_published_at = now() where business_id = $1`, [biz]);
 ok(true, "WhatsApp bookkeeping columns exist");
+
+console.log("Focus and product groups (0015)");
+const [cake, bun, soap] = (await q(`insert into post.products (business_id, name, price, currency) values ($1, 'Chocolate cake', 2500, 'LKR'), ($1, 'Fish bun', 150, 'LKR'), ($1, 'Soap', 400, 'LKR') returning id`, [biz])).map((r) => r.id);
+const grp = (await as("authenticated", amaya, `insert into post.product_groups (business_id, name, product_ids) values ($1, 'Bakery', $2) returning id`, [biz, [cake, bun]])).rows[0].id;
+ok(Boolean(grp), "owners can make groups of their products");
+await expectError(() => as("authenticated", kasun, `insert into post.product_groups (business_id, name) values ($1, 'Hack')`, [biz]), "nobody else can add groups to a business", /row-level security|permission denied/);
+ok((await as("authenticated", kasun, `select id from post.product_groups`)).rows.length === 0, "and nobody else sees them");
+const one = (await q(`select post.design_context($1, $2::jsonb) c`, [biz, JSON.stringify({ type: "product", id: cake })]))[0].c;
+ok(one.products.length === 1 && one.products[0].name === "Chocolate cake" && one.focus.name === "Chocolate cake", "a post about one product only shows the AI that product");
+const grpCtx = (await q(`select post.design_context($1, $2::jsonb) c`, [biz, JSON.stringify({ type: "group", id: grp })]))[0].c;
+ok(grpCtx.products.length === 2 && !grpCtx.products.some((p) => p.name === "Soap") && grpCtx.focus.type === "group", "a post about a group shows only the group's products");
+const whole = (await q(`select post.design_context($1, $2::jsonb) c`, [biz, JSON.stringify({ type: "business" })]))[0].c;
+ok(whole.focus.type === "business" && whole.products.length >= 3 && "brand_brief" in whole.business, "a post about the whole business gets the About summary and all products");
+const stray = (await q(`select post.design_context($1, $2::jsonb) c`, [biz, JSON.stringify({ type: "product", id: "00000000-0000-4000-8000-000000000000" })]))[0].c;
+ok(stray.focus.type === "business", "an unknown or deleted product falls back to the whole business");
+ok((await q(`select post.design_context($1) c`, [biz]))[0].c.business.name === "Amaya Cakes", "the old one-argument call still works");
+await q(`delete from post.products where id = $1`, [bun]);
+ok((await q(`select product_ids from post.product_groups where id = $1`, [grp]))[0].product_ids.length === 1, "a deleted product leaves its groups");
+await q(`delete from post.posts where business_id = $1 and local_date = '2026-12-20'`, [biz]);
+await q(`select post.add_planned_items($1, '2026-12-20', $2::jsonb)`, [biz, JSON.stringify([{ format: "post", slot: 1, prompt: "Cake", focus: { type: "product", id: cake, name: "Chocolate cake" } }])]);
+ok((await q(`select brief from post.posts where business_id = $1 and local_date = '2026-12-20'`, [biz]))[0].brief.focus.id === cake, "playlist items keep their focus");
 const ctx = (await q(`select post.plan_context($1, $2) c`, [biz, planDate]))[0].c;
 ok(ctx.business.name && Array.isArray(ctx.products) && Array.isArray(ctx.offers) && Array.isArray(ctx.recent_prompts), "the AI gets the business, products, offers and recent prompts in one query");
 

@@ -61,6 +61,8 @@ export type DesignRequest = {
   publish: boolean;
   /** Posts made by hand: when to publish (ISO); default in an hour. */
   scheduled_at?: string;
+  /** What it is about: the AI only sees that product / group (or the whole business). */
+  focus?: { type: "business" | "product" | "group"; id?: string; name?: string };
 };
 
 export async function requestDesign(body: DesignRequest): Promise<{ ok: true } | { ok: false; error: string }> {

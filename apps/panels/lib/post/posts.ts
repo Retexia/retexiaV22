@@ -1,5 +1,6 @@
 import "server-only";
 
+import { focusLabel, focusValue, readFocus } from "./focus";
 import { mediaUrls } from "./media";
 import type { PostDb } from "./post-db";
 import type { PostRow, PublicationRow, Variants } from "./post-db.types";
@@ -30,6 +31,9 @@ export type PostView = {
   prompt: string;
   captionLanguage: string | null;
   designLanguage: string | null;
+  /** What it is about: drop-down value ("business", "product:<id>", "group:<id>") and its label. */
+  focus: string;
+  focusLabel: string;
   /** Live on at least one account (can be edited on Facebook / deleted). */
   live: boolean;
   publications: { platform: string; name: string | null; status: PublicationRow["status"]; permalink: string | null; error: string | null; publishedAt: string | null }[];
@@ -79,6 +83,8 @@ export async function toViews(db: PostDb, businessId: string, tz: string, posts:
       prompt: String(((p.brief ?? {}) as Record<string, unknown>).prompt ?? ""),
       captionLanguage: (((p.brief ?? {}) as Record<string, unknown>).caption_language as string | undefined) ?? null,
       designLanguage: (((p.brief ?? {}) as Record<string, unknown>).design_language as string | undefined) ?? null,
+      focus: focusValue(readFocus(p.brief)),
+      focusLabel: focusLabel(readFocus(p.brief)),
       live: (pubs ?? []).some((x) => x.post_id === p.id && x.status === "published"),
       publications: (pubs ?? [])
         .filter((x) => x.post_id === p.id)

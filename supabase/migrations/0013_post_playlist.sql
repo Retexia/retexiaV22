@@ -81,8 +81,12 @@ $$;
 -- ---------------------------------------------------------------------
 -- Context for the AI (n8n reads it in one query)
 -- ---------------------------------------------------------------------
+-- (0015 replaces this with design_context(business, focus); skipped once that exists.)
+do $outer$ begin
+  if not exists (select 1 from pg_proc where proname = 'design_context' and pronamespace = 'post'::regnamespace and pronargs = 2) then
+    execute $create$
 create or replace function post.design_context(p_business uuid) returns jsonb
-language sql stable security definer set search_path = post, public as $$
+language sql stable security definer set search_path = post, public as $body$
   select jsonb_build_object(
     'business', jsonb_build_object('id', b.id, 'name', b.name, 'category', b.category, 'country', b.country,
                                    'languages', b.languages, 'brand', b.brand, 'brand_brief', b.brand_brief,
@@ -97,7 +101,12 @@ language sql stable security definer set search_path = post, public as $$
          where business_id = b.id and caption is not null
          order by created_at desc limit 5) r), '[]'::jsonb))
   from post.businesses b where b.id = p_business;
-$$;
+$body$;
+    $create$;
+    revoke execute on function post.design_context(uuid) from public, anon, authenticated;
+    grant execute on function post.design_context(uuid) to service_role, post_n8n;
+  end if;
+end $outer$;
 
 create or replace function post.plan_context(p_business uuid, p_date date) returns jsonb
 language sql stable security definer set search_path = post, public as $$
@@ -300,11 +309,11 @@ begin
 end $$;
 
 revoke execute on function post.default_times(int, boolean), post.item_time(uuid, date, int, boolean),
-  post.design_context(uuid), post.plan_context(uuid, date), post.add_planned_items(uuid, date, jsonb),
+  post.plan_context(uuid, date), post.add_planned_items(uuid, date, jsonb),
   post.claim_planning_businesses(int), post.claim_design_items(int), post.finish_design(jsonb),
   post.design_failed(uuid, text) from public, anon, authenticated;
 grant execute on function post.default_times(int, boolean), post.item_time(uuid, date, int, boolean),
-  post.design_context(uuid), post.plan_context(uuid, date), post.add_planned_items(uuid, date, jsonb),
+  post.plan_context(uuid, date), post.add_planned_items(uuid, date, jsonb),
   post.claim_planning_businesses(int), post.claim_design_items(int), post.finish_design(jsonb),
   post.design_failed(uuid, text), post.expire_stale_posts() to service_role, post_n8n;
 

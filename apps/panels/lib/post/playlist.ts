@@ -1,5 +1,6 @@
 import "server-only";
 
+import { readFocus, type Focus } from "./focus";
 import type { CaptionLanguage } from "./languages";
 import { requestDesign, requestPlan, type PlanSlot } from "./n8n";
 import { PLAN_LIMITS } from "./plans";
@@ -53,7 +54,7 @@ export async function planDay(db: PostDb, b: BusinessRow, date: string, mode: "a
   const [{ data: existing }, { data: items }, { data: products }, left] = await Promise.all([
     db.from("posts").select("slot, is_story, scheduled_at").eq("business_id", b.id).eq("local_date", date),
     db.from("plan_items").select("*").eq("business_id", b.id).eq("active", true).lte("start_date", date).gte("end_date", date),
-    db.from("products").select("name, price, currency, description").eq("business_id", b.id).eq("active", true).limit(40),
+    db.from("products").select("id, name, price, currency, description").eq("business_id", b.id).eq("active", true).limit(40),
     imagesLeft(db, b),
   ]);
   const taken = new Set((existing ?? []).filter((e) => e.slot <= PLAYLIST_SLOTS).map((e) => `${e.is_story ? "story" : "post"}-${e.slot}`));
@@ -62,7 +63,19 @@ export async function planDay(db: PostDb, b: BusinessRow, date: string, mode: "a
   const offers = ((items ?? []) as PlanItemRow[]).filter((i) => i.type === "offer");
   const notes = s.week_plan_enabled && PLAN_LIMITS[b.plan].weekPlan ? ((items ?? []) as PlanItemRow[]).filter((i) => i.type === "week_note") : [];
 
-  const slots: (PlanSlot & { slot: number; source: "ai" | "offer" | "week_plan"; plan_item_id: string | null })[] = [];
+  // Items that aren't for an offer or a week-plan note are about one product or the
+  // whole business, picked at random (each product at most once a day while there are enough).
+  const list = (products ?? []) as Pick<ProductRow, "id" | "name" | "price" | "currency" | "description">[];
+  const deck = [...list].sort(() => Math.random() - 0.5);
+  const pickFocus = (): { focus: Focus; product: (typeof list)[number] | null } => {
+    if (!deck.length && list.length) deck.push(...[...list].sort(() => Math.random() - 0.5));
+    if (!deck.length || Math.random() < 0.3) return { focus: { type: "business" }, product: null };
+    const p = deck.shift()!;
+    return { focus: { type: "product", id: p.id, name: p.name }, product: p };
+  };
+  const money = (p: { price: number | null; currency: string }) => (p.price != null ? ` (${p.currency} ${Number(p.price).toLocaleString("en-US")})` : "");
+
+  const slots: (PlanSlot & { slot: number; source: "ai" | "offer" | "week_plan"; plan_item_id: string | null; focus: Focus; product: (typeof list)[number] | null })[] = [];
   const add = (format: "post" | "story", count: number, times: string[]) => {
     // Times already used in this lane today (items made by hand too).
     const used = new Set((existing ?? []).filter((e) => e.is_story === (format === "story")).map((e) => timeIn(b.timezone, e.scheduled_at)));
@@ -80,10 +93,15 @@ export async function planDay(db: PostDb, b: BusinessRow, date: string, mode: "a
       const offer = offers.find((o) => i <= (o.slots_per_day ?? 1));
       const note = format === "post" ? notes.find((n) => n.slot === i || n.slot === null) : undefined;
       const d = (offer?.details ?? {}) as { title?: string; price?: string | null; discount?: string | null };
+      const picked = offer || note ? { focus: { type: "business" } as Focus, product: null } : pickFocus();
       const hint = offer
         ? [`Offer: ${d.title ?? "Special offer"}.`, offer.note, d.price ? `Price: ${d.price}.` : null, d.discount ? `Discount: ${d.discount}.` : null, `Ends ${offer.end_date}.`].filter(Boolean).join(" ")
-        : (note?.note ?? null);
-      slots.push({ key, format, time, hint, slot: i, source: offer ? "offer" : note ? "week_plan" : "ai", plan_item_id: offer?.id ?? note?.id ?? null });
+        : note
+          ? note.note
+          : picked.product
+            ? `Focus: only the product "${picked.product.name}"${money(picked.product)}${picked.product.description ? `: ${picked.product.description.slice(0, 160)}` : ""}. Do not feature other products.`
+            : "Focus: the business as a whole (what it is, what it offers, why people choose it), not one product.";
+      slots.push({ key, format, time, hint, slot: i, source: offer ? "offer" : note ? "week_plan" : "ai", plan_item_id: offer?.id ?? note?.id ?? null, ...picked });
     }
   };
   add("post", s.playlist.posts, s.playlist.post_times);
@@ -103,19 +121,19 @@ export async function planDay(db: PostDb, b: BusinessRow, date: string, mode: "a
     prompt_language: promptLanguage(s.caption_language),
     slots: plan.map(({ key, format, time, hint }) => ({ key, format, time, hint })),
   });
-  const list = (products ?? []) as Pick<ProductRow, "name" | "price" | "currency" | "description">[];
   const day = Number(date.replace(/-/g, ""));
   const rows = plan.map((slot, n) => {
     const p = ai?.find((x) => x.key === slot.key);
-    if (p) return { ...p, slot, ai: true };
-    // Fallback without AI: offer / week note, else a rotating product and angle.
-    const product = list.length ? list[(day + n) % list.length]! : null;
+    if (p) return { ...p, product: slot.product?.name ?? p.product, slot, ai: true };
+    // Without AI: the offer / week note, else the picked product (or the business) with a rotating angle.
+    const product = slot.product;
     const angle = ANGLES[(day + n) % ANGLES.length]!;
     const prompt =
-      slot.hint ??
-      (product
-        ? `${angle}: ${product.name}${product.price != null ? ` (${product.currency} ${Number(product.price).toLocaleString("en-US")})` : ""}.${product.description ? ` ${product.description.slice(0, 200)}` : ""}`
-        : `${angle}, for ${b.name}.`);
+      slot.source !== "ai" && slot.hint
+        ? slot.hint
+        : product
+          ? `${angle}: ${product.name}${money(product)}.${product.description ? ` ${product.description.slice(0, 200)}` : ""}`
+          : `Introduce ${b.name}: what it is, what it offers and why people choose it.`;
     return { key: slot.key, title: product?.name ?? (slot.source === "offer" ? "Offer" : b.name), prompt, angle, product: product?.name ?? "", slot, ai: false };
   });
   const { data: count, error } = await db.rpc("add_planned_items", {
@@ -131,6 +149,7 @@ export async function planDay(db: PostDb, b: BusinessRow, date: string, mode: "a
       product: r.product,
       source: r.slot.source,
       plan_item_id: r.slot.plan_item_id,
+      focus: r.slot.focus,
       caption_language: s.caption_language,
       design_language: s.design_language,
     })),
@@ -191,6 +210,7 @@ export async function designItem(db: PostDb, post: PostRow, b: BusinessRow, publ
     format: post.is_story ? "story" : "post",
     caption_language: brief.caption_language ?? s.caption_language,
     design_language: brief.design_language ?? s.design_language,
+    focus: readFocus(brief),
     publish,
   });
   if (r.ok) return true;

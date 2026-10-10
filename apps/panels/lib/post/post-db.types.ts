@@ -68,6 +68,15 @@ export type ProductRow = {
   created_at: string;
 };
 
+export type ProductGroupRow = {
+  id: string;
+  business_id: string;
+  name: string;
+  product_ids: string[];
+  created_at: string;
+  updated_at: string;
+};
+
 export type MediaRow = {
   id: string;
   business_id: string;
@@ -180,6 +189,7 @@ export type PostDatabase = {
       businesses: Table<BusinessRow, "owner_id" | "name">;
       social_accounts: Table<SocialAccountRow, "business_id" | "platform" | "external_id">;
       products: Table<ProductRow, "business_id" | "name">;
+      product_groups: Table<ProductGroupRow, "business_id" | "name">;
       media: Table<MediaRow, "business_id" | "kind" | "source" | "storage_path">;
       plan_items: Table<PlanItemRow, "business_id" | "type" | "start_date" | "end_date">;
       posts: Table<PostRow, "business_id" | "local_date" | "slot" | "format" | "scheduled_at">;

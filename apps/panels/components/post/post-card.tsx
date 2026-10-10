@@ -2,7 +2,7 @@
 
 import { Badge, Button, Card, StatusBadge, cn } from "@retexia/ui";
 import { ConfirmDialog } from "@retexia/ui/admin";
-import { Check, Clock, Copy, Download, ExternalLink, ImageOff, Languages, Lock, Pencil, RotateCcw, Sparkles, Trash2, Wand2 } from "lucide-react";
+import { Check, Clock, Copy, Download, ExternalLink, ImageOff, Languages, Lock, Pencil, RotateCcw, Sparkles, Tag, Trash2, Wand2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -100,6 +100,10 @@ export function PostCard({ post, autoPublish, defaults, compact = false }: { pos
           {post.regenLeft < 10 ? <span className="type-caption text-ink-muted">{post.regenLeft} of 10 new versions left</span> : null}
         </div>
         {post.title && post.status !== "planned" ? <p className="type-label text-ink">{post.title}</p> : null}
+        <p className="flex items-center gap-1.5 type-caption text-ink-muted">
+          <Tag aria-hidden size={13} strokeWidth={1.5} />
+          About: {post.focusLabel}
+        </p>
         <p className="flex items-center gap-1.5 type-caption text-ink-muted">
           <Languages aria-hidden size={13} strokeWidth={1.5} />
           {post.isStory ? `Picture: ${designLanguageLabel(dl)}` : `Caption: ${captionLanguageLabel(cl)} · Picture: ${designLanguageLabel(dl)}`}
@@ -227,10 +231,10 @@ export function PostCard({ post, autoPublish, defaults, compact = false }: { pos
         <ItemDialog
           open
           onOpenChange={(o) => !o && setDialog(null)}
-          initial={{ id: post.id, title: post.title, prompt: post.prompt, time: post.time, caption_language: cl, design_language: dl }}
+          initial={{ id: post.id, title: post.title, prompt: post.prompt, time: post.time, caption_language: cl, design_language: dl, focus: post.focus }}
         />
       ) : null}
-      {dialog === "redo" ? <RedoDialog open onOpenChange={(o) => !o && setDialog(null)} id={post.id} prompt={post.prompt} captionLanguage={cl} designLanguage={dl} left={post.regenLeft} /> : null}
+      {dialog === "redo" ? <RedoDialog open onOpenChange={(o) => !o && setDialog(null)} id={post.id} prompt={post.prompt} captionLanguage={cl} designLanguage={dl} focus={post.focus} left={post.regenLeft} /> : null}
       {dialog === "time" ? <TimeDialog open onOpenChange={(o) => !o && setDialog(null)} id={post.id} time={post.time} /> : null}
       {dialog === "fb" ? <FacebookTextDialog open onOpenChange={(o) => !o && setDialog(null)} id={post.id} text={post.facebook} /> : null}
       <ConfirmDialog

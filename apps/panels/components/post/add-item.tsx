@@ -19,7 +19,7 @@ export function AddItem({ date, format, used, max, defaultTime, defaults }: { da
           open
           onOpenChange={setOpen}
           create={{ date, format }}
-          initial={{ title: "", prompt: "", time: defaultTime, caption_language: defaults.caption, design_language: defaults.design }}
+          initial={{ title: "", prompt: "", time: defaultTime, caption_language: defaults.caption, design_language: defaults.design, focus: "business" }}
         />
       ) : null}
     </>

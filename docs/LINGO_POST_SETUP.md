@@ -46,7 +46,11 @@ bots from the admin, as before.
 
 Run `supabase/migrations/0013_post_playlist.sql` (after 0012), then
 `0014_post_today_whatsapp.sql` (publish automatically for every business type,
-the planning time setting, WhatsApp messages). It adds the daily
+the planning time setting, WhatsApp messages), then `0015_post_focus_groups.sql`
+(what each post is about: one product, a product group, or the whole business).
+After 0015, import `n8n/retexia-post.json` again (or re-copy its *Config*,
+*Load business*, *Build plan request*, *Build copy request* and *Build image
+request* nodes) so the designer only sees the product(s) a post is about. It adds the daily
 playlist (posts and stories, slots 1–10), the functions the workflow calls, and
 the new plan texts on retexia.com/post. Safe to run again.
 
@@ -119,6 +123,11 @@ They are sent from Retexia's own WhatsApp line on your Evolution server:
   slots are filled (slots whose time has passed get the next free times). The customer can
   change any idea, its languages or its time during the day, or add their own.
   **Fill today** on the Playlist page does the same for today straight away.
+- **What each item is about:** the playlist picks one product or the whole
+  business ("About your business" on the Brand page) at random for each item,
+  each product at most once a day. Owners can change it on any item, on
+  **New post** and on **Redo**: one product, a group, or the whole business.
+  Groups are made under **Products → Groups**.
 - **From 00:00:** the day's items are designed, so they are ready by 6 AM.
   "Design now" designs one straight away.
 - **At each item's time:** published to Facebook and Instagram. Publishing

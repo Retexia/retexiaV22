@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { createPost } from "@/app/post/playlist-actions";
 import { CAPTION_LANGUAGES, DESIGN_LANGUAGES } from "@/lib/post/languages";
+import { FocusSelect } from "./focus-select";
 
 const EXAMPLES = [
   "Weekend offer: 20% off all chocolate cakes, this Saturday and Sunday only",
@@ -32,6 +33,7 @@ export function CreateForm({
 }) {
   const router = useRouter();
   const [prompt, setPrompt] = useState("");
+  const [focus, setFocus] = useState("business");
   const [format, setFormat] = useState<"post" | "story">("post");
   const [caption, setCaption] = useState(defaults.caption);
   const [design, setDesign] = useState(defaults.design);
@@ -81,6 +83,7 @@ export function CreateForm({
           ]}
         />
       </Field>
+      <FocusSelect value={focus} onChange={setFocus} />
       <Field label="What should it say?" hint="The product, the price or offer, any dates. Write in Sinhala, English or Tamil: we only use what you write and your saved products." error={errors.prompt} required>
         <Textarea rows={4} value={prompt} maxLength={1500} onChange={(e) => setPrompt(e.target.value)} placeholder={EXAMPLES[0]} />
       </Field>
@@ -135,7 +138,7 @@ export function CreateForm({
         icon={<Sparkles aria-hidden size={18} strokeWidth={1.5} />}
         onClick={async () => {
           setBusy(true);
-          const r = await createPost({ prompt, format, caption_language: caption, design_language: design, when: when as "now" | "later", date: when === "later" ? date : undefined, time: when === "later" ? time : undefined });
+          const r = await createPost({ prompt, focus, format, caption_language: caption, design_language: design, when: when as "now" | "later", date: when === "later" ? date : undefined, time: when === "later" ? time : undefined });
           setBusy(false);
           if (!r.ok) {
             setErrors(r.fieldErrors ?? {});

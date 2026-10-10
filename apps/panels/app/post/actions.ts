@@ -307,6 +307,43 @@ export async function deleteProduct(input: { id: string }): Promise<ActionResult
   });
 }
 
+const groupInput = z.object({
+  id: uuid.optional(),
+  name: z.string().trim().min(1, "Give the group a name").max(80),
+  product_ids: z.array(uuid).min(1, "Pick at least one product").max(100),
+});
+
+/** A group of products a post can be about (e.g. "Cakes"). */
+export async function saveGroup(input: z.input<typeof groupInput>): Promise<ActionResult> {
+  return run(async () => {
+    const { db, business } = await requireBusiness();
+    const parsed = groupInput.safeParse(input);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      return { ok: false, message: issue?.message ?? "Check the group", fieldErrors: { [String(issue?.path[0] ?? "name")]: issue?.message ?? "" } };
+    }
+    const { id, ...d } = parsed.data;
+    // Only this business's own products.
+    const { data: own } = await db.from("products").select("id").eq("business_id", business.id).in("id", d.product_ids);
+    const row = { name: d.name, product_ids: (own ?? []).map((p) => p.id), updated_at: new Date().toISOString() };
+    if (!row.product_ids.length) return { ok: false, message: "Pick at least one product", fieldErrors: { product_ids: "Required" } };
+    const { error } = id
+      ? await db.from("product_groups").update(row).eq("id", id).eq("business_id", business.id)
+      : await db.from("product_groups").insert({ ...row, business_id: business.id });
+    if (error) return { ok: false, message: error.code === "23505" ? "You already have a group with that name." : dbMessage(error), fieldErrors: error.code === "23505" ? { name: "Name taken" } : undefined };
+    return done(id ? "Group saved" : "Group added", ["/products"]);
+  });
+}
+
+export async function deleteGroup(input: { id: string }): Promise<ActionResult> {
+  return run(async () => {
+    const { db, business } = await requireBusiness();
+    const { error } = await db.from("product_groups").delete().eq("id", uuid.parse(input.id)).eq("business_id", business.id);
+    if (error) return { ok: false, message: dbMessage(error) };
+    return done("Group deleted. Posts already planned for it are about the whole business now.", ["/products"]);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Posts
 // ---------------------------------------------------------------------------
