@@ -442,7 +442,9 @@ export async function retryPost(input: { id: string }): Promise<ActionResult> {
   return run(async () => {
     const { db, post, business } = await ownPost(input.id);
     if (!post) return { ok: false, message: "Post not found." };
-    if (post.status !== "failed") return { ok: false, message: "Only failed posts can be retried." };
+    // Failed, or published on some accounts only: try again on the accounts that failed.
+    const { count: failedPubs } = await db.from("publications").select("id", { count: "exact", head: true }).eq("post_id", post.id).eq("status", "failed");
+    if (post.status !== "failed" && !(post.status === "published" && failedPubs)) return { ok: false, message: "Only failed posts can be retried." };
     await db.from("publications").delete().eq("post_id", post.id).eq("status", "failed");
     const { error } = await db.from("posts").update({ status: "approved", scheduled_at: new Date().toISOString() }).eq("id", post.id).eq("business_id", business.id);
     if (error) return { ok: false, message: dbMessage(error) };
