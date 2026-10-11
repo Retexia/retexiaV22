@@ -95,7 +95,11 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
                     {a.status === "connected" ? <Badge tone="success">Connected</Badge> : a.status === "reconnect_needed" ? <Badge tone="danger">Reconnect needed</Badge> : <Badge tone="neutral">Disconnected</Badge>}
                   </span>
                   <span className="type-small text-ink-muted">
-                    {a.status === "reconnect_needed" ? "Facebook stopped Retexia's access. Press “Add or reconnect accounts” and pick this account again. " : ""}
+                    {a.status === "reconnect_needed"
+                      ? canConnect
+                        ? "Facebook stopped Retexia's access. Press “Add or reconnect accounts” and pick this account again. "
+                        : "Facebook stopped Retexia's access. We're reconnecting it; message us if it stays like this. "
+                      : ""}
                     {a.platform === "instagram" && a.ig_account_type === "creator" ? "Creator account: posts only (stories need a Business account). " : ""}
                     {a.token_expires_at ? (withinDays(a.token_expires_at, 7) ? `Access expires ${formatDate(a.token_expires_at)}: reconnect soon. ` : `Access valid until ${formatDate(a.token_expires_at)}.`) : ""}
                     {a.status === "connected" && !a.token_secret_id ? "Connected by hand: reconnect with Facebook so Post can publish here. " : ""}
