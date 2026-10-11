@@ -126,10 +126,26 @@ export async function sendOwnerMessages(db: PostDb) {
             .limit(20)
         : { data: [] },
       types.has("published")
-        ? db.from("posts").select("*").eq("business_id", b.id).eq("status", "published").is("wa_published_at", null).gt("updated_at", new Date(now - 6 * 3600_000).toISOString()).limit(10)
+        ? db
+            .from("posts")
+            .select("*")
+            .eq("business_id", b.id)
+            .eq("status", "published")
+            .is("wa_published_at", null)
+            // Only what went out just now: older posts are never announced late.
+            .gt("updated_at", new Date(now - 2 * 3600_000).toISOString())
+            .gt("scheduled_at", new Date(now - 12 * 3600_000).toISOString())
+            .limit(10)
         : { data: [] },
       types.has("alerts")
-        ? db.from("posts").select("*").eq("business_id", b.id).in("status", ["needs_manual", "failed", "blocked"]).gt("updated_at", new Date(now - 24 * 3600_000).toISOString()).limit(10)
+        ? db
+            .from("posts")
+            .select("*")
+            .eq("business_id", b.id)
+            .in("status", ["needs_manual", "failed", "blocked"])
+            .gt("updated_at", new Date(now - 6 * 3600_000).toISOString())
+            .gt("scheduled_at", new Date(now - 24 * 3600_000).toISOString())
+            .limit(10)
         : { data: [] },
     ]);
 
