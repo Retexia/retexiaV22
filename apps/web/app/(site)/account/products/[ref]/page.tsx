@@ -6,17 +6,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CancelOrderButton } from "@/components/account/cancel-order";
 import { canOpenPanel } from "@/components/account/order-card";
-import { BillingButton } from "@/components/account/billing-button";
 import { CancelSubscriptionButton } from "@/components/account/cancel-subscription";
+import { PaymentMethodPicker } from "@/components/account/payment-method-picker";
+import { PaymentProofForm } from "@/components/account/payment-proof-form";
 import { PayherePay } from "@/components/account/payhere-pay";
-import { PaddlePay } from "@/components/account/paddle-pay";
+import { Markdown } from "@/components/markdown";
 import { requireUser } from "@/lib/auth";
 import { getForm, getOrderStatuses, getProducts, getSiteSettings } from "@/lib/content";
 import { formatDate, formatPrice } from "@/lib/format";
 import { whatsappHref } from "@/lib/links";
-import { getMyOrder, getOrderPayments, getVisibleServiceFields } from "@/lib/orders";
-import { PADDLE_CURRENCIES, paddleEnv, paddleReady } from "@/lib/paddle.server";
-import { PAYHERE_CURRENCIES, paymentProvider, payhereReady } from "@/lib/payhere.server";
+import { getMyOrder, getOrderPayments, getPaymentMethods, getVisibleServiceFields } from "@/lib/orders";
+import { PAYHERE_CURRENCIES, payhereReady } from "@/lib/payhere.server";
 import { getT } from "@/lib/strings.server";
 
 export async function generateMetadata({ params }: PageProps<"/account/products/[ref]">): Promise<Metadata> {
@@ -37,16 +37,22 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
   const data = await getMyOrder(supabase, ref);
   if (!data) notFound();
   const { order, events } = data;
-  const [payments, serviceFields] = await Promise.all([getOrderPayments(supabase, order.id), getVisibleServiceFields(supabase, order.id)]);
+  const [payments, serviceFields, methods] = await Promise.all([
+    getOrderPayments(supabase, order.id),
+    getVisibleServiceFields(supabase, order.id),
+    getPaymentMethods(supabase),
+  ]);
   const awaitingPayment = order.status === "awaiting_payment";
 
   const product = products.find((p) => p.id === order.product_id);
-  // Every payment on the website goes through Paddle (products can opt out in the admin).
-  const online = settings.online_payments && product?.pay_online !== false;
+  // How this request is paid: the method the customer picked, else the default (bank transfer or card).
+  const active = methods.filter((m) => m.status === "active");
+  const method = active.find((m) => m.key === order.payment_method) ?? active.find((m) => m.is_default) ?? active[0] ?? null;
   const payCurrency = (order.currency ?? settings.currency_code).toUpperCase();
-  const provider = paymentProvider();
-  const currencyOk = provider === "payhere" ? PAYHERE_CURRENCIES.has(payCurrency) : PADDLE_CURRENCIES.has(payCurrency);
-  const payOnline = online && (provider === "payhere" ? payhereReady() : paddleReady()) && currencyOk && (order.price_amount ?? 0) > 0;
+  const cardReady = payhereReady() && PAYHERE_CURRENCIES.has(payCurrency) && (order.price_amount ?? 0) > 0;
+  const pendingSlip = payments.find((p) => p.status === "pending" && p.method === "bank_transfer");
+  const rejectedSlip = !pendingSlip ? payments.find((p) => p.status === "failed" && p.method === "bank_transfer") : undefined;
+  const firstPayment = (order.setup_fee ?? 0) + (order.price_amount ?? 0);
   const status = statuses.find((s) => s.key === order.status);
   const statusLabel = (key: string | null) => statuses.find((s) => s.key === key)?.label ?? key ?? "";
   const currency = order.currency ?? settings.currency_code;
@@ -144,21 +150,67 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
         ) : null}
       </header>
 
-      {awaitingPayment && payOnline ? (
-        <Card as="section" aria-labelledby="pay-title" className="flex flex-col gap-4 border-warning/40!">
+      {awaitingPayment ? (
+        <Card as="section" aria-labelledby="pay-title" className="flex flex-col gap-5 border-warning/40!">
           <div className="flex flex-col gap-1">
             <h2 id="pay-title" className="type-h2 text-ink">
-              {t("order.paddle.title", "Pay to start")}
+              {t("order.pay.title", "Pay to start")}
             </h2>
             <p className="type-body text-ink-muted">
-              {t(provider === "payhere" ? "order.pay.intro" : "order.paddle.intro", provider === "payhere" ? "{plan}, renews {cycle}{setup}. Pay by Visa, Mastercard or other cards. Cancel any time from this page." : "{plan}, billed {cycle}{setup}. Pay by card, Apple Pay, Google Pay or PayPal. Tax is added where it applies.", {
+              {t("order.pay.amount", "{plan}: {total} to start{setup}, then {price} {cycle}.", {
                 plan: order.package_name ?? "",
-                cycle: order.billing_cycle === "yearly" ? t("order.paddle.yearly", "yearly") : t("order.paddle.monthly", "monthly"),
-                setup: (order.setup_fee ?? 0) > 0 ? t("order.paddle.with_setup", ", with the one-time setup fee on the first payment") : "",
+                total: fmt(firstPayment),
+                setup: (order.setup_fee ?? 0) > 0 ? t("order.pay.with_setup", " (setup fee and first period)") : "",
+                price: fmt(order.price_amount),
+                cycle: order.billing_cycle === "yearly" ? t("order.pay.yearly", "a year") : t("order.pay.monthly", "a month"),
               })}
             </p>
           </div>
-          {provider === "payhere" ? (
+
+          {methods.length > 1 && method ? (
+            <PaymentMethodPicker
+              orderId={order.id}
+              current={method.key}
+              methods={methods.map((m) => ({ key: m.key, label: m.label, description: m.description, status: m.status }))}
+              legend={t("order.method.legend", "How would you like to pay?")}
+              soonLabel={t("order.method.soon", "Coming soon")}
+            />
+          ) : null}
+
+          {!method ? (
+            <p className="type-body text-ink-muted">{t("order.pay.by_team", "We'll message you with how to pay for this request.")}</p>
+          ) : method.key === "bank_transfer" ? (
+            <div className="flex flex-col gap-4">
+              {method.instructions ? (
+                <div className="rounded-lg border border-line bg-surface-sunk p-4">
+                  <h3 className="mb-2 type-h3 text-ink">{t("order.bank.title", "Transfer {total} to", { total: fmt(firstPayment) })}</h3>
+                  <Markdown size="sm">{method.instructions}</Markdown>
+                  <p className="mt-2 type-small text-ink-muted">
+                    {t("order.bank.reference", "Use {ref} as the payment reference.", { ref: order.ref ?? "" })}
+                  </p>
+                </div>
+              ) : null}
+              {pendingSlip ? (
+                <Alert tone="info" title={t("order.proof.received", "Payment slip received")}>
+                  {t("order.proof.checking", "Thank you. We are checking your payment from {date} and will confirm it soon. Your panel opens as soon as it's confirmed.", {
+                    date: formatDate(pendingSlip.created_at, settings.currency_locale),
+                  })}
+                </Alert>
+              ) : (
+                <>
+                  {rejectedSlip ? (
+                    <Alert tone="warning" title={t("order.proof.rejected", "We couldn't confirm your last slip")}>
+                      {rejectedSlip.review_note || t("order.proof.rejected_text", "Please check the amount and reference, and send the correct slip.")}
+                    </Alert>
+                  ) : null}
+                  <div className="flex flex-col gap-3">
+                    <h3 className="type-h3 text-ink">{t("order.proof.title", "Paid? Send us the slip")}</h3>
+                    <PaymentProofForm orderId={order.id} orderRef={order.ref ?? ""} />
+                  </div>
+                </>
+              )}
+            </div>
+          ) : cardReady ? (
             <PayherePay
               refId={order.ref ?? ""}
               autoOpen={sp.pay === "1"}
@@ -174,44 +226,13 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
               }}
             />
           ) : (
-            <>
-              <PaddlePay
-                refId={order.ref ?? ""}
-                env={paddleEnv()}
-                token={process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN ?? ""}
-                customerId={order.paddle_customer_id}
-                autoOpen={sp.pay === "1"}
-                labels={{
-                  pay: t("order.paddle.pay", "Pay now"),
-                  paying: t("order.paddle.opening", "Opening checkout…"),
-                  received: t("order.paddle.received", "Payment received"),
-                  confirming: t("order.paddle.confirming", "Thank you! We're confirming it with Paddle. This page updates by itself in a few seconds."),
-                  secure: t("order.paddle.secure", "Secure checkout by Paddle"),
-                  failed: t("order.paddle.failed", "The checkout couldn't open. Check your connection and try again."),
-                }}
-              />
-              <p className="type-small text-ink-muted">
-                {t("order.paddle.mor", "Our order process is conducted by our online reseller Paddle.com, the Merchant of Record for all our orders.")}
-              </p>
-            </>
+            <p className="type-body text-ink-muted">
+              {t("order.pay.card_unavailable", "Card payment isn't available right now. Please choose bank transfer, or message us.")}
+            </p>
           )}
-        </Card>
-      ) : null}
 
-      {awaitingPayment && !payOnline ? (
-        <Card as="section" aria-labelledby="pay-title" className="flex flex-col gap-3 border-warning/40!">
-          <h2 id="pay-title" className="type-h2 text-ink">
-            {t("order.paddle.title", "Pay to start")}
-          </h2>
-          <p className="type-body text-ink-muted">
-            {!online
-              ? t("order.paddle.by_team", "We'll send you a secure payment link for this request by email.")
-              : !currencyOk
-                ? t("order.paddle.currency", "This request was priced in {currency}, which our payment partner doesn't accept. Message us and we'll update it.", { currency: payCurrency })
-                : t("order.paddle.soon", "Online payment opens in a moment. Please refresh this page shortly, or message us if it doesn't appear.")}
-          </p>
           {wa ? (
-            <Button href={wa} variant="secondary" className="self-start" target="_blank">
+            <Button href={wa} variant="secondary" className="self-start" target="_blank" icon={<Icon name="message-circle" size={16} />}>
               {t("order.whatsapp", "Message us on WhatsApp")}
             </Button>
           ) : null}
@@ -219,7 +240,6 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
       ) : null}
 
       <div className="flex flex-wrap gap-3">
-        {order.paddle_customer_id && paddleReady() ? <BillingButton refId={order.ref ?? ""} label={t("order.paddle.manage", "Manage billing")} /> : null}
         {order.payhere_subscription_id && !status?.is_final && order.status !== "awaiting_payment" ? (
           <CancelSubscriptionButton
             refId={order.ref ?? ""}
@@ -383,8 +403,16 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
                 </span>
                 <span className="flex items-center gap-3">
                   <StatusBadge
-                    tone={p.status === "confirmed" ? "success" : p.status === "pending" ? "warning" : "neutral"}
-                    label={p.status === "confirmed" ? t("order.payment.confirmed", "Paid") : p.status === "pending" ? t("order.payment.pending", "Being checked") : t("order.payment.refunded", "Refunded")}
+                    tone={p.status === "confirmed" ? "success" : p.status === "pending" ? "warning" : p.status === "failed" ? "danger" : "neutral"}
+                    label={
+                      p.status === "confirmed"
+                        ? t("order.payment.confirmed", "Paid")
+                        : p.status === "pending"
+                          ? t("order.payment.pending", "Being checked")
+                          : p.status === "failed"
+                            ? t("order.payment.not_confirmed", "Not confirmed")
+                            : t("order.payment.refunded", "Refunded")
+                    }
                   />
                   {p.receipt_number ? (
                     <Link href={`/account/receipts/${p.id}`} className="inline-flex items-center gap-1 type-label text-link hover:underline">

@@ -3,7 +3,6 @@ import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
 
 /** PayHere for the admin: notification checks, payment lookups and subscription cancelling. */
-export const paymentProvider = (): "payhere" | "paddle" => (process.env.PAYMENT_PROVIDER === "paddle" ? "paddle" : "payhere");
 export const payhereSandbox = () => process.env.NEXT_PUBLIC_PAYHERE_SANDBOX !== "false";
 const base = () => (payhereSandbox() ? "https://sandbox.payhere.lk" : "https://www.payhere.lk");
 export const payhereDashboard = () => (payhereSandbox() ? "https://sandbox.payhere.lk/merchant" : "https://www.payhere.lk/merchant");

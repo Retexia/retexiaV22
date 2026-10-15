@@ -8,9 +8,6 @@ import { createHash } from "node:crypto";
  * are recorded by the admin's notify URL (admin.retexia.com/api/payhere/notify).
  */
 
-/** Which gateway the website uses: PayHere (default) or Paddle. */
-export const paymentProvider = (): "payhere" | "paddle" => (process.env.PAYMENT_PROVIDER === "paddle" ? "paddle" : "payhere");
-
 export const payhereSandbox = () => process.env.NEXT_PUBLIC_PAYHERE_SANDBOX !== "false";
 export const payhereReady = () => Boolean(process.env.PAYHERE_MERCHANT_ID && process.env.PAYHERE_MERCHANT_SECRET);
 export const PAYHERE_CURRENCIES = new Set(["LKR", "USD", "GBP", "EUR", "AUD"]);

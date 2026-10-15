@@ -68,7 +68,7 @@ export default async function CustomerReceiptPage({ params }: PageProps<"/accoun
     total: formatPrice(payment.kind === "refund" ? -payment.amount : payment.amount, currency, locale),
     method:
       payment.method === "online_gateway"
-        ? t("receipt.method.paddle", "Online (Paddle)")
+        ? t("receipt.method.card", "Card (PayHere)")
         : payment.method
           ? payment.method.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase())
           : null,

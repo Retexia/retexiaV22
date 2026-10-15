@@ -277,40 +277,66 @@ ok((await q(`select post.enforce_account_limit($1) n`, [biz]))[0].n === 0, "runn
 await expectError(() => as("authenticated", amaya, `select post.enforce_account_limit($1)`, [biz]), "customers can't run it", /permission denied/);
 ok((await q(`select has_function_privilege('post_n8n', 'post.admin_connect_page(uuid, text, text, text, text, text)', 'execute') ok`))[0].ok, "the n8n worker may save connected Pages");
 
-console.log("Paddle (0009)");
+console.log("Payment methods: bank transfer and card (0020)");
 const lingoP = (await q(`select id from public.products where slug = 'lingo'`))[0].id;
 const corePk = (await q(`select id from public.packages where product_id = $1 and slug = 'core'`, [lingoP]))[0].id;
-await q(`update public.packages set paddle_price_monthly = 'pri_core_m', paddle_price_setup = 'pri_core_setup' where id = $1`, [corePk]);
-const paid = (await as("authenticated", kasun, `insert into public.orders (product_id, package_id, billing_cycle, answers) values ($1, $2, 'monthly', '[]') returning id, status, currency`, [lingoP, corePk])).rows[0];
-ok(paid.status === "awaiting_payment" && paid.currency === "LKR", "with online payments on, a new request waits for payment, in LKR");
+const methods = await q(`select key, status, is_default from public.payment_methods order by sort_order`);
+ok(methods.length === 2 && methods[0].key === "bank_transfer" && methods[0].is_default && methods[0].status === "active", "bank transfer is the default payment method");
+ok(methods[1].key === "card" && methods[1].status === "coming_soon", "card starts as coming soon");
+ok((await as("anon", null, `select key from public.payment_methods`)).rows.length === 2, "visitors can see the payment methods");
+await expectError(() => as("authenticated", kasun, `update public.payment_methods set status = 'off' where key = 'card'`).then((r) => { if (!r.rowCount) throw new Error("permission denied (no rows)"); }), "customers can't change payment methods", /permission denied|no rows/);
+await expectError(() => as("authenticated", kasun, `select public.set_default_payment_method('card')`), "customers can't change the default", /Only an admin/);
+await expectError(() => q(`select public.set_default_payment_method('card')`), "a method must be active before it can be the default", /Switch the method on/);
+await expectError(() => q(`update public.payment_methods set status = 'off' where key = 'bank_transfer'`), "the default method can't be switched off", /payment_methods_default_active/);
+
+const paid = (await as("authenticated", kasun, `insert into public.orders (product_id, package_id, billing_cycle, answers) values ($1, $2, 'monthly', '[]') returning id, ref, status, currency, payment_method`, [lingoP, corePk])).rows[0];
+ok(paid.status === "awaiting_payment" && paid.currency === "LKR" && paid.payment_method === "bank_transfer", "a new request waits for payment, in LKR, by bank transfer (the default)");
+await expectError(() => as("authenticated", kasun, `select public.customer_set_payment_method($1, 'card')`, [paid.id]), "a coming-soon method can't be chosen", /not available/);
+await q(`update public.payment_methods set status = 'active' where key = 'card'`);
+await as("authenticated", kasun, `select public.customer_set_payment_method($1, 'card')`, [paid.id]);
+ok((await q(`select payment_method from public.orders where id = $1`, [paid.id]))[0].payment_method === "card", "once card is active the customer can switch to it");
+await q(`select public.set_default_payment_method('card')`);
+ok((await q(`select key from public.payment_methods where is_default`)).map((r) => r.key).join() === "card", "the admin can change the default");
+await q(`select public.set_default_payment_method('bank_transfer')`);
+await as("authenticated", kasun, `select public.customer_set_payment_method($1, 'bank_transfer')`, [paid.id]);
+
 const webP = (await q(`insert into public.products (slug, code, name, short_name, status, pay_online) values ('custom-dev', 'CDV', 'Custom development', 'Custom', 'live', false) returning id`))[0].id;
 const webPk = (await q(`insert into public.packages (product_id, slug, name, price_monthly, is_active) values ($1, 'basic', 'Basic', 100, true) returning id`, [webP]))[0].id;
 const manual = (await as("authenticated", kasun, `insert into public.orders (product_id, package_id, billing_cycle, answers) values ($1, $2, 'monthly', '[]') returning status`, [webP, webPk])).rows[0];
-ok(manual.status === "submitted", "products with Paddle turned off wait for review instead");
-await expectError(() => as("authenticated", kasun, `select public.svc_paddle_payment('{}'::jsonb)`), "customers can't record Paddle payments", /permission denied/);
-const pay = { order_id: paid.id, transaction_id: "txn_1", subscription_id: "sub_1", customer_id: "ctm_1", amount: "64.00", currency: "usd", kind: "setup_fee", period_start: "2026-10-09T00:00:00Z", period_end: "2026-11-09T00:00:00Z", origin: "web" };
-await q(`select public.svc_paddle_payment($1::jsonb)`, [JSON.stringify(pay)]);
-const after = (await q(`select status, renews_at, paddle_subscription_id from public.orders where id = $1`, [paid.id]))[0];
-ok(after.status === "setting_up" && after.paddle_subscription_id === "sub_1", "a Paddle payment moves the request to setting up");
-ok(new Date(after.renews_at).toISOString().startsWith("2026-11-09"), "the renewal date follows Paddle's billing period");
-const rc = (await q(`select receipt_number, status, method from public.payments where reference = 'txn_1'`))[0];
-ok(rc.status === "confirmed" && rc.method === "online_gateway" && /^RCT-/.test(rc.receipt_number), "the payment is confirmed with a receipt number");
-await q(`select public.svc_paddle_payment($1::jsonb)`, [JSON.stringify(pay)]);
-ok((await q(`select count(*)::int n from public.payments where reference = 'txn_1'`))[0].n === 1, "the same Paddle transaction is recorded once");
-await q(`select public.svc_paddle_payment($1::jsonb)`, [JSON.stringify({ ...pay, order_id: "", transaction_id: "txn_2", kind: "subscription", amount: "25.00", period_start: "2026-11-09T00:00:00Z", period_end: "2026-12-09T00:00:00Z", origin: "subscription_recurring" })]);
-ok(new Date((await q(`select renews_at from public.orders where id = $1`, [paid.id]))[0].renews_at).toISOString().startsWith("2026-12-09"), "renewals are matched by subscription and extend the request");
-await q(`select public.svc_paddle_refund($1::jsonb)`, [JSON.stringify({ transaction_id: "txn_2", adjustment_id: "adj_1", amount: "25.00", currency: "USD" })]);
-ok((await q(`select status from public.payments where reference = 'txn_2'`))[0].status === "refunded", "a full Paddle refund marks the payment refunded");
-await q(`select public.svc_paddle_subscription($1::jsonb)`, [JSON.stringify({ subscription_id: "sub_1", status: "canceled" })]);
-ok((await q(`select status from public.orders where id = $1`, [paid.id]))[0].status === "cancelled", "cancelling in Paddle cancels the request");
-// Self-serve products go live on payment
+ok(manual.status === "submitted", "products set to review first wait for the team instead");
+
+// Bank transfer: slip → the team confirms → the request moves on
+const slip = await as("authenticated", kasun, `select public.customer_submit_payment_proof($1, $2, 'BOC 12345', 'Paid today') id`, [paid.id, `${kasun}/${paid.id}/slip.jpg`]);
+const slipId = slip.rows[0].id;
+const pending = (await q(`select status, method, amount from public.payments where id = $1`, [slipId]))[0];
+ok(pending.status === "pending" && pending.method === "bank_transfer" && Number(pending.amount) === 6900 + 9900, "the customer's slip waits for the team (setup fee + first month)");
+ok((await q(`select status from public.orders where id = $1`, [paid.id]))[0].status === "awaiting_payment", "the request waits until the slip is confirmed");
+await q(`update public.payments set status = 'failed', review_note = 'The amount is different.' where id = $1`, [slipId]);
+const told = await q(`select body from public.notifications_outbox where order_id = $1 and event = 'payment.rejected'`, [paid.id]);
+ok(told.length === 1 && told[0].body.includes("The amount is different."), "rejecting a slip tells the customer why");
+ok((await as("authenticated", kasun, `select status, review_note from public.payments where id = $1`, [slipId])).rows[0]?.review_note === "The amount is different.", "the customer sees the rejected slip and the reason");
+const slip2 = (await as("authenticated", kasun, `select public.customer_submit_payment_proof($1, $2, 'BOC 12346', null) id`, [paid.id, `${kasun}/${paid.id}/slip2.jpg`])).rows[0].id;
+await q(`update public.payments set status = 'confirmed' where id = $1`, [slip2]);
+const afterSlip = (await q(`select status from public.orders where id = $1`, [paid.id]))[0];
+ok(afterSlip.status === "setting_up", "confirming the slip moves the request to setting up");
+ok(/^RCT-/.test((await q(`select receipt_number from public.payments where id = $1`, [slip2]))[0].receipt_number), "with a receipt");
+
+// Card (PayHere): self-serve products go live on payment
 const postP = (await q(`select id from public.products where slug = 'post'`))[0].id;
 const starter = (await q(`select id from public.packages where product_id = $1 and slug = 'starter'`, [postP]))[0].id;
-await q(`update public.packages set paddle_price_monthly = 'pri_starter_m' where id = $1`, [starter]);
 const postOrder = (await as("authenticated", kasun, `insert into public.orders (product_id, package_id, billing_cycle, answers) values ($1, $2, 'monthly', '[]') returning id`, [postP, starter])).rows[0];
-await q(`select public.svc_paddle_payment($1::jsonb)`, [JSON.stringify({ order_id: postOrder.id, transaction_id: "txn_3", subscription_id: "sub_3", amount: "19.00", currency: "USD", kind: "subscription", period_end: "2026-11-09T00:00:00Z", origin: "web" })]);
-ok((await q(`select status from public.orders where id = $1`, [postOrder.id]))[0].status === "active", "a paid Post request goes straight to active");
+await expectError(() => as("authenticated", kasun, `select public.svc_gateway_payment('{}'::jsonb)`), "customers can't record card payments", /permission denied/);
+const pay = { order_id: postOrder.id, transaction_id: "card_1", amount: "5900.00", currency: "lkr", kind: "setup_fee", period_start: "2026-10-09T00:00:00Z", period_end: "2026-11-09T00:00:00Z", origin: "web" };
+await q(`select public.svc_gateway_payment($1::jsonb)`, [JSON.stringify(pay)]);
+const afterCard = (await q(`select status, payment_method, renews_at from public.orders where id = $1`, [postOrder.id]))[0];
+ok(afterCard.status === "active" && afterCard.payment_method === "card", "a card payment for Post goes straight to active (the panel opens)");
+ok(new Date(afterCard.renews_at).toISOString().startsWith("2026-11-09"), "the renewal date follows the paid period");
+await q(`select public.svc_gateway_payment($1::jsonb)`, [JSON.stringify(pay)]);
+ok((await q(`select count(*)::int n from public.payments where reference = 'card_1'`))[0].n === 1, "the same card payment is recorded once");
+await q(`select public.svc_gateway_refund($1::jsonb)`, [JSON.stringify({ transaction_id: "card_1", adjustment_id: "card_1:refund", amount: "5900.00", currency: "LKR" })]);
+ok((await q(`select status from public.payments where reference = 'card_1'`))[0].status === "refunded", "a full refund marks the payment refunded");
 ok(Number((await q(`select price_monthly from public.packages where id = $1`, [starter]))[0].price_monthly) === 5900, "Post Starter costs LKR 5,900 a month");
+ok((await q(`select count(*)::int n from information_schema.columns where table_schema = 'public' and column_name like 'paddle%'`))[0].n === 0 && (await q(`select to_regclass('public.paddle_events') t`))[0].t === null, "Paddle is gone from the database");
 
 console.log("PayHere (0012)");
 const phOrder = (await as("authenticated", kasun, `insert into public.orders (product_id, package_id, billing_cycle, answers) values ($1, $2, 'monthly', '[]') returning id, ref, currency`, [lingoP, corePk])).rows[0];

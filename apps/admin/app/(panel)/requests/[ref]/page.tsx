@@ -8,16 +8,12 @@ import { notFound } from "next/navigation";
 import { AuditList, type AuditEntry } from "@/components/common/audit-list";
 import { OrderStatus, label } from "@/components/common/status";
 import { ChangePricingButton, EditAnswersButton } from "@/components/requests/overview-editors";
-import { PaddlePaymentLink } from "@/components/requests/paddle-payment-link";
 import { PayhereAwaiting, PayhereSubscription } from "@/components/requests/payhere-controls";
-import { PaddleSubscription } from "@/components/requests/paddle-subscription";
 import { PaymentsPanel, type PaymentRow } from "@/components/requests/payments-panel";
 import { RequestActions, type TransitionOption } from "@/components/requests/request-actions";
 import { ServiceSetup, type ServiceField } from "@/components/requests/service-setup";
 import { Timeline, type TimelineItem } from "@/components/requests/timeline";
 import { requireStaffPage } from "@/lib/auth";
-import { paddleDashboard } from "@/lib/paddle";
-import { paymentProvider } from "@/lib/payhere";
 import { webUrl } from "@/lib/env";
 import { param, type SearchParams } from "@/lib/list-params";
 import { productExtension } from "@/products/registry";
@@ -51,11 +47,11 @@ export default async function RequestPage({ params, searchParams }: { params: Pa
   const orderId = order.id;
   const tab = (param(sp, "tab") ?? "overview") as (typeof TABS)[number]["key"];
 
-  const [statuses, transitions, payments, paddle, team, product, packages, notes, events, runs, fields, actions, secrets, auditRows] = await Promise.all([
+  const [statuses, transitions, payments, billing, team, product, packages, notes, events, runs, fields, actions, secrets, auditRows] = await Promise.all([
     supabase.from("order_statuses").select("key, label, description").order("sort_order"),
     supabase.from("order_status_transitions").select("*").eq("from_status", order.status ?? "").order("sort_order"),
     supabase.from("payments").select("*").eq("order_id", orderId).order("created_at", { ascending: false }),
-    supabase.from("orders").select("paddle_subscription_id, paddle_customer_id, payhere_subscription_id").eq("id", orderId).maybeSingle(),
+    supabase.from("orders").select("payment_method, payhere_subscription_id").eq("id", orderId).maybeSingle(),
     supabase.from("profiles").select("id, full_name, email, role").in("role", ["support", "editor", "admin", "owner"]),
     supabase.from("products").select("id, panel_url, panel_live, onboarding_form_id").eq("id", order.product_id ?? "").maybeSingle(),
     supabase.from("packages").select("id, name, price_monthly, price_yearly, setup_fee").eq("product_id", order.product_id ?? "").order("sort_order"),
@@ -243,6 +239,7 @@ export default async function RequestPage({ params, searchParams }: { params: Pa
                   { label: "Billing", value: label(order.billing_cycle) },
                   { label: "Price", value: `${formatPrice(order.price_amount, currency)} ${order.billing_cycle === "yearly" ? "/ year" : "/ month"}` },
                   { label: "Setup fee", value: formatPrice(order.setup_fee, currency) },
+                  { label: "Pays by", value: billing.data?.payment_method === "card" ? "Card (PayHere)" : billing.data?.payment_method === "bank_transfer" ? "Bank transfer" : "Not chosen" },
                   { label: "Paid so far", value: formatPrice(order.paid_total, currency) },
                   ...(order.price_override_reason ? [{ label: "Price changed because", value: order.price_override_reason }] : []),
                 ]}
@@ -320,24 +317,20 @@ export default async function RequestPage({ params, searchParams }: { params: Pa
         : null}
 
       {tab === "payments" && ["submitted", "reviewing", "awaiting_payment"].includes(order.status ?? "") && canOperate ? (
-        paymentProvider() === "payhere" ? (
+        billing.data?.payment_method === "card" ? (
           <PayhereAwaiting orderId={orderId} payUrl={`${webUrl()}/account/products/${encodeURIComponent(ref)}?pay=1`} />
         ) : (
-          <PaddlePaymentLink orderId={orderId} />
+          <Card className="flex flex-col gap-1">
+            <h2 className="type-h3 text-ink">Waiting for a bank transfer</h2>
+            <p className="type-small text-ink-muted">
+              The customer pays into your bank account and uploads the slip on their request. It appears below and under Payments → Proofs: confirm it to start
+              the service (or reject it with a reason). Paid another way? Use Record payment.
+            </p>
+          </Card>
         )
       ) : null}
-      {tab === "payments" && paddle.data?.payhere_subscription_id ? (
-        <PayhereSubscription orderId={orderId} subscriptionId={paddle.data.payhere_subscription_id} canAdmin={canAdmin} final={Boolean(order.status_is_final)} />
-      ) : null}
-      {tab === "payments" && paddle.data?.paddle_subscription_id ? (
-        <PaddleSubscription
-          orderId={orderId}
-          subscriptionId={paddle.data.paddle_subscription_id}
-          customerId={paddle.data.paddle_customer_id}
-          dashboardUrl={paddleDashboard(`/subscriptions/${paddle.data.paddle_subscription_id}`)}
-          canAdmin={canAdmin}
-          final={Boolean(order.status_is_final)}
-        />
+      {tab === "payments" && billing.data?.payhere_subscription_id ? (
+        <PayhereSubscription orderId={orderId} subscriptionId={billing.data.payhere_subscription_id} canAdmin={canAdmin} final={Boolean(order.status_is_final)} />
       ) : null}
       {tab === "payments" ? (
         <PaymentsPanel

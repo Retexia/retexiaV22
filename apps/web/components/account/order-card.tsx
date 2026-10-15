@@ -58,7 +58,7 @@ export function OrderCard({
         </Button>
         {order.status === "awaiting_payment" ? (
           <Button href={`/account/products/${encodeURIComponent(order.ref ?? "")}?pay=1`} size="sm">
-            {t("order.paddle.pay", "Pay now")}
+            {t("order.pay.pay", "Pay now")}
           </Button>
         ) : null}
         {panel && product?.panel_url ? (

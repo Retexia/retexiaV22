@@ -5,7 +5,7 @@ import type { Answer } from "@retexia/forms";
 
 /** Every orders column a customer may read (admin_note is not granted). */
 const ORDER_COLUMNS =
-  "id, ref, status, status_note, billing_cycle, package_name, price_amount, setup_fee, currency, answers, form_version, product_id, package_id, created_at, updated_at, starts_at, renews_at, cancelled_at, paused_at, paddle_subscription_id, paddle_customer_id, payhere_subscription_id";
+  "id, ref, status, status_note, billing_cycle, package_name, price_amount, setup_fee, currency, answers, form_version, product_id, package_id, created_at, updated_at, starts_at, renews_at, cancelled_at, paused_at, payment_method, payhere_subscription_id";
 
 export type CustomerOrder = Omit<Tables<"orders">, "admin_note" | "user_id" | "form_id" | "customer_note"> & {
   answers: Answer[];
@@ -49,14 +49,14 @@ export function orderGroup(status: string, isFinal: boolean): OrderGroup {
 
 export type CustomerPayment = Pick<
   Tables<"payments">,
-  "id" | "kind" | "amount" | "currency" | "method" | "reference" | "status" | "paid_at" | "receipt_number" | "period_start" | "period_end" | "created_at"
+  "id" | "kind" | "amount" | "currency" | "method" | "reference" | "status" | "paid_at" | "receipt_number" | "period_start" | "period_end" | "created_at" | "review_note"
 >;
 
-/** The customer's payments for one request (RLS: own confirmed, refunded and pending). */
+/** The customer's payments for one request (RLS: own confirmed, refunded, pending and rejected). */
 export async function getOrderPayments(supabase: Client, orderId: string): Promise<CustomerPayment[]> {
   const { data, error } = await supabase
     .from("payments")
-    .select("id, kind, amount, currency, method, reference, status, paid_at, receipt_number, period_start, period_end, created_at")
+    .select("id, kind, amount, currency, method, reference, status, paid_at, receipt_number, period_start, period_end, created_at, review_note")
     .eq("order_id", orderId)
     .order("created_at", { ascending: false });
   if (error) console.error("[orders] payments failed:", error.message);
@@ -70,4 +70,17 @@ export async function getVisibleServiceFields(supabase: Client, orderId: string)
   const { data, error } = await supabase.rpc("customer_order_service_fields", { p_order_id: orderId });
   if (error) console.error("[orders] service fields failed:", error.message);
   return Array.isArray(data) ? (data as VisibleServiceField[]) : [];
+}
+
+export type PaymentMethod = Pick<Tables<"payment_methods">, "key" | "label" | "description" | "status" | "is_default" | "instructions">;
+
+/** Payment methods customers can see (active and coming soon), read fresh so admin changes show at once. */
+export async function getPaymentMethods(supabase: Client): Promise<PaymentMethod[]> {
+  const { data, error } = await supabase
+    .from("payment_methods")
+    .select("key, label, description, status, is_default, instructions")
+    .neq("status", "off")
+    .order("sort_order");
+  if (error) console.error("[orders] payment methods failed:", error.message);
+  return data ?? [];
 }

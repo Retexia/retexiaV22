@@ -63,7 +63,7 @@ export async function handlePayhereNotification(f: Record<string, string>) {
       if (error) throw new Error(error.message);
       orderId = (data as { order_id?: string } | null)?.order_id;
     } else if (f.status_code === "-3") {
-      const { error } = await db.rpc("svc_paddle_refund", {
+      const { error } = await db.rpc("svc_gateway_refund", {
         p: { transaction_id: `payhere:${f.payment_id}`, adjustment_id: `payhere:${f.payment_id}:chargeback`, amount: Number(f.payhere_amount).toFixed(2), currency: f.payhere_currency, reason: "Chargeback (PayHere)" },
       });
       if (error) throw new Error(error.message);

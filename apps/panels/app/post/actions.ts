@@ -6,6 +6,7 @@ import { z } from "zod";
 import { dbMessage, run, type ActionResult } from "@/lib/action";
 import { defaultLanguages } from "@/lib/post/languages";
 import { PLAN_LIMITS } from "@/lib/post/plans";
+import { orderPrefill } from "@/lib/post/order-prefill";
 import { postDb } from "@/lib/post/post-db";
 import type { Brand, Json, PostFormat, Settings, Variants } from "@/lib/post/post-db.types";
 import { BUSINESS_COOKIE, DEFAULT_SETTINGS, getCustomer, listBusinesses, requireBusiness } from "@/lib/post/session";
@@ -48,7 +49,7 @@ export async function createBusiness(input: z.input<typeof basics>): Promise<Act
     const existing = await listBusinesses(customer.id);
     if (existing.length) return { ok: true, message: "Welcome back" };
     // Plan and subscription come from the customer's Retexia order (kept in step by a database trigger).
-    const { data: plan } = await postDb().rpc("plan_for_owner", { p_owner: customer.id });
+    const [{ data: plan }, prefill] = await Promise.all([postDb().rpc("plan_for_owner", { p_owner: customer.id }), orderPrefill(customer.order.id)]);
     const { data, error } = await postDb()
       .from("businesses")
       .insert({
@@ -62,6 +63,8 @@ export async function createBusiness(input: z.input<typeof basics>): Promise<Act
           caption_language: defaultLanguages(d.languages).caption,
           design_language: defaultLanguages(d.languages).design,
           auto_publish: true,
+          // The WhatsApp number from the order form, ready for post previews (the owner switches them on).
+          whatsapp: { ...DEFAULT_SETTINGS.whatsapp, number: prefill?.whatsapp ?? null },
         } as unknown as Json,
       })
       .select("id")

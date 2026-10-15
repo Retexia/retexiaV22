@@ -80,8 +80,6 @@ export const FALLBACK_SETTINGS: SiteSettings = {
   auth_magic_link_enabled: true,
   maintenance_mode: false,
   maintenance_message: null,
-  payment_instructions: null,
-  online_payments: true,
   invoice_business_name: null,
   invoice_address: null,
   invoice_footer: null,

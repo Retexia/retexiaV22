@@ -7,31 +7,78 @@ import { toast } from "sonner";
 import { createBusiness } from "@/app/post/actions";
 import { CATEGORIES, COUNTRIES, LANGUAGES } from "@/lib/post/options";
 
-export function WelcomeForm() {
+type Initial = { name: string; category: string; languages: string[] };
+
+/**
+ * First visit: the business details from the order form, confirmed with one
+ * click ("Change details" opens the form). Next: connect Facebook & Instagram.
+ */
+export function WelcomeForm({ initial }: { initial: Initial | null }) {
   const router = useRouter();
-  const [v, setV] = useState({ name: "", category: "", country: "LK", timezone: "Asia/Colombo", languages: ["en"] as string[] });
+  const [v, setV] = useState({ name: initial?.name ?? "", category: initial?.category ?? "", country: "LK", timezone: "Asia/Colombo", languages: initial?.languages ?? ["en"] });
+  const [editing, setEditing] = useState(!initial);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const languageNames = v.languages.map((l) => LANGUAGES.find((x) => x.value === l)?.label ?? l).join(", ");
+
+  async function submit() {
+    setBusy(true);
+    const r = await createBusiness({ ...v, languages: v.languages as ("en" | "si" | "ta")[] });
+    setBusy(false);
+    if (!r.ok) {
+      setErrors(r.fieldErrors ?? {});
+      setEditing(true);
+      return toast.error(r.message);
+    }
+    router.push("/start");
+    router.refresh();
+  }
+
+  if (!editing) {
+    return (
+      <div className="flex flex-col gap-4">
+        <dl className="grid gap-3 rounded-lg border border-line bg-surface-sunk p-4 sm:grid-cols-2">
+          <div>
+            <dt className="type-small text-ink-muted">Business</dt>
+            <dd className="type-label text-ink">{v.name}</dd>
+          </div>
+          <div>
+            <dt className="type-small text-ink-muted">Type</dt>
+            <dd className="type-label text-ink">{v.category || "Not set"}</dd>
+          </div>
+          <div>
+            <dt className="type-small text-ink-muted">Posts in</dt>
+            <dd className="type-label text-ink">{languageNames}</dd>
+          </div>
+          <div>
+            <dt className="type-small text-ink-muted">Time zone</dt>
+            <dd className="type-label text-ink">Sri Lanka</dd>
+          </div>
+        </dl>
+        <div className="flex flex-wrap gap-3">
+          <Button size="lg" loading={busy} onClick={submit}>
+            Looks right, continue
+          </Button>
+          <Button size="lg" variant="ghost" onClick={() => setEditing(true)}>
+            Change details
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <form
       className="flex flex-col gap-4"
-      onSubmit={async (e) => {
+      onSubmit={(e) => {
         e.preventDefault();
-        setBusy(true);
-        const r = await createBusiness({ ...v, languages: v.languages as ("en" | "si" | "ta")[] });
-        setBusy(false);
-        if (!r.ok) {
-          setErrors(r.fieldErrors ?? {});
-          return toast.error(r.message);
-        }
-        router.push("/brand?welcome=1");
-        router.refresh();
+        submit();
       }}
     >
       <Field label="Business name" error={errors.name} required>
         <Input autoFocus value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} />
       </Field>
-      <Field label="What kind of business?" hint="Some types (health, alcohol, finance) always need your approval before posting." optionalLabel="Optional">
+      <Field label="What kind of business?" optionalLabel="Optional">
         <Select value={v.category} onChange={(e) => setV({ ...v, category: e.target.value })} options={CATEGORIES} placeholder="Choose one" />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">

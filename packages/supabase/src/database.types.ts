@@ -836,11 +836,9 @@ export type Database = {
           id: string
           package_id: string
           package_name: string | null
-          paddle_customer_id: string | null
-          paddle_subscription_id: string | null
-          paddle_transaction_id: string | null
           paused_at: string | null
           payhere_subscription_id: string | null
+          payment_method: string | null
           price_amount: number | null
           price_override_reason: string | null
           product_id: string
@@ -870,11 +868,9 @@ export type Database = {
           id?: string
           package_id: string
           package_name?: string | null
-          paddle_customer_id?: string | null
-          paddle_subscription_id?: string | null
-          paddle_transaction_id?: string | null
           paused_at?: string | null
           payhere_subscription_id?: string | null
+          payment_method?: string | null
           price_amount?: number | null
           price_override_reason?: string | null
           product_id: string
@@ -904,11 +900,9 @@ export type Database = {
           id?: string
           package_id?: string
           package_name?: string | null
-          paddle_customer_id?: string | null
-          paddle_subscription_id?: string | null
-          paddle_transaction_id?: string | null
           paused_at?: string | null
           payhere_subscription_id?: string | null
+          payment_method?: string | null
           price_amount?: number | null
           price_override_reason?: string | null
           product_id?: string
@@ -1018,9 +1012,6 @@ export type Database = {
           is_featured: boolean
           is_visible: boolean
           name: string
-          paddle_price_monthly: string | null
-          paddle_price_setup: string | null
-          paddle_price_yearly: string | null
           price_monthly: number
           price_note: string | null
           price_yearly: number | null
@@ -1043,9 +1034,6 @@ export type Database = {
           is_featured?: boolean
           is_visible?: boolean
           name: string
-          paddle_price_monthly?: string | null
-          paddle_price_setup?: string | null
-          paddle_price_yearly?: string | null
           price_monthly?: number
           price_note?: string | null
           price_yearly?: number | null
@@ -1068,9 +1056,6 @@ export type Database = {
           is_featured?: boolean
           is_visible?: boolean
           name?: string
-          paddle_price_monthly?: string | null
-          paddle_price_setup?: string | null
-          paddle_price_yearly?: string | null
           price_monthly?: number
           price_note?: string | null
           price_yearly?: number | null
@@ -1087,47 +1072,6 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      paddle_events: {
-        Row: {
-          error: string | null
-          event_type: string
-          id: string
-          occurred_at: string | null
-          order_id: string | null
-          payload: Json
-          processed_at: string | null
-          received_at: string
-        }
-        Insert: {
-          error?: string | null
-          event_type: string
-          id: string
-          occurred_at?: string | null
-          order_id?: string | null
-          payload?: Json
-          processed_at?: string | null
-          received_at?: string
-        }
-        Update: {
-          error?: string | null
-          event_type?: string
-          id?: string
-          occurred_at?: string | null
-          order_id?: string | null
-          payload?: Json
-          processed_at?: string | null
-          received_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "paddle_events_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -1279,6 +1223,39 @@ export type Database = {
           },
         ]
       }
+      payment_methods: {
+        Row: {
+          description: string | null
+          instructions: string | null
+          is_default: boolean
+          key: string
+          label: string
+          sort_order: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          description?: string | null
+          instructions?: string | null
+          is_default?: boolean
+          key: string
+          label: string
+          sort_order?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          description?: string | null
+          instructions?: string | null
+          is_default?: boolean
+          key?: string
+          label?: string
+          sort_order?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           amount: number
@@ -1297,6 +1274,7 @@ export type Database = {
           receipt_number: string | null
           recorded_by: string | null
           reference: string | null
+          review_note: string | null
           status: string
           updated_at: string
           user_id: string | null
@@ -1318,6 +1296,7 @@ export type Database = {
           receipt_number?: string | null
           recorded_by?: string | null
           reference?: string | null
+          review_note?: string | null
           status?: string
           updated_at?: string
           user_id?: string | null
@@ -1339,6 +1318,7 @@ export type Database = {
           receipt_number?: string | null
           recorded_by?: string | null
           reference?: string | null
+          review_note?: string | null
           status?: string
           updated_at?: string
           user_id?: string | null
@@ -1544,7 +1524,6 @@ export type Database = {
           is_visible: boolean
           name: string
           onboarding_form_id: string | null
-          paddle_product_id: string | null
           page_slug: string | null
           panel_live: boolean
           panel_url: string | null
@@ -1570,7 +1549,6 @@ export type Database = {
           is_visible?: boolean
           name: string
           onboarding_form_id?: string | null
-          paddle_product_id?: string | null
           page_slug?: string | null
           panel_live?: boolean
           panel_url?: string | null
@@ -1596,7 +1574,6 @@ export type Database = {
           is_visible?: boolean
           name?: string
           onboarding_form_id?: string | null
-          paddle_product_id?: string | null
           page_slug?: string | null
           panel_live?: boolean
           panel_url?: string | null
@@ -1742,8 +1719,6 @@ export type Database = {
           maintenance_message: string | null
           maintenance_mode: boolean
           og_image_url: string | null
-          online_payments: boolean
-          payment_instructions: string | null
           receipt_prefix: string
           seo_default_description: string | null
           seo_default_title: string | null
@@ -1783,8 +1758,6 @@ export type Database = {
           maintenance_message?: string | null
           maintenance_mode?: boolean
           og_image_url?: string | null
-          online_payments?: boolean
-          payment_instructions?: string | null
           receipt_prefix?: string
           seo_default_description?: string | null
           seo_default_title?: string | null
@@ -1824,8 +1797,6 @@ export type Database = {
           maintenance_message?: string | null
           maintenance_mode?: boolean
           og_image_url?: string | null
-          online_payments?: boolean
-          payment_instructions?: string | null
           receipt_prefix?: string
           seo_default_description?: string | null
           seo_default_title?: string | null
@@ -2110,21 +2081,22 @@ export type Database = {
       cancel_order: { Args: { p_order_id: string; p_reason?: string }; Returns: string }
       customer_cancelled_subscription: { Args: { p_order_id: string }; Returns: undefined }
       customer_order_service_fields: { Args: { p_order_id: string }; Returns: Json }
-      customer_set_paddle_transaction: { Args: { p_order_id: string; p_transaction_id: string }; Returns: undefined }
+      customer_set_payment_method: { Args: { p_order_id: string; p_method: string }; Returns: undefined }
       customer_submit_payment_proof: { Args: { p_order_id: string; p_proof_path: string; p_reference?: string; p_note?: string }; Returns: string }
       has_role: { Args: { roles: string[] }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       is_privileged: { Args: never; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
       request_role: { Args: never; Returns: string }
+      set_default_payment_method: { Args: { p_key: string }; Returns: undefined }
       staff_role: { Args: never; Returns: string }
       svc_apply_action_result: { Args: { p_run_id: string; p_status: string; p_service_data?: Json; p_order_status?: string; p_customer_note?: string; p_error?: string; p_response?: Json }; Returns: Json }
+      svc_gateway_payment: { Args: { p: Json }; Returns: Json }
+      svc_gateway_refund: { Args: { p: Json }; Returns: Json }
+      svc_gateway_subscription: { Args: { p: Json }; Returns: Json }
       svc_get_action_secret: { Args: { p_action_id: string }; Returns: Json }
       svc_get_integration_settings: { Args: never; Returns: Json }
       svc_get_order_secrets: { Args: { p_order_id: string; p_keys: string[] }; Returns: Json }
-      svc_paddle_payment: { Args: { p: Json }; Returns: Json }
-      svc_paddle_refund: { Args: { p: Json }; Returns: Json }
-      svc_paddle_subscription: { Args: { p: Json }; Returns: Json }
       svc_payhere_payment: { Args: { p: Json }; Returns: Json }
       svc_payhere_subscription: { Args: { p: Json }; Returns: Json }
     }

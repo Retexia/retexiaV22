@@ -210,8 +210,8 @@ export function PaymentsPanel({
     .filter((p) => p.status === "confirmed")
     .reduce((sum, p) => sum + (p.kind === "refund" ? -Number(p.amount) : Number(p.amount)), 0);
 
-  const act = async (id: string, status: "confirmed" | "refunded" | "failed") => {
-    const r = await setPaymentStatus({ id, status });
+  const act = async (id: string, status: "confirmed" | "refunded" | "failed", reason?: string) => {
+    const r = await setPaymentStatus({ id, status, reason });
     toast[r.ok ? "success" : "error"](r.message ?? "");
     router.refresh();
   };
@@ -276,7 +276,18 @@ export function PaymentsPanel({
                           },
                         ]
                       : []),
-                    ...(p.status === "pending" && canOperate ? [{ type: "button" as const, label: "Mark as failed", onSelect: () => act(p.id, "failed") }] : []),
+                    ...(p.status === "pending" && canOperate
+                      ? [
+                          {
+                            type: "button" as const,
+                            label: "Reject (tell the customer why)",
+                            onSelect: () => {
+                              const reason = window.prompt("Why can't you confirm it? The customer sees this (for example: the amount is different).");
+                              if (reason !== null) act(p.id, "failed", reason);
+                            },
+                          },
+                        ]
+                      : []),
                     ...(p.status === "confirmed" && canAdmin ? [{ type: "button" as const, label: "Mark as refunded", danger: true, onSelect: () => act(p.id, "refunded") }] : []),
                     ...(canAdmin ? [{ type: "button" as const, label: "Delete", danger: true, onSelect: () => setToDelete(p) }] : []),
                   ]}

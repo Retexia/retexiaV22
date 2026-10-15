@@ -1,6 +1,16 @@
-# Payments with PayHere
+# Payments: bank transfer and card (PayHere)
 
-Customers choose a plan, fill in the short form, and pay by card in PayHere's
+Customers choose a plan, fill in the short form, and pay on their request page by
+**bank transfer** or **card**. Admin → Settings → Payments sets which methods are
+Active, Coming soon or Off, the bank details, and the default (bank transfer).
+Customers can switch method while the request waits for payment.
+
+**Bank transfer:** the customer sees your bank details and their reference, pays,
+and uploads the slip. It appears in Admin → Payments → Proofs. **Confirm** it and
+the request moves on by itself (Setting up; Post goes Active, so its panel opens).
+**Reject** it with a reason and the customer is emailed and can send another slip.
+
+**Card:** the customer pays in PayHere's
 secure window. The plan renews automatically every month or year; the setup fee
 is added to the first payment. Everything after that is automatic:
 
@@ -34,7 +44,6 @@ Supabase → SQL Editor → run `supabase/migrations/0012_payhere.sql` (after 00
 
 | Variable | Value |
 | --- | --- |
-| `PAYMENT_PROVIDER` | `payhere` |
 | `NEXT_PUBLIC_PAYHERE_SANDBOX` | `true` (sandbox) / `false` (live) |
 | `PAYHERE_MERCHANT_ID` | Merchant ID |
 | `PAYHERE_MERCHANT_SECRET` | Merchant Secret of www.retexia.com |

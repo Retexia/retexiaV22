@@ -144,8 +144,8 @@ export function ProductDetailsForm({
             <Switch
               checked={v.pay_online}
               onCheckedChange={(c) => set("pay_online", c)}
-              label="Customers pay online with Paddle"
-              description="Off for anything Paddle doesn't allow (for example human services): those requests wait for your review and you record the payment."
+              label="Customers pay right after the form"
+              description="By bank transfer or card (Settings → Payments). Off: requests wait for your review; you approve them for payment."
             />
           </div>
         </div>

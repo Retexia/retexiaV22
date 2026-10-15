@@ -2,10 +2,9 @@ import { Alert, Badge, Card, formatDate } from "@retexia/ui";
 import { createAdminClient } from "@retexia/supabase/admin";
 import { adminUrl } from "@/lib/env";
 import { payhereDashboard, payhereSandbox } from "@/lib/payhere";
-import { OnlinePaymentsSwitch } from "./paddle-switch";
 
-/** Settings → Payments: PayHere status, setup and the latest notifications. */
-export async function PayhereCard({ onlinePayments }: { onlinePayments: boolean }) {
+/** Settings → Payments: PayHere (card payments) status, setup and the latest notifications. */
+export async function PayhereCard() {
   const { data: events } = await createAdminClient().from("payhere_events").select("id, message, received_at, processed_at, error").order("received_at", { ascending: false }).limit(10);
   const sandbox = payhereSandbox();
   const merchant = Boolean(process.env.PAYHERE_MERCHANT_ID && process.env.PAYHERE_MERCHANT_SECRET);
@@ -14,8 +13,8 @@ export async function PayhereCard({ onlinePayments }: { onlinePayments: boolean 
     <Card className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h2 className="type-h2 text-ink">PayHere</h2>
-          <p className="type-body text-ink-muted">Customers pay by card in PayHere&apos;s secure window; plans renew automatically. Each checkout uses the request&apos;s own price and setup fee.</p>
+          <h2 className="type-h2 text-ink">Card payments: PayHere</h2>
+          <p className="type-body text-ink-muted">When Card is Active, customers pay in PayHere&apos;s secure window and plans renew automatically. Each checkout uses the request&apos;s own price and setup fee.</p>
         </div>
         <span className="flex flex-wrap gap-2">
           <Badge tone={sandbox ? "warning" : "success"}>{sandbox ? "Sandbox (test)" : "Live"}</Badge>
@@ -23,8 +22,6 @@ export async function PayhereCard({ onlinePayments }: { onlinePayments: boolean 
           <Badge tone={api ? "success" : "warning"}>{api ? "API key set" : "No API key (cancel / check)"}</Badge>
         </span>
       </div>
-
-      <OnlinePaymentsSwitch initial={onlinePayments} />
 
       {!merchant ? (
         <Alert tone="warning" title="Finish the setup">

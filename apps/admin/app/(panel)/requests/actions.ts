@@ -233,17 +233,19 @@ export async function recordPayment(input: z.input<typeof paymentSchema>): Promi
   });
 }
 
-export async function setPaymentStatus(input: { id: string; status: "confirmed" | "refunded" | "failed" }): Promise<ActionResult> {
+/** Confirm, reject (failed, with a reason the customer sees) or refund a payment. Confirming a first payment starts the service. */
+export async function setPaymentStatus(input: { id: string; status: "confirmed" | "refunded" | "failed"; reason?: string }): Promise<ActionResult> {
   return run(async () => {
     const staff = await requireRole(input.status === "refunded" ? "manageSettings" : "operate");
-    const d = z.object({ id: uuid, status: z.enum(["confirmed", "refunded", "failed"]) }).parse(input);
-    const { data, error } = await staff.supabase.from("payments").update({ status: d.status }).eq("id", d.id).select("order_id").maybeSingle();
+    const d = z.object({ id: uuid, status: z.enum(["confirmed", "refunded", "failed"]), reason: z.string().trim().max(500).optional() }).parse(input);
+    const patch = d.status === "failed" ? { status: d.status, review_note: d.reason || null } : { status: d.status };
+    const { data, error } = await staff.supabase.from("payments").update(patch).eq("id", d.id).select("order_id").maybeSingle();
     if (error) return { ok: false, message: dbMessage(error) };
     if (!data) return { ok: false, message: "Payment not found." };
     revalidatePath("/payments");
     revalidatePath("/requests", "layout");
     sendQueuedEmails();
-    return { ok: true, message: d.status === "confirmed" ? "Payment confirmed" : d.status === "refunded" ? "Marked as refunded" : "Marked as failed" };
+    return { ok: true, message: d.status === "confirmed" ? "Payment confirmed" : d.status === "refunded" ? "Marked as refunded" : "Rejected: the customer was told why" };
   });
 }
 

@@ -53,8 +53,8 @@ export function PaymentsTable({
     };
   }, [query]);
 
-  const act = async (id: string, status: "confirmed" | "refunded" | "failed") => {
-    const r = await setPaymentStatus({ id, status });
+  const act = async (id: string, status: "confirmed" | "refunded" | "failed", reason?: string) => {
+    const r = await setPaymentStatus({ id, status, reason });
     toast[r.ok ? "success" : "error"](r.message ?? "");
     router.refresh();
   };
@@ -124,9 +124,21 @@ export function PaymentsTable({
                 </Button>
               ) : null}
               {p.status === "pending" && canOperate ? (
-                <Button size="sm" onClick={() => act(p.id, "confirmed")}>
-                  Confirm
-                </Button>
+                <>
+                  <Button size="sm" onClick={() => act(p.id, "confirmed")}>
+                    Confirm
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      const reason = window.prompt("Why can't you confirm it? The customer sees this (for example: the amount is different).");
+                      if (reason !== null) act(p.id, "failed", reason);
+                    }}
+                  >
+                    Reject
+                  </Button>
+                </>
               ) : null}
               {p.status === "confirmed" && canAdmin ? (
                 <Button size="sm" variant="ghost" onClick={() => window.confirm("Mark this payment as refunded?") && act(p.id, "refunded")}>

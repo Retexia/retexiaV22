@@ -46,8 +46,8 @@ export default async function CustomerViewPage({ params }: { params: Promise<{ r
           <Card className="flex flex-col gap-3">
             <h3 className="type-h2 text-ink">Pay to start</h3>
             <p className="type-body text-ink">
-              The customer sees a <strong>Pay now</strong> button that opens Paddle&apos;s checkout for <strong>{formatPrice(dueNow, currency)}</strong> (first period
-              {Number(order.setup_fee ?? 0) > 0 ? " and setup fee" : ""}, plus tax where it applies).
+              The customer chooses bank transfer or card and pays <strong>{formatPrice(dueNow, currency)}</strong> (first period
+              {Number(order.setup_fee ?? 0) > 0 ? " and setup fee" : ""}): by bank transfer they see your bank details and upload the slip; by card they pay in PayHere&apos;s window.
             </p>
           </Card>
         ) : null}

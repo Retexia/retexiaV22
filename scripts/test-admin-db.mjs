@@ -10,8 +10,8 @@ const { db, ok, expectError, as, summary } = await createHarness();
 await db.exec(migration);
 await db.exec(seed);
 await db.exec(migration); // re-runnable
-// Admin workflow checks use the review flow (online payment off); Paddle is tested in test-products-db.mjs.
-await db.exec("update public.site_settings set online_payments = false where id = 1");
+// Admin workflow checks use the review flow (products reviewed before payment); paying right after the form is tested in test-products-db.mjs.
+await db.exec("update public.products set pay_online = false");
 console.log("Admin migration applied twice");
 
 const year = new Date().getFullYear();
@@ -173,8 +173,7 @@ await expectError(
   "only admins can refund",
   /Only an admin/,
 );
-await as("authenticated", support, `select public.admin_change_order_status($1, 'setting_up', 'Payment received')`, [order.id]);
-ok((await q(`select status from public.orders where id = $1`, [order.id]))[0].status === "setting_up", "Start setup allowed after payment");
+ok((await q(`select status from public.orders where id = $1`, [order.id]))[0].status === "setting_up", "confirming the payment starts setup by itself");
 
 // --- Setup fields and secrets -----------------------------------------------
 console.log("Setup fields and secrets");

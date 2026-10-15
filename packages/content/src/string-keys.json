@@ -1110,6 +1110,16 @@
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
   },
   {
+    "key": "order.bank.reference",
+    "fallback": "Use {ref} as the payment reference.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.bank.title",
+    "fallback": "Transfer {total} to",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
     "key": "order.billing",
     "fallback": "Billing",
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
@@ -1160,6 +1170,26 @@
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
   },
   {
+    "key": "order.method.changed",
+    "fallback": "Payment method changed.",
+    "file": "apps/web/app/(site)/account/actions.ts"
+  },
+  {
+    "key": "order.method.legend",
+    "fallback": "How would you like to pay?",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.method.soon",
+    "fallback": "Coming soon",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.method.unavailable",
+    "fallback": "That payment method isn't available right now.",
+    "file": "apps/web/app/(site)/account/actions.ts"
+  },
+  {
     "key": "order.none",
     "fallback": "None",
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
@@ -1172,96 +1202,6 @@
   {
     "key": "order.package",
     "fallback": "Package",
-    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
-    "key": "order.paddle.already_paid",
-    "fallback": "This request is already paid.",
-    "file": "apps/web/app/(site)/account/billing-actions.ts"
-  },
-  {
-    "key": "order.paddle.by_team",
-    "fallback": "We'll send you a secure payment link for this request by email.",
-    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
-    "key": "order.paddle.confirming",
-    "fallback": "Thank you! We're confirming it with Paddle. This page updates by itself in a few seconds.",
-    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
-    "key": "order.paddle.currency",
-    "fallback": "This request was priced in {currency}, which our payment partner doesn't accept. Message us and we'll update it.",
-    "file": "apps/web/app/(site)/account/billing-actions.ts"
-  },
-  {
-    "key": "order.paddle.failed",
-    "fallback": "The checkout couldn't open. Check your connection and try again.",
-    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
-    "key": "order.paddle.manage",
-    "fallback": "Manage billing",
-    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
-    "key": "order.paddle.monthly",
-    "fallback": "monthly",
-    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
-    "key": "order.paddle.mor",
-    "fallback": "Our order process is conducted by our online reseller Paddle.com, the Merchant of Record for all our orders.",
-    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
-    "key": "order.paddle.opening",
-    "fallback": "Opening checkout…",
-    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
-    "key": "order.paddle.pay",
-    "fallback": "Pay now",
-    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
-    "key": "order.paddle.portal_failed",
-    "fallback": "We couldn't open billing right now. Please try again shortly.",
-    "file": "apps/web/app/(site)/account/billing-actions.ts"
-  },
-  {
-    "key": "order.paddle.received",
-    "fallback": "Payment received",
-    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
-    "key": "order.paddle.secure",
-    "fallback": "Secure checkout by Paddle",
-    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
-    "key": "order.paddle.soon",
-    "fallback": "Online payment opens in a moment. Please refresh this page shortly, or message us if it doesn't appear.",
-    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
-    "key": "order.paddle.title",
-    "fallback": "Pay to start",
-    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
-    "key": "order.paddle.unavailable",
-    "fallback": "Online payment isn't available right now. Please try again shortly or message us.",
-    "file": "apps/web/app/(site)/account/billing-actions.ts"
-  },
-  {
-    "key": "order.paddle.with_setup",
-    "fallback": ", with the one-time setup fee on the first payment",
-    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
-    "key": "order.paddle.yearly",
-    "fallback": "yearly",
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
   },
   {
@@ -1288,6 +1228,16 @@
     "key": "order.pay.already_paid",
     "fallback": "This request is already paid.",
     "file": "apps/web/app/(site)/account/payhere-actions.ts"
+  },
+  {
+    "key": "order.pay.amount",
+    "fallback": "{plan}: {total} to start{setup}, then {price} {cycle}.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.pay.by_team",
+    "fallback": "We'll message you with how to pay for this request.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
   },
   {
     "key": "order.pay.cancel",
@@ -1325,6 +1275,11 @@
     "file": "apps/web/app/(site)/account/payhere-actions.ts"
   },
   {
+    "key": "order.pay.card_unavailable",
+    "fallback": "Card payment isn't available right now. Please choose bank transfer, or message us.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
     "key": "order.pay.confirming",
     "fallback": "Thank you! We're confirming it with PayHere. This page updates by itself in a few seconds.",
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
@@ -1332,6 +1287,11 @@
   {
     "key": "order.pay.failed",
     "fallback": "The payment window couldn't open. Check your connection and try again.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.pay.monthly",
+    "fallback": "a month",
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
   },
   {
@@ -1360,13 +1320,33 @@
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
   },
   {
+    "key": "order.pay.title",
+    "fallback": "Pay to start",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
     "key": "order.pay.unavailable",
     "fallback": "Online payment isn't available right now. Please try again shortly or message us.",
     "file": "apps/web/app/(site)/account/payhere-actions.ts"
   },
   {
+    "key": "order.pay.with_setup",
+    "fallback": " (setup fee and first period)",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.pay.yearly",
+    "fallback": "a year",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
     "key": "order.payment.confirmed",
     "fallback": "Paid",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.payment.not_confirmed",
+    "fallback": "Not confirmed",
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
   },
   {
@@ -1413,6 +1393,101 @@
     "key": "order.price",
     "fallback": "Price",
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.proof.change",
+    "fallback": "Choose another file",
+    "file": "apps/web/components/account/payment-proof-form.tsx"
+  },
+  {
+    "key": "order.proof.checking",
+    "fallback": "Thank you. We are checking your payment from {date} and will confirm it soon. Your panel opens as soon as it's confirmed.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.proof.choose",
+    "fallback": "Choose a photo or PDF of your payment slip.",
+    "file": "apps/web/components/account/payment-proof-form.tsx"
+  },
+  {
+    "key": "order.proof.done",
+    "fallback": "Thank you. We will check your payment and confirm it soon.",
+    "file": "apps/web/app/(site)/account/actions.ts"
+  },
+  {
+    "key": "order.proof.file",
+    "fallback": "Payment slip or screenshot",
+    "file": "apps/web/components/account/payment-proof-form.tsx"
+  },
+  {
+    "key": "order.proof.hint",
+    "fallback": "JPG, PNG, WebP, HEIC or PDF, up to 5 MB.",
+    "file": "apps/web/components/account/payment-proof-form.tsx"
+  },
+  {
+    "key": "order.proof.none",
+    "fallback": "No file chosen",
+    "file": "apps/web/components/account/payment-proof-form.tsx"
+  },
+  {
+    "key": "order.proof.not_waiting",
+    "fallback": "This request is not waiting for a payment any more.",
+    "file": "apps/web/app/(site)/account/actions.ts"
+  },
+  {
+    "key": "order.proof.note",
+    "fallback": "Note for us",
+    "file": "apps/web/components/account/payment-proof-form.tsx"
+  },
+  {
+    "key": "order.proof.pick",
+    "fallback": "Choose file",
+    "file": "apps/web/components/account/payment-proof-form.tsx"
+  },
+  {
+    "key": "order.proof.received",
+    "fallback": "Payment slip received",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.proof.reference",
+    "fallback": "Payment reference",
+    "file": "apps/web/components/account/payment-proof-form.tsx"
+  },
+  {
+    "key": "order.proof.rejected",
+    "fallback": "We couldn't confirm your last slip",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.proof.rejected_text",
+    "fallback": "Please check the amount and reference, and send the correct slip.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.proof.size",
+    "fallback": "The file must be 5 MB or smaller.",
+    "file": "apps/web/app/(site)/account/actions.ts"
+  },
+  {
+    "key": "order.proof.submit",
+    "fallback": "Send payment proof",
+    "file": "apps/web/components/account/payment-proof-form.tsx"
+  },
+  {
+    "key": "order.proof.title",
+    "fallback": "Paid? Send us the slip",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.proof.too_many",
+    "fallback": "Too many uploads. Please try again later.",
+    "file": "apps/web/app/(site)/account/actions.ts"
+  },
+  {
+    "key": "order.proof.type",
+    "fallback": "Upload a photo (JPG, PNG, WebP, HEIC) or a PDF.",
+    "file": "apps/web/app/(site)/account/actions.ts"
   },
   {
     "key": "order.ref",
@@ -1493,26 +1568,6 @@
     "key": "order.whatsapp_message",
     "fallback": "Hi, I have a question about my request {ref}.",
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
-    "key": "pay.failed",
-    "fallback": "The checkout couldn't load. Check your connection and refresh the page.",
-    "file": "apps/web/app/(site)/pay/page.tsx"
-  },
-  {
-    "key": "pay.missing",
-    "fallback": "This payment link is incomplete. Open your request in your account and press Pay now.",
-    "file": "apps/web/app/(site)/pay/page.tsx"
-  },
-  {
-    "key": "pay.opening",
-    "fallback": "Opening Paddle's secure checkout…",
-    "file": "apps/web/app/(site)/pay/page.tsx"
-  },
-  {
-    "key": "pay.title",
-    "fallback": "Secure checkout",
-    "file": "apps/web/app/(site)/pay/page.tsx"
   },
   {
     "key": "pricing.billing",
@@ -1645,8 +1700,8 @@
     "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
   },
   {
-    "key": "receipt.method.paddle",
-    "fallback": "Online (Paddle)",
+    "key": "receipt.method.card",
+    "fallback": "Card (PayHere)",
     "file": "apps/web/app/(print)/account/receipts/[id]/page.tsx"
   },
   {
