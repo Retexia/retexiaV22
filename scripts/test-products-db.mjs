@@ -264,12 +264,25 @@ await q(`update post.posts set updated_at = now() - interval '30 minutes' where 
 await q(`alter table post.posts enable trigger posts_updated`);
 ok((await q(`select post.recover_publishing() n`))[0].n >= 1 && (await q(`select status::text s from post.posts where id = $1`, [stuck]))[0].s === "approved", "a publish that never came back is tried again");
 
+console.log("Connect Facebook & Instagram (0019)");
+await q(`update post.businesses set plan = 'starter' where id = $1`, [biz]);
+await q(`select * from post.admin_connect_page($1, 'page1', 'T1', 'ig1', 'Amaya Cakes', 'amayacakes')`, [biz]);
+await q(`select * from post.admin_connect_page($1, 'page2', 'T2', 'ig2', 'Second Page', 'second')`, [biz]);
+const before = (await q(`select count(*)::int n from post.social_accounts where business_id = $1 and enabled and status = 'connected'`, [biz]))[0].n;
+const off = (await q(`select post.enforce_account_limit($1) n`, [biz]))[0].n;
+const on = await q(`select external_id from post.social_accounts where business_id = $1 and enabled and status = 'connected' order by external_id`, [biz]);
+ok(before === 4 && off === 2 && on.length === 2, "connecting more accounts than the plan allows switches the extra ones off");
+ok(on.map((r) => r.external_id).join(",") === "ig2,page2", "the accounts connected last stay on");
+ok((await q(`select post.enforce_account_limit($1) n`, [biz]))[0].n === 0, "running it again changes nothing");
+await expectError(() => as("authenticated", amaya, `select post.enforce_account_limit($1)`, [biz]), "customers can't run it", /permission denied/);
+ok((await q(`select has_function_privilege('post_n8n', 'post.admin_connect_page(uuid, text, text, text, text, text)', 'execute') ok`))[0].ok, "the n8n worker may save connected Pages");
+
 console.log("Paddle (0009)");
 const lingoP = (await q(`select id from public.products where slug = 'lingo'`))[0].id;
 const corePk = (await q(`select id from public.packages where product_id = $1 and slug = 'core'`, [lingoP]))[0].id;
 await q(`update public.packages set paddle_price_monthly = 'pri_core_m', paddle_price_setup = 'pri_core_setup' where id = $1`, [corePk]);
 const paid = (await as("authenticated", kasun, `insert into public.orders (product_id, package_id, billing_cycle, answers) values ($1, $2, 'monthly', '[]') returning id, status, currency`, [lingoP, corePk])).rows[0];
-ok(paid.status === "awaiting_payment" && paid.currency === "USD", "with online payments on, a new request waits for payment, in USD (no Paddle catalog needed)");
+ok(paid.status === "awaiting_payment" && paid.currency === "LKR", "with online payments on, a new request waits for payment, in LKR");
 const webP = (await q(`insert into public.products (slug, code, name, short_name, status, pay_online) values ('custom-dev', 'CDV', 'Custom development', 'Custom', 'live', false) returning id`))[0].id;
 const webPk = (await q(`insert into public.packages (product_id, slug, name, price_monthly, is_active) values ($1, 'basic', 'Basic', 100, true) returning id`, [webP]))[0].id;
 const manual = (await as("authenticated", kasun, `insert into public.orders (product_id, package_id, billing_cycle, answers) values ($1, $2, 'monthly', '[]') returning status`, [webP, webPk])).rows[0];
@@ -297,15 +310,16 @@ await q(`update public.packages set paddle_price_monthly = 'pri_starter_m' where
 const postOrder = (await as("authenticated", kasun, `insert into public.orders (product_id, package_id, billing_cycle, answers) values ($1, $2, 'monthly', '[]') returning id`, [postP, starter])).rows[0];
 await q(`select public.svc_paddle_payment($1::jsonb)`, [JSON.stringify({ order_id: postOrder.id, transaction_id: "txn_3", subscription_id: "sub_3", amount: "19.00", currency: "USD", kind: "subscription", period_end: "2026-11-09T00:00:00Z", origin: "web" })]);
 ok((await q(`select status from public.orders where id = $1`, [postOrder.id]))[0].status === "active", "a paid Post request goes straight to active");
-ok(Number((await q(`select price_monthly from public.packages where id = $1`, [starter]))[0].price_monthly) === 19, "Post Starter costs US$19 a month");
+ok(Number((await q(`select price_monthly from public.packages where id = $1`, [starter]))[0].price_monthly) === 5900, "Post Starter costs LKR 5,900 a month");
 
 console.log("PayHere (0012)");
-const phOrder = (await as("authenticated", kasun, `insert into public.orders (product_id, package_id, billing_cycle, answers) values ($1, $2, 'monthly', '[]') returning id, ref`, [lingoP, corePk])).rows[0];
+const phOrder = (await as("authenticated", kasun, `insert into public.orders (product_id, package_id, billing_cycle, answers) values ($1, $2, 'monthly', '[]') returning id, ref, currency`, [lingoP, corePk])).rows[0];
+ok(phOrder.currency === "LKR", "PayHere requests are priced in LKR");
 await expectError(() => as("authenticated", kasun, `select public.svc_payhere_payment('{}'::jsonb)`), "customers can't record PayHere payments", /permission denied/);
-await q(`select public.svc_payhere_payment($1::jsonb)`, [JSON.stringify({ order_id: phOrder.id, transaction_id: "ph_1001", subscription_id: "420075000001", amount: "64.00", currency: "USD", kind: "setup_fee", origin: "web", period_end: "2026-11-09T00:00:00Z" })]);
+await q(`select public.svc_payhere_payment($1::jsonb)`, [JSON.stringify({ order_id: phOrder.id, transaction_id: "ph_1001", subscription_id: "420075000001", amount: "16800.00", currency: "LKR", kind: "setup_fee", origin: "web", period_end: "2026-11-09T00:00:00Z" })]);
 const ph = (await q(`select status, payhere_subscription_id from public.orders where id = $1`, [phOrder.id]))[0];
 ok(ph.status === "setting_up" && ph.payhere_subscription_id === "420075000001", "a PayHere payment moves the request on and keeps its subscription");
-await q(`select public.svc_payhere_payment($1::jsonb)`, [JSON.stringify({ subscription_id: "420075000001", transaction_id: "ph_1002", amount: "25.00", currency: "USD", kind: "subscription", origin: "subscription_recurring", period_end: "2026-12-09T00:00:00Z" })]);
+await q(`select public.svc_payhere_payment($1::jsonb)`, [JSON.stringify({ subscription_id: "420075000001", transaction_id: "ph_1002", amount: "6900.00", currency: "LKR", kind: "subscription", origin: "subscription_recurring", period_end: "2026-12-09T00:00:00Z" })]);
 ok((await q(`select count(*)::int n from public.payments where order_id = $1 and status = 'confirmed'`, [phOrder.id]))[0].n === 2, "PayHere renewals are matched by subscription");
 await q(`select public.svc_payhere_subscription($1::jsonb)`, [JSON.stringify({ subscription_id: "420075000001", status: "canceled" })]);
 ok((await q(`select status from public.orders where id = $1`, [phOrder.id]))[0].status === "cancelled", "a stopped PayHere subscription cancels the request");

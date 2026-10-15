@@ -194,7 +194,7 @@ export function PostCard({ post, autoPublish, defaults, compact = false }: { pos
               Edit on Facebook
             </Button>
           ) : null}
-          {post.status === "failed" || (post.status === "published" && post.publications.some((x) => x.status === "failed")) ? (
+          {post.status === "failed" ? (
             <Button size="sm" loading={busy === "retry"} icon={<RotateCcw aria-hidden size={14} strokeWidth={1.5} />} onClick={() => act("retry", () => retryPost({ id: post.id }))}>
               Retry now
             </Button>

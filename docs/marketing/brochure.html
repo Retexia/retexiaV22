@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Retexia Post</title>
+<style>
+  @page { size: A4; margin: 0; }
+  :root {
+    --ink: #14112b; --muted: #5d5a73; --line: #e7e4f2; --soft: #f5f3fd;
+    --brand: #5235d8; --brand-2: #7b5cff; --brand-ink: #ffffff; --green: #13a35a; --green-soft: #e7f7ee;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #fff; }
+  body { font-family: -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif; color: var(--ink); -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 10.5pt; line-height: 1.45; }
+  .si { font-family: "Sinhala Sangam MN", "Sinhala MN", sans-serif; }
+  .page { width: 210mm; height: 297mm; padding: 16mm 16mm 14mm; position: relative; overflow: hidden; page-break-after: always; display: flex; flex-direction: column; }
+  .page:last-child { page-break-after: auto; }
+
+  .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8mm; }
+  .logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13pt; letter-spacing: -0.2px; }
+  .mark { width: 30px; height: 30px; border-radius: 8px; background: var(--brand); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 15pt; line-height: 1; padding-bottom: 3px; }
+  .tag { font-size: 8pt; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--brand); background: var(--soft); padding: 5px 10px; border-radius: 999px; }
+
+  h1 { font-size: 34pt; line-height: 1.04; letter-spacing: -1.2px; font-weight: 800; }
+  h1 em { font-style: normal; color: var(--brand); }
+  h2 { font-size: 19pt; line-height: 1.15; letter-spacing: -0.6px; font-weight: 800; margin-bottom: 3.5mm; }
+  h3 { font-size: 11.5pt; font-weight: 700; margin-bottom: 1.5mm; }
+  .lead { font-size: 12.5pt; color: var(--muted); max-width: 150mm; margin-top: 5mm; }
+  .si-line { font-size: 15pt; color: var(--brand); margin-top: 4mm; font-weight: 600; }
+  .eyebrow { font-size: 8.5pt; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--brand); margin-bottom: 3mm; }
+
+  .designs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5mm; margin-top: 9mm; }
+  .designs figure { border-radius: 12px; overflow: hidden; box-shadow: 0 8px 22px rgba(40, 20, 120, .16); background: #fff; }
+  .designs img { display: block; width: 100%; height: auto; }
+  .caption { font-size: 8.5pt; color: var(--muted); text-align: center; margin-top: 3mm; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; margin-top: 8mm; }
+  .stat { background: var(--soft); border-radius: 12px; padding: 4mm 4.5mm; }
+  .stat b { display: block; font-size: 15pt; letter-spacing: -0.4px; color: var(--brand); line-height: 1.15; }
+  .stat span { font-size: 9pt; color: var(--muted); }
+
+  .who { margin-top: 8mm; }
+  .who p { font-size: 9pt; color: var(--muted); margin-bottom: 2.5mm; }
+  .chips { display: flex; flex-wrap: wrap; gap: 2mm; }
+  .chips span { border: 1px solid var(--line); border-radius: 999px; padding: 1.4mm 3.6mm; font-size: 9pt; font-weight: 600; }
+  .cta { margin-top: auto; background: linear-gradient(120deg, var(--brand), var(--brand-2)); color: #fff; border-radius: 16px; padding: 6mm 7mm; display: flex; align-items: center; justify-content: space-between; gap: 6mm; }
+  .cta b { font-size: 14pt; display: block; letter-spacing: -0.3px; }
+  .cta span { font-size: 9.5pt; opacity: .9; }
+  .cta .pill { background: #fff; color: var(--brand); font-weight: 800; border-radius: 999px; padding: 3mm 5.5mm; font-size: 12pt; white-space: nowrap; }
+
+  .pain { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; margin-bottom: 7mm; }
+  .pain div { border: 1px solid var(--line); border-radius: 12px; padding: 3.5mm 4mm; font-size: 9.8pt; color: var(--muted); }
+  .pain b { color: var(--ink); display: block; margin-bottom: 1mm; font-size: 10.5pt; }
+
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; margin-bottom: 7mm; }
+  .step { background: var(--soft); border-radius: 14px; padding: 4mm 4.5mm; }
+  .num { width: 26px; height: 26px; border-radius: 50%; background: var(--brand); color: #fff; font-weight: 800; display: grid; place-items: center; margin-bottom: 3mm; font-size: 10.5pt; }
+  .step p { font-size: 9.6pt; color: var(--muted); }
+
+  .benefits { display: grid; grid-template-columns: repeat(2, 1fr); gap: 3.5mm 7mm; }
+  .benefit { display: flex; gap: 3.5mm; }
+  .tick { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--green-soft); color: var(--green); display: grid; place-items: center; font-weight: 900; font-size: 10pt; margin-top: 1px; }
+  .benefit p { font-size: 9.6pt; color: var(--muted); }
+
+  .setup { margin-top: 6mm; margin-bottom: 6mm; border: 1.5px dashed #c9bff5; border-radius: 14px; padding: 4.5mm 5.5mm; display: flex; gap: 4mm; align-items: center; }
+  .setup .big { font-size: 22pt; }
+  .setup p { font-size: 9.8pt; color: var(--muted); }
+  .setup b { color: var(--ink); }
+
+  .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; align-items: stretch; }
+  .plan { border: 1px solid var(--line); border-radius: 16px; padding: 5.5mm 5mm; display: flex; flex-direction: column; position: relative; }
+  .plan.best { border: 2px solid var(--brand); box-shadow: 0 10px 26px rgba(82, 53, 216, .18); }
+  .badge { position: absolute; top: -3.2mm; left: 50%; transform: translateX(-50%); background: var(--brand); color: #fff; font-size: 7.5pt; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; padding: 1.4mm 3.5mm; border-radius: 999px; white-space: nowrap; }
+  .plan .name { font-weight: 800; font-size: 12.5pt; }
+  .plan .for { font-size: 8.8pt; color: var(--muted); min-height: 9mm; }
+  .price { font-size: 19pt; font-weight: 800; letter-spacing: -0.8px; margin-top: 2mm; line-height: 1.1; white-space: nowrap; }
+  .price small { font-size: 8.5pt; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+  .perday { display: inline-block; margin: 1.5mm 0 3.5mm; font-size: 8.6pt; font-weight: 700; color: var(--green); background: var(--green-soft); border-radius: 999px; padding: 1mm 3mm; }
+  .plan ul { list-style: none; display: grid; gap: 1.8mm; font-size: 9pt; }
+  .plan li { padding-left: 4.5mm; position: relative; }
+  .plan li::before { content: "✓"; position: absolute; left: 0; color: var(--brand); font-weight: 900; }
+  .plan li.muted { color: #a3a0b5; }
+  .plan li.muted::before { content: "–"; color: #c4c1d4; }
+
+  .included { margin-top: 5mm; background: var(--soft); border-radius: 12px; padding: 3.5mm 5mm; font-size: 9pt; color: var(--muted); }
+  .included b { color: var(--ink); }
+
+  .faq { display: grid; grid-template-columns: repeat(2, 1fr); gap: 3.5mm 7mm; margin-top: 7mm; }
+  .faq h3 { font-size: 10pt; margin-bottom: 0.8mm; }
+  .faq p { font-size: 9pt; color: var(--muted); }
+
+  .foot { margin-top: 4mm; font-size: 8pt; color: #9a97ad; display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+
+<!-- 1 · Cover -->
+<section class="page">
+  <div class="top">
+    <div class="logo"><div class="mark">r.</div> Retexia Post</div>
+    <div class="tag">Facebook &amp; Instagram, on autopilot</div>
+  </div>
+
+  <h1>Your page posts every day.<br><em>You don't have to.</em></h1>
+  <p class="lead">Retexia Post plans, designs and publishes your Facebook and Instagram posts and stories every day, in your brand and in your customers' language. You just run your business.</p>
+
+  <div class="designs">
+    <figure><img src="d1.png" alt=""></figure>
+    <figure><img src="d2.png" alt=""></figure>
+    <figure><img src="d3.png" alt=""></figure>
+  </div>
+  <p class="caption">Real designs made by Retexia Post, with the text in Sinhala, ready to publish.</p>
+
+  <div class="stats">
+    <div class="stat"><b>Every day</b><span>New posts and stories, published at the times you choose</span></div>
+    <div class="stat"><b>5 languages</b><span>Sinhala, Sinhala + English, Singlish, English, Tamil</span></div>
+    <div class="stat"><b>Under LKR 200</b><span>a day on the Starter plan, for a page that never goes quiet</span></div>
+  </div>
+
+  <div class="who">
+    <p>Made for Sri Lankan businesses that sell on Facebook and Instagram:</p>
+    <div class="chips"><span>Shops &amp; boutiques</span><span>Clothing</span><span>Bakeries &amp; cakes</span><span>Restaurants &amp; cafés</span><span>Salons &amp; beauty</span><span>Online sellers</span><span>Health &amp; wellness</span><span>Services</span></div>
+  </div>
+
+  <div class="cta">
+    <div><b>Start this week.</b><span>Send “POST” on WhatsApp and we set everything up for you.</span></div>
+    <div class="pill">077 057 0109</div>
+  </div>
+</section>
+
+<!-- 2 · Problem, how it works, benefits -->
+<section class="page">
+  <div class="top">
+    <div class="logo"><div class="mark">r.</div> Retexia Post</div>
+    <div class="tag">How it works</div>
+  </div>
+
+  <div class="eyebrow">Sound familiar?</div>
+  <h2>Posting every day is a full-time job.</h2>
+  <div class="pain">
+    <div><b>No time</b>You know you should post daily, but the shop, the orders and the customers come first.</div>
+    <div><b>No designer</b>Good designs take hours, or cost money every single month.</div>
+    <div><b>A quiet page</b>When your page goes quiet, customers stop seeing you, and buy from the shop that posted today.</div>
+  </div>
+
+  <div class="eyebrow">The fix</div>
+  <h2>Set it up once. Post forever.</h2>
+  <div class="steps">
+    <div class="step"><div class="num">1</div><h3>Tell us about you</h3><p>Your products and prices, logo, colours and the way you talk to customers. Once.</p></div>
+    <div class="step"><div class="num">2</div><h3>Your daily playlist</h3><p>Every day, tomorrow's posts and stories are planned. Change any idea or time if you like.</p></div>
+    <div class="step"><div class="num">3</div><h3>Designed and published</h3><p>Everything is designed overnight and goes out on time to Facebook and Instagram.</p></div>
+  </div>
+
+  <div class="eyebrow">What you get</div>
+  <div class="benefits">
+    <div class="benefit"><div class="tick">✓</div><div><h3>Designs in your brand</h3><p>Your logo, your colours, your style. Posts that look like you, not like a template.</p></div></div>
+    <div class="benefit"><div class="tick">✓</div><div><h3>Your customers' language</h3><p>Choose the caption language and the language on the picture separately. Sinhala, Tamil, English or Singlish.</p></div></div>
+    <div class="benefit"><div class="tick">✓</div><div><h3>Never invents a price</h3><p>Only prices and offers you saved are used. A number it can't check is left out.</p></div></div>
+    <div class="benefit"><div class="tick">✓</div><div><h3>Every post on your WhatsApp</h3><p>See each post with its caption before it goes out, and a note when it is live.</p></div></div>
+    <div class="benefit"><div class="tick">✓</div><div><h3>You stay in control</h3><p>Change the idea, redo the design, move the time, or delete it, even after it is published.</p></div></div>
+    <div class="benefit"><div class="tick">✓</div><div><h3>Push your offers</h3><p>Add a weekend offer or a special day, and your posts promote it first.</p></div></div>
+  </div>
+
+  <div class="setup">
+    <div class="big">🤝</div>
+    <p><b>We set it up for you.</b> We connect your Facebook Page and Instagram, and help you switch Instagram to a business account. No technical steps on your side.</p>
+  </div>
+
+  <div class="cta">
+    <div><b>Your page, busy from tomorrow.</b><span>Message us and we get you started.</span></div>
+    <div class="pill">077 057 0109</div>
+  </div>
+</section>
+
+<!-- 3 · Plans, FAQ, CTA -->
+<section class="page">
+  <div class="top">
+    <div class="logo"><div class="mark">r.</div> Retexia Post</div>
+    <div class="tag">Plans</div>
+  </div>
+
+  <div class="eyebrow">Simple monthly plans</div>
+  <h2>No designer. No agency. One simple price.</h2>
+
+  <div class="plans" style="margin-top: 5mm;">
+    <div class="plan">
+      <div class="name">Starter</div>
+      <div class="for">Your page, posting every day</div>
+      <div class="price">LKR 5,900 <small>/month</small></div>
+      <div><span class="perday">Under LKR 200 a day</span></div>
+      <ul>
+        <li>2 posts + 2 stories a day</li>
+        <li>130 AI designs a month</li>
+        <li>Facebook Page + Instagram</li>
+        <li>All 5 languages</li>
+        <li>Offers and special days</li>
+        <li>60 redos a month</li>
+        <li class="muted">Week plan</li>
+      </ul>
+    </div>
+    <div class="plan best">
+      <div class="badge">Most popular</div>
+      <div class="name">Growth</div>
+      <div class="for">More posts, more control</div>
+      <div class="price">LKR 14,900 <small>/month</small></div>
+      <div><span class="perday">About LKR 500 a day</span></div>
+      <ul>
+        <li>3 posts + 3 stories a day</li>
+        <li>200 AI designs a month</li>
+        <li>Up to 4 accounts</li>
+        <li>Everything in Starter</li>
+        <li>Week plan: choose what goes out each day</li>
+        <li>200 redos a month</li>
+        <li>Priority WhatsApp support</li>
+      </ul>
+    </div>
+    <div class="plan">
+      <div class="name">Pro</div>
+      <div class="for">For several brands or branches</div>
+      <div class="price">LKR 29,900 <small>/month</small></div>
+      <div><span class="perday">Under LKR 1,000 a day</span></div>
+      <ul>
+        <li>5 posts + 5 stories a day</li>
+        <li>330 AI designs a month</li>
+        <li>Up to 3 businesses or branches</li>
+        <li>Up to 10 accounts</li>
+        <li>Everything in Growth</li>
+        <li>500 redos a month</li>
+        <li>Same-day support</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="included"><b>Every plan:</b> automatic publishing, your brand on every design, WhatsApp previews, edit or delete any post, and setup by our team. <b>Pay yearly and get 2 months free.</b> Cancel any time; your posts stay on your page.</div>
+
+  <div class="faq">
+    <div><h3>Do I have to do anything every day?</h3><p>No. Posts go out by themselves. Check them on WhatsApp if you like, or turn on approval and nothing goes out until you say yes.</p></div>
+    <div><h3>What do I need to start?</h3><p>A Facebook Page. For Instagram, a business account linked to that Page. We connect both for you.</p></div>
+    <div><h3>Can it get my prices wrong?</h3><p>It only uses the prices and offers you give us. If a number can't be checked, it is left off the design.</p></div>
+    <div><h3>What if I want my own photos?</h3><p>Upload them to your photo library. You can also redo any design or change the idea behind it.</p></div>
+  </div>
+
+  <div class="cta" style="margin-top: 8mm;">
+    <div><b>Ready? Send “POST” on WhatsApp.</b><span>We set up your page, your brand and your first week of posts.</span></div>
+    <div class="pill">077 057 0109</div>
+  </div>
+  <div class="foot"><span>Retexia · retexia.com/post</span><span>Prices in LKR. AI designs reset every month.</span></div>
+</section>
+
+</body>
+</html>

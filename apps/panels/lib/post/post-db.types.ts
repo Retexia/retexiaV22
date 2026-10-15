@@ -204,6 +204,11 @@ export type PostDatabase = {
       bump_usage: { Args: { p_business: string; p_field: string; p_amount?: number; p_cost?: number }; Returns: undefined };
       claim_due_posts: { Args: { p_limit?: number }; Returns: PostRow[] };
       recover_publishing: { Args: Record<string, never>; Returns: number };
+      admin_connect_page: {
+        Args: { p_business: string; p_page_id: string; p_token: string; p_instagram_id?: string | null; p_page_name?: string | null; p_instagram_name?: string | null };
+        Returns: { platform: string; account_id: string; status: string }[];
+      };
+      enforce_account_limit: { Args: { p_business: string }; Returns: number };
       claim_batch_businesses: { Args: Record<string, never>; Returns: { business_id: string; local_date: string }[] };
       save_secret: { Args: { p_secret: string | null; p_value: string }; Returns: string };
       read_secret: { Args: { p_secret: string }; Returns: string | null };

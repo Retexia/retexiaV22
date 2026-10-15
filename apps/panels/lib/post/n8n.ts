@@ -129,3 +129,25 @@ export async function requestWhatsApp(body: { business_id: string; number: strin
     return false;
   }
 }
+
+export type ConnectedPage = { fb_page_id: string; fb_page_name: string; ig_account_id: string | null; ig_username: string | null };
+
+/**
+ * "Connect Facebook & Instagram" without the Meta app secret on the website:
+ * n8n exchanges the code (short-lived → long-lived user token → Page tokens)
+ * and saves every granted Page with post.admin_connect_page().
+ */
+export async function requestMetaConnect(body: { business_id: string; code: string; redirect_uri: string; graph_version: string }): Promise<
+  { ok: true; pages: ConnectedPage[]; turned_off: number } | { ok: false; error: string }
+> {
+  if (!url()) return { ok: false, error: "The Post worker (n8n) is not connected yet." };
+  try {
+    const res = await call({ action: "meta_connect", ...body }, 60_000);
+    const json = (await res.json().catch(() => null)) as { ok?: boolean; pages?: ConnectedPage[]; turned_off?: number; error?: string } | null;
+    if (!res.ok || !json) return { ok: false, error: `The Post worker replied ${res.status}.` };
+    if (!json.ok) return { ok: false, error: String(json.error ?? "Facebook didn't complete the connection.").slice(0, 200) };
+    return { ok: true, pages: Array.isArray(json.pages) ? json.pages : [], turned_off: Number(json.turned_off ?? 0) };
+  } catch {
+    return { ok: false, error: "The Post worker didn't answer. Try again in a minute." };
+  }
+}

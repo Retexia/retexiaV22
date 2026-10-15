@@ -150,29 +150,65 @@ select name from vault.decrypted_secrets where name like 'post_%';
 Deleting a published post and changing a Facebook post's text are also done by
 n8n, when the owner presses the button in the panel.
 
-### Meta app (optional: only for "Continue with Facebook" in the panel)
+### "Connect Facebook & Instagram" (customers connect by themselves)
 
-Not needed when you add customers' Pages in Supabase (above).
+The customer presses **Connect Facebook & Instagram** on the Accounts page of
+post.retexia.com, logs in on Meta (with 2FA), ticks their Page and its
+Instagram, and comes back to **Accounts?connected=true** with everything
+connected. No copying tokens by hand.
 
-1. developers.facebook.com → **Create app** → type **Business**.
-2. Add **Facebook Login for Business**. Settings → Valid OAuth Redirect URIs:
+How it works:
+
+1. `/connect/meta` (post.retexia.com) sends the signed-in owner to
+   `https://www.facebook.com/v25.0/dialog/oauth` with a one-time `state`
+   (kept in a secure cookie together with their business).
+2. Meta sends them back to `/connect/meta/callback?code=…&state=…`. The callback
+   checks the state and that the business belongs to the signed-in owner, so no
+   one can attach Pages to someone else's business. (That's why Meta returns to
+   the website and not straight to n8n.)
+3. The code is exchanged, by n8n (default, the app secret stays in n8n) or by
+   the website if `META_APP_SECRET` is set in Vercel:
+   - `GET /oauth/access_token` (client_id, client_secret, redirect_uri, code) → short-lived user token;
+   - `GET /oauth/access_token` (grant_type=fb_exchange_token) → long-lived user token (60 days);
+   - `GET /me/accounts?fields=id,name,access_token,instagram_business_account{id,username}`
+     → each Page's token (never expires), id, name, Instagram id and username.
+4. Each Page is saved with `post.admin_connect_page(business, page id, page token,
+   instagram id, page name, instagram username)`. Accounts beyond the plan are
+   switched off (`post.enforce_account_limit`), and the owner picks which stay on.
+
+Set it up:
+
+1. developers.facebook.com → your app (**Business** type) → add **Facebook Login
+   for Business** (or Facebook Login). Valid OAuth Redirect URIs:
    `https://post.retexia.com/connect/meta/callback`.
-   Deauthorize callback: `https://post.retexia.com/api/meta/deauthorize`.
+2. Add the permissions you ask for to the app (use cases / permissions). The panel
+   asks for: `pages_show_list`, `pages_manage_posts`, `pages_read_engagement`,
+   `pages_manage_metadata`, `pages_messaging`, `instagram_basic`,
+   `instagram_content_publish`, `instagram_manage_comments`,
+   `instagram_manage_messages`, `business_management` (change with `META_SCOPES`;
+   `META_INSTAGRAM_DELETE=true` adds `instagram_manage_contents`). Asking for a
+   permission the app doesn't have makes the Meta dialog fail.
 3. App settings → Basic: Privacy Policy `https://retexia.com/privacy`, Terms
-   `https://retexia.com/terms`, Data deletion callback
-   `https://post.retexia.com/api/meta/data-deletion`. Copy App ID and App secret.
-4. Permissions used: `pages_show_list`, `pages_manage_posts`,
-   `pages_read_engagement`, `instagram_basic`, `instagram_content_publish`,
-   `instagram_manage_contents` (deleting Instagram posts), `business_management`.
-   Customers who connected before this change press **Reconnect** once so
-   Instagram deletes work. Until Meta approves them (App Review + Business
-   Verification, plan 4–6 weeks), only people with a role on the app can connect:
-   add early customers as testers (App roles → Roles).
+   `https://retexia.com/terms`, data deletion (instructions URL
+   `https://retexia.com/privacy`, or the callback
+   `https://post.retexia.com/api/meta/data-deletion` when the app secret is in Vercel).
+4. n8n → **Config** node: `metaAppId` and `metaAppSecret`. Run migration
+   `0019_meta_oauth_connect.sql`.
+5. Vercel → panels: `META_APP_ID`, `META_GRAPH_VERSION=v25.0`, `N8N_POST_URL`,
+   `N8N_POST_KEY` (leave `META_APP_SECRET` empty to keep the secret in n8n only). Redeploy.
+
+Until Meta approves the permissions (App Review + Business Verification), only
+people with a role on the app can connect: add early customers as **Testers**
+(App roles → Roles), or connect their Pages for them with
+`post.admin_connect_page` (above). For App Review, only ask for the permissions
+Retexia Post really uses: Meta rejects apps that request permissions they don't
+use (the messaging and comment permissions are for features Post doesn't have yet).
 
 ### Vercel → panels project
 
-`N8N_POST_URL` (the Production URL above), `N8N_POST_KEY` (= `retexiaKey`), `META_APP_ID`, `META_APP_SECRET`,
-`META_GRAPH_VERSION=v26.0`, `POST_CRON_KEY` (the key from step 1). Redeploy.
+`N8N_POST_URL` (the Production URL above), `N8N_POST_KEY` (= `retexiaKey`), `META_APP_ID`,
+`META_GRAPH_VERSION=v25.0`, `POST_CRON_KEY` (the key from step 1). `META_APP_SECRET` only if the
+website should exchange the Meta code itself instead of n8n. Redeploy.
 
 ### WhatsApp messages to owners
 

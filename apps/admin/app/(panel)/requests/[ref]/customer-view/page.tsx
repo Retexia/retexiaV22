@@ -22,7 +22,7 @@ export default async function CustomerViewPage({ params }: { params: Promise<{ r
   ]);
   const label = (k: string | null) => statuses.data?.find((s) => s.key === k)?.label ?? k ?? "";
   const current = statuses.data?.find((s) => s.key === order.status);
-  const currency = order.currency ?? "USD";
+  const currency = order.currency ?? "LKR";
   const data = (order.service_data ?? {}) as Record<string, unknown>;
   const visible = (fields.data ?? []).filter((f) => data[f.key] !== undefined && String(data[f.key]).trim() !== "");
   const dueNow = Number(order.setup_fee ?? 0) + Number(order.price_amount ?? 0);

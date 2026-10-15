@@ -108,8 +108,8 @@ const o1 = await as(
 );
 const order1 = o1.rows[0];
 ok(order1.ref === `LNG-${year}-0001`, `first ref is LNG-${year}-0001 (got ${order1.ref})`);
-ok(Number(order1.price_amount) === 49 && Number(order1.setup_fee) === 69, "monthly Pro price and setup fee snapshotted");
-ok(order1.currency === "USD" && order1.package_name === "Lingo Pro" && order1.form_version === 1, "currency, package name and form version snapshotted");
+ok(Number(order1.price_amount) === 14900 && Number(order1.setup_fee) === 19900, "monthly Pro price and setup fee snapshotted");
+ok(order1.currency === "LKR" && order1.package_name === "Lingo Pro" && order1.form_version === 1, "currency, package name and form version snapshotted");
 ok(order1.status === "submitted" && order1.user_id === userA, "status submitted, owner forced");
 
 const o2 = await as(
@@ -118,7 +118,7 @@ const o2 = await as(
   `insert into public.orders (product_id, package_id, billing_cycle) values ($1, $2, 'yearly') returning ref, price_amount`,
   [ids.product_id, ids.core],
 );
-ok(o2.rows[0].ref === `LNG-${year}-0002` && Number(o2.rows[0].price_amount) === 250, "yearly Core snapshot and next ref");
+ok(o2.rows[0].ref === `LNG-${year}-0002` && Number(o2.rows[0].price_amount) === 69000, "yearly Core snapshot and next ref");
 
 await expectError(
   () => as("authenticated", userA, `insert into public.orders (product_id, package_id) values ($1, $2)`, [ids.post_id, ids.pro]),

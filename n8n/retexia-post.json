@@ -20,7 +20,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Retexia — Post. EDIT only the values marked EDIT. API keys live in n8n credentials.\nconst CONFIG = {\n  retexiaKey: 'EDIT: the same value as N8N_POST_KEY in the Retexia panels (Vercel)',\n  supabaseUrl: 'https://axommwxevnfpljroejmc.supabase.co', // the Retexia Supabase project\n  openaiBase: 'https://api.openai.com/v1',\n  textModel: 'gpt-6-luna',\n  imageModel: 'gpt-image-2.5-flare', // new design from text\n  imageEditModel: 'gpt-image-2.5-sunburst', // design that includes the brand logo\n  imageQuality: 'medium', // 'high' = sharper text on the design (better for Sinhala/Tamil letters), costs more\n  feedSize: '1088x1360', // 4:5 feed post\n  storySize: '1088x1920', // 9:16 story\n  useLogo: true, // put brand.logo_path on the design when the business has one\n  costs: { text: 0.002, image: 0.04, imageEdit: 0.05 }, // USD, only for usage_monthly\n  graphVersion: 'v26.0', // Facebook Graph API version (publishing)\n  panelUrl: 'https://post.retexia.com', // links in WhatsApp messages\n  // Retexia's own WhatsApp line on your Evolution server (owners' messages). Until set, none are sent.\n  evolutionUrl: 'EDIT: https://your-evolution-server',\n  evolutionKey: 'EDIT: the Evolution API key',\n  evolutionInstance: 'EDIT: the instance name, e.g. retexia-post',\n};\n\n// Only Retexia may call this webhook (header X-Retexia-Key).\nconst input = $input.first().json;\nconst headers = input.headers || {};\nif (!CONFIG.retexiaKey || CONFIG.retexiaKey.startsWith('EDIT') || String(headers['x-retexia-key'] || '') !== CONFIG.retexiaKey) {\n  throw new Error('Unauthorized: missing or wrong X-Retexia-Key (set retexiaKey in Config).');\n}\nconst body = input.body || {};\nconst UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;\nconst uuidOr = (v) => (UUID.test(String(v || '').toLowerCase()) ? String(v).toLowerCase() : '');\nconst businessId = uuidOr(body.business_id);\nif (!businessId) throw new Error('business_id is missing or not a UUID.');\nconst ACTIONS = ['plan', 'design', 'publish', 'delete', 'edit_text', 'whatsapp'];\nconst action = ACTIONS.includes(body.action) ? body.action : 'design';\nconst CAPTION = ['si', 'si_en', 'singlish', 'en', 'ta'];\nconst DESIGN = ['si', 'en', 'ta'];\nconst captionLanguage = CAPTION.includes(body.caption_language) ? body.caption_language : 'en';\nconst designLanguage = DESIGN.includes(body.design_language) ? body.design_language : 'en';\n\n// Jobs from post.retexia.com (it decides what and when; this workflow does the work).\nif (['publish', 'delete', 'edit_text'].includes(action)) {\n  const postId = uuidOr(body.post_id);\n  if (!postId) throw new Error(action + ' needs post_id.');\n  return [{ json: { ...CONFIG, action, businessId, postId, message: String(body.message || '').slice(0, 5000) } }];\n}\nif (action === 'whatsapp') {\n  if (String(CONFIG.evolutionUrl).startsWith('EDIT') || String(CONFIG.evolutionInstance).startsWith('EDIT')) throw new Error('WhatsApp is not set up: fill in the Evolution settings in Config.');\n  const number = String(body.number || '').replace(/[^0-9]/g, '');\n  if (number.length < 8) throw new Error('WhatsApp number missing.');\n  const imageUrl = /^https:\\/\\//.test(String(body.image_url || '')) ? String(body.image_url) : '';\n  return [{ json: { ...CONFIG, action, businessId, number, text: String(body.text || '').slice(0, 4000), image_url: imageUrl } }];\n}\n\nif (action === 'plan') {\n  const slots = (Array.isArray(body.slots) ? body.slots : []).slice(0, 10).map((s) => ({\n    key: String(s.key || ''), format: s.format === 'story' ? 'story' : 'post', time: String(s.time || ''), hint: s.hint ? String(s.hint).slice(0, 400) : '',\n  })).filter((s) => s.key);\n  if (!slots.length) throw new Error('No slots to plan.');\n  const date = /^\\d{4}-\\d{2}-\\d{2}$/.test(String(body.date || '')) ? body.date : new Date().toISOString().slice(0, 10);\n  const promptLanguage = ['si', 'en', 'ta'].includes(body.prompt_language) ? body.prompt_language : 'en';\n  return [{ json: { ...CONFIG, action, businessId, date, slots, captionLanguage, designLanguage, promptLanguage } }];\n}\n\n// What the post is about: one product, a group of products, or the whole business.\nconst f = body.focus && typeof body.focus === 'object' ? body.focus : {};\nconst focus = ['product', 'group'].includes(f.type) && uuidOr(f.id) ? { type: f.type, id: uuidOr(f.id) } : { type: 'business' };\n\nconst prompt = String(body.prompt || '').trim();\nif (prompt.length < 3) throw new Error('Send a prompt describing the post.');\nreturn [{ json: {\n  ...CONFIG, action, businessId,\n  postId: uuidOr(body.post_id),\n  focus,\n  prompt: prompt.slice(0, 1600),\n  format: body.format === 'story' ? 'story' : 'post',\n  captionLanguage, designLanguage,\n  publish: body.publish === true,\n  scheduledAt: typeof body.scheduled_at === 'string' ? body.scheduled_at : '',\n} }];\n"
+        "jsCode": "// Retexia — Post. EDIT only the values marked EDIT. API keys live in n8n credentials.\nconst CONFIG = {\n  retexiaKey: 'EDIT: the same value as N8N_POST_KEY in the Retexia panels (Vercel)',\n  supabaseUrl: 'https://axommwxevnfpljroejmc.supabase.co', // the Retexia Supabase project\n  openaiBase: 'https://api.openai.com/v1',\n  textModel: 'gpt-6-luna',\n  imageModel: 'gpt-image-2.5-flare', // new design from text\n  imageEditModel: 'gpt-image-2.5-sunburst', // design that includes the brand logo\n  imageQuality: 'medium', // 'high' = sharper text on the design (better for Sinhala/Tamil letters), costs more\n  feedSize: '1088x1360', // 4:5 feed post\n  storySize: '1088x1920', // 9:16 story\n  useLogo: true, // put brand.logo_path on the design when the business has one\n  costs: { text: 0.002, image: 0.04, imageEdit: 0.05 }, // USD, only for usage_monthly\n  graphVersion: 'v26.0', // Facebook Graph API version (publishing)\n  // Meta app (developers.facebook.com → your app → App settings → Basic), for \"Connect Facebook & Instagram\".\n  metaAppId: 'EDIT: Meta App ID',\n  metaAppSecret: 'EDIT: Meta App secret',\n  panelUrl: 'https://post.retexia.com', // links in WhatsApp messages\n  // Retexia's own WhatsApp line on your Evolution server (owners' messages). Until set, none are sent.\n  evolutionUrl: 'EDIT: https://your-evolution-server',\n  evolutionKey: 'EDIT: the Evolution API key',\n  evolutionInstance: 'EDIT: the instance name, e.g. retexia-post',\n};\n\n// Only Retexia may call this webhook (header X-Retexia-Key).\nconst input = $input.first().json;\nconst headers = input.headers || {};\nif (!CONFIG.retexiaKey || CONFIG.retexiaKey.startsWith('EDIT') || String(headers['x-retexia-key'] || '') !== CONFIG.retexiaKey) {\n  throw new Error('Unauthorized: missing or wrong X-Retexia-Key (set retexiaKey in Config).');\n}\nconst body = input.body || {};\nconst UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;\nconst uuidOr = (v) => (UUID.test(String(v || '').toLowerCase()) ? String(v).toLowerCase() : '');\nconst businessId = uuidOr(body.business_id);\nif (!businessId) throw new Error('business_id is missing or not a UUID.');\nconst ACTIONS = ['plan', 'design', 'publish', 'delete', 'edit_text', 'whatsapp', 'meta_connect'];\nconst action = ACTIONS.includes(body.action) ? body.action : 'design';\nconst CAPTION = ['si', 'si_en', 'singlish', 'en', 'ta'];\nconst DESIGN = ['si', 'en', 'ta'];\nconst captionLanguage = CAPTION.includes(body.caption_language) ? body.caption_language : 'en';\nconst designLanguage = DESIGN.includes(body.design_language) ? body.design_language : 'en';\n\n// Jobs from post.retexia.com (it decides what and when; this workflow does the work).\nif (['publish', 'delete', 'edit_text'].includes(action)) {\n  const postId = uuidOr(body.post_id);\n  if (!postId) throw new Error(action + ' needs post_id.');\n  return [{ json: { ...CONFIG, action, businessId, postId, message: String(body.message || '').slice(0, 5000) } }];\n}\n// \"Connect Facebook & Instagram\": post.retexia.com checked the signed-in owner and the\n// one-time state; here the code is exchanged and the Pages are saved for that business.\nif (action === 'meta_connect') {\n  if (String(CONFIG.metaAppId).startsWith('EDIT') || String(CONFIG.metaAppSecret).startsWith('EDIT')) throw new Error('Meta app is not set up: fill in metaAppId and metaAppSecret in Config.');\n  const code = String(body.code || '');\n  const redirectUri = String(body.redirect_uri || '');\n  if (!code || !/^https:\\/\\//.test(redirectUri)) throw new Error('meta_connect needs code and redirect_uri.');\n  const graphVersion = /^v\\d+\\.\\d+$/.test(String(body.graph_version || '')) ? body.graph_version : 'v25.0';\n  return [{ json: { ...CONFIG, action, businessId, code, redirectUri, metaGraph: `https://graph.facebook.com/${graphVersion}` } }];\n}\n\nif (action === 'whatsapp') {\n  if (String(CONFIG.evolutionUrl).startsWith('EDIT') || String(CONFIG.evolutionInstance).startsWith('EDIT')) throw new Error('WhatsApp is not set up: fill in the Evolution settings in Config.');\n  const number = String(body.number || '').replace(/[^0-9]/g, '');\n  if (number.length < 8) throw new Error('WhatsApp number missing.');\n  const imageUrl = /^https:\\/\\//.test(String(body.image_url || '')) ? String(body.image_url) : '';\n  return [{ json: { ...CONFIG, action, businessId, number, text: String(body.text || '').slice(0, 4000), image_url: imageUrl } }];\n}\n\nif (action === 'plan') {\n  const slots = (Array.isArray(body.slots) ? body.slots : []).slice(0, 10).map((s) => ({\n    key: String(s.key || ''), format: s.format === 'story' ? 'story' : 'post', time: String(s.time || ''), hint: s.hint ? String(s.hint).slice(0, 400) : '',\n  })).filter((s) => s.key);\n  if (!slots.length) throw new Error('No slots to plan.');\n  const date = /^\\d{4}-\\d{2}-\\d{2}$/.test(String(body.date || '')) ? body.date : new Date().toISOString().slice(0, 10);\n  const promptLanguage = ['si', 'en', 'ta'].includes(body.prompt_language) ? body.prompt_language : 'en';\n  return [{ json: { ...CONFIG, action, businessId, date, slots, captionLanguage, designLanguage, promptLanguage } }];\n}\n\n// What the post is about: one product, a group of products, or the whole business.\nconst f = body.focus && typeof body.focus === 'object' ? body.focus : {};\nconst focus = ['product', 'group'].includes(f.type) && uuidOr(f.id) ? { type: f.type, id: uuidOr(f.id) } : { type: 'business' };\n\nconst prompt = String(body.prompt || '').trim();\nif (prompt.length < 3) throw new Error('Send a prompt describing the post.');\nreturn [{ json: {\n  ...CONFIG, action, businessId,\n  postId: uuidOr(body.post_id),\n  focus,\n  prompt: prompt.slice(0, 1600),\n  format: body.format === 'story' ? 'story' : 'post',\n  captionLanguage, designLanguage,\n  publish: body.publish === true,\n  scheduledAt: typeof body.scheduled_at === 'string' ? body.scheduled_at : '',\n} }];\n"
       },
       "id": "866c2439-f0f7-4bd8-a4a9-e59d9d5cdd87",
       "name": "Config",
@@ -34,8 +34,8 @@
     {
       "parameters": {
         "mode": "expression",
-        "numberOutputs": 6,
-        "output": "={{ ['plan', 'design', 'publish', 'delete', 'edit_text', 'whatsapp'].indexOf($json.action) }}"
+        "numberOutputs": 7,
+        "output": "={{ ['plan', 'design', 'publish', 'delete', 'edit_text', 'whatsapp', 'meta_connect'].indexOf($json.action) }}"
       },
       "id": "fc66311d-6a5f-4c6f-b237-422520ee0fd7",
       "name": "Which job?",
@@ -398,7 +398,7 @@
     },
     {
       "parameters": {
-        "content": "## Retexia — Post (worker)\nThe only Post workflow (deactivate the old \"Photo post\"). **post.retexia.com decides what happens and when; this workflow only does the job it is given.** No schedules, no waiting: each run takes seconds (a design about a minute).\n\nOne webhook, header **X-Retexia-Key** = Config → `retexiaKey` = N8N_POST_KEY.\n- **plan** → tomorrow's ideas → answers `{items}`.\n- **design** → captions + picture → Storage → `post.finish_design()` (errors → `post.design_failed()`).\n- **publish** (a post whose time has come) → `post.worker_publish_rows()`: each account with that customer's token from Supabase → Facebook post / story, Instagram post / story → `post.n8n_publish_result()` (retries, \"reconnect needed\").\n- **delete** → `post.worker_delete_rows()` → Meta DELETE → `post.worker_delete_result()` → answers `{results}`.\n- **edit_text** → `post.worker_edit_rows()` → Facebook text → answers `{results}`.\n- **whatsapp** → Evolution (picture + caption, or text) → answers `{ok}`.\n\nCustomers' Facebook / Instagram: add them in Supabase with `post.admin_connect_page()`.\nEDIT in Config: retexiaKey, and the Evolution settings for WhatsApp.",
+        "content": "## Retexia — Post (worker)\nThe only Post workflow (deactivate the old \"Photo post\"). **post.retexia.com decides what happens and when; this workflow only does the job it is given.** No schedules, no waiting: each run takes seconds (a design about a minute).\n\nOne webhook, header **X-Retexia-Key** = Config → `retexiaKey` = N8N_POST_KEY.\n- **plan** → tomorrow's ideas → answers `{items}`.\n- **design** → captions + picture → Storage → `post.finish_design()` (errors → `post.design_failed()`).\n- **publish** (a post whose time has come) → `post.worker_publish_rows()`: each account with that customer's token from Supabase → Facebook post / story, Instagram post / story → `post.n8n_publish_result()` (retries, \"reconnect needed\").\n- **delete** → `post.worker_delete_rows()` → Meta DELETE → `post.worker_delete_result()` → answers `{results}`.\n- **edit_text** → `post.worker_edit_rows()` → Facebook text → answers `{results}`.\n- **whatsapp** → Evolution (picture + caption, or text) → answers `{ok}`.\n- **meta_connect** (\"Connect Facebook & Instagram\") → code → short-lived user token → long-lived user token → `me/accounts` (never-expiring Page tokens) → `post.admin_connect_page()` for each Page → `post.enforce_account_limit()` → answers `{ok, pages}` (no tokens).\n\nCustomers' Facebook / Instagram: add them in Supabase with `post.admin_connect_page()`.\nEDIT in Config: retexiaKey, the Evolution settings for WhatsApp, and metaAppId / metaAppSecret for Connect.",
         "height": 560,
         "width": 760
       },
@@ -1403,6 +1403,397 @@
         1240,
         3360
       ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config').first().json.metaGraph }}/oauth/access_token",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "client_id",
+              "value": "={{ $('Config').first().json.metaAppId }}"
+            },
+            {
+              "name": "client_secret",
+              "value": "={{ $('Config').first().json.metaAppSecret }}"
+            },
+            {
+              "name": "redirect_uri",
+              "value": "={{ $('Config').first().json.redirectUri }}"
+            },
+            {
+              "name": "code",
+              "value": "={{ $('Config').first().json.code }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "4efc2bd8-e1f3-4954-a919-9a71dce8a679",
+      "name": "Meta: code → user token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        3700
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "21f0ef3b-5087-44cc-bcb0-8ee852d03089",
+              "leftValue": "={{ !$json.error && !!$json.access_token }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d463b003-b898-498e-a204-b07fb3319287",
+      "name": "Got user token?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        3700
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config').first().json.metaGraph }}/oauth/access_token",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "fb_exchange_token"
+            },
+            {
+              "name": "client_id",
+              "value": "={{ $('Config').first().json.metaAppId }}"
+            },
+            {
+              "name": "client_secret",
+              "value": "={{ $('Config').first().json.metaAppSecret }}"
+            },
+            {
+              "name": "fb_exchange_token",
+              "value": "={{ $json.access_token }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "56f2e04c-60e7-4a03-8457-ae00c9887232",
+      "name": "Meta: long-lived user token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        3680
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "35335b33-e8d5-4873-bbdf-f7307bd9538e",
+              "leftValue": "={{ !$json.error && !!$json.access_token }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0f53a6f1-24a6-4fb4-af76-edcfb30ca3fb",
+      "name": "Got long-lived token?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1440,
+        3680
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config').first().json.metaGraph }}/me/accounts",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,name,access_token,instagram_business_account{id,username}"
+            },
+            {
+              "name": "limit",
+              "value": "100"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $json.access_token }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "b65c5344-771f-4a83-893f-9e14e8fe01d0",
+      "name": "Meta: Pages + Page tokens",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        3660
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "9e5fa9de-e08e-46e5-a697-ae3cef8e3784",
+              "leftValue": "={{ !$json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "daa18b2d-c4d5-4f60-b82e-706b098dee6f",
+      "name": "Pages answer ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1920,
+        3660
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Step 3 answer → the 5 values for each Page the person granted.\nconst r = $input.first().json;\nconst businessId = $('Config').first().json.businessId;\nconst pages = (Array.isArray(r.data) ? r.data : []).filter((p) => p && p.id && p.access_token).map((p) => ({\n  business_id: businessId,\n  page_token: p.access_token,                                      // never expires (read with a long-lived user token)\n  fb_page_id: String(p.id),\n  fb_page_name: String(p.name || 'Facebook Page'),\n  ig_account_id: p.instagram_business_account ? String(p.instagram_business_account.id) : '',\n  ig_username: p.instagram_business_account && p.instagram_business_account.username ? String(p.instagram_business_account.username) : '',\n}));\nreturn pages.length ? pages.map((json) => ({ json })) : [{ json: { none: true } }];\n"
+      },
+      "id": "efa866ba-fd4a-4a29-8adf-c0b02bc8e4d3",
+      "name": "Pages to connect",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        3640
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "697b9d70-2331-461f-afa7-11bf124590ab",
+              "leftValue": "={{ !$json.none }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8acc1c13-9acb-4115-8181-771c5b600f13",
+      "name": "Any Page?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2400,
+        3640
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Saves the Page token in Vault and connects the Page and its Instagram for this business.\nSELECT * FROM post.admin_connect_page(($1::jsonb ->> 'business_id')::uuid, $1::jsonb ->> 'fb_page_id', $1::jsonb ->> 'page_token', nullif($1::jsonb ->> 'ig_account_id', ''), $1::jsonb ->> 'fb_page_name', nullif($1::jsonb ->> 'ig_username', ''));",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify($json) }}",
+          "queryBatching": "independently"
+        }
+      },
+      "id": "6d80a6eb-5e32-4771-88d6-36b0a11d39ca",
+      "name": "Save Page (admin_connect_page)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2640,
+        3620
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "7WXuOi0d08vPAtmW",
+          "name": "Postgres account(Isuru_personal)"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Only as many accounts as the plan allows stay switched on (the newest).\nSELECT post.enforce_account_limit(($1::jsonb ->> 'business_id')::uuid) AS turned_off;",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify({ business_id: $('Config').first().json.businessId }) }}",
+          "queryBatching": "independently"
+        }
+      },
+      "id": "68b948c8-a623-4e66-9fab-d850492fd8d6",
+      "name": "Plan limit",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2880,
+        3620
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "7WXuOi0d08vPAtmW",
+          "name": "Postgres account(Isuru_personal)"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// What post.retexia.com gets back (never the tokens).\nconst pages = $('Pages to connect').all().map((i) => ({\n  fb_page_id: i.json.fb_page_id, fb_page_name: i.json.fb_page_name,\n  ig_account_id: i.json.ig_account_id || null, ig_username: i.json.ig_username || null,\n}));\nconst off = Number(($input.first().json || {}).turned_off || 0);\nreturn [{ json: { ok: true, pages, turned_off: off } }];\n"
+      },
+      "id": "af263803-7380-483e-9654-7857ffb86dfa",
+      "name": "Connect summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        3620
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "57198c71-09d2-476e-b60b-4b8057a6a822",
+      "name": "Respond: connected",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3360,
+        3620
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"ok\": true, \"pages\": [], \"turned_off\": 0}",
+        "options": {}
+      },
+      "id": "7e20efa5-d90b-44f9-8679-e2eca597aab6",
+      "name": "Respond: no Pages",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2640,
+        3800
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// A step failed: Meta's message for the owner (never the tokens).\nconst r = $input.first().json || {};\nconst e = r.error;\nconst message = (e && (e.error_user_msg || e.message || e.description)) || (typeof e === 'string' ? e : 'Facebook did not complete the connection.');\nreturn [{ json: { ok: false, error: String(message).slice(0, 200) } }];\n"
+      },
+      "id": "c7c1f1a3-7f1b-428a-ad1f-355a17c26d7c",
+      "name": "Connect failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        3920
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "f96ad54a-b85d-4a52-9c63-eb3d62dbacdc",
+      "name": "Respond: connect failed",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2400,
+        3920
+      ]
     }
   ],
   "pinData": {},
@@ -2016,6 +2407,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Meta: code → user token",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -2191,6 +2589,194 @@
         [
           {
             "node": "WA · Send Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta: code → user token": {
+      "main": [
+        [
+          {
+            "node": "Got user token?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Connect failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Got user token?": {
+      "main": [
+        [
+          {
+            "node": "Meta: long-lived user token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Connect failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta: long-lived user token": {
+      "main": [
+        [
+          {
+            "node": "Got long-lived token?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Connect failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Got long-lived token?": {
+      "main": [
+        [
+          {
+            "node": "Meta: Pages + Page tokens",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Connect failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta: Pages + Page tokens": {
+      "main": [
+        [
+          {
+            "node": "Pages answer ok?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Connect failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pages answer ok?": {
+      "main": [
+        [
+          {
+            "node": "Pages to connect",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Connect failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pages to connect": {
+      "main": [
+        [
+          {
+            "node": "Any Page?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Page?": {
+      "main": [
+        [
+          {
+            "node": "Save Page (admin_connect_page)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: no Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Page (admin_connect_page)": {
+      "main": [
+        [
+          {
+            "node": "Plan limit",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Connect failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan limit": {
+      "main": [
+        [
+          {
+            "node": "Connect summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Connect summary": {
+      "main": [
+        [
+          {
+            "node": "Respond: connected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Connect failed": {
+      "main": [
+        [
+          {
+            "node": "Respond: connect failed",
             "type": "main",
             "index": 0
           }
