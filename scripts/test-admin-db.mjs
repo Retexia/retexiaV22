@@ -175,6 +175,26 @@ await expectError(
 );
 ok((await q(`select status from public.orders where id = $1`, [order.id]))[0].status === "setting_up", "confirming the payment starts setup by itself");
 
+// --- Admins: any status, delete (0021) ---------------------------------------
+console.log("Admins: any status and delete");
+{
+  const pkg = (await q(`select product_id, id from public.packages where product_id = (select product_id from public.orders where id = $1) limit 1`, [order.id]))[0];
+  const o = (await as("authenticated", alice, `insert into public.orders (product_id, package_id, billing_cycle, answers) values ($1, $2, 'monthly', '[]') returning id, ref`, [pkg.product_id, pkg.id])).rows[0];
+  await as("authenticated", admin, `select public.admin_set_order_status($1, 'cancelled', 'Customer asked by phone')`, [o.id]);
+  await expectError(() => as("authenticated", support, `select public.admin_set_order_status($1, 'active', 'Reopen')`, [o.id]), "support can't set any status", /Only an admin or owner/);
+  await expectError(() => as("authenticated", admin, `select public.admin_set_order_status($1, 'active', '')`, [o.id]), "a reason is required", /reason/);
+  await as("authenticated", admin, `select public.admin_set_order_status($1, 'active', 'Cancelled by mistake', 'Your service is back on.', true)`, [o.id]);
+  const back = (await q(`select status, cancelled_at, cancel_reason, starts_at from public.orders where id = $1`, [o.id]))[0];
+  ok(back.status === "active" && back.cancelled_at === null && back.cancel_reason === null && back.starts_at, "an admin can reopen a cancelled request (any status)");
+  ok((await q(`select count(*)::int n from public.order_notes where order_id = $1 and body like 'Status set by an admin%'`, [o.id]))[0].n === 2, "each forced change is noted with its reason");
+  ok((await q(`select count(*)::int n from public.notifications_outbox where order_id = $1 and event = 'order.status_changed'`, [o.id]))[0].n === 1, "the customer is told only when asked");
+  await q(`insert into public.payments (order_id, kind, amount, status, method) values ($1, 'subscription', 100, 'pending', 'bank_transfer')`, [o.id]);
+  await expectError(() => as("authenticated", support, `select public.admin_delete_order($1, 'test')`, [o.id]), "support can't delete requests", /Only an admin or owner/);
+  ok((await as("authenticated", admin, `select public.admin_delete_order($1, 'Duplicate request') r`, [o.id])).rows[0].r === o.ref, "an admin can delete a request, with its payments");
+  ok((await q(`select count(*)::int n from public.orders where id = $1`, [o.id]))[0].n === 0 && (await q(`select count(*)::int n from public.payments where order_id = $1`, [o.id]))[0].n === 0, "it is gone");
+  ok((await q(`select count(*)::int n from public.audit_logs where record_id = $1 and summary like 'Deleted request%Duplicate request'`, [o.id]))[0].n === 1, "the audit log keeps a record, with the reason");
+}
+
 // --- Setup fields and secrets -----------------------------------------------
 console.log("Setup fields and secrets");
 await expectError(

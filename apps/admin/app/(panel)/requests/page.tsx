@@ -52,6 +52,8 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
       <RequestsTable
         rows={rows}
         canOperate={can(staff.role, "operate")}
+        canAdmin={can(staff.role, "manageSettings")}
+        statuses={(statuses.data ?? []).map((st) => ({ key: st.key, label: st.label }))}
         role={staff.role}
         transitions={transitions.data ?? []}
         team={(team.data ?? []).map((m) => ({ id: m.id, name: m.full_name || m.email || "Team member" }))}

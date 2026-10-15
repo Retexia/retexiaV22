@@ -2066,6 +2066,7 @@ export type Database = {
       admin_create_order: { Args: { p: Json }; Returns: Json }
       admin_create_product: { Args: { p: Json }; Returns: string }
       admin_dashboard: { Args: { p_product_id?: string; p_from?: string; p_to?: string }; Returns: Json }
+      admin_delete_order: { Args: { p_order_id: string; p_reason: string }; Returns: string }
       admin_duplicate_product: { Args: { p_product_id: string; p_new_slug: string; p_new_name: string; p_new_code?: string }; Returns: string }
       admin_form_locked_keys: { Args: { p_form_id: string }; Returns: string[] }
       admin_integration_status: { Args: never; Returns: Json }
@@ -2075,6 +2076,7 @@ export type Database = {
       admin_save_form: { Args: { p: Json }; Returns: number }
       admin_set_action_secret: { Args: { p_action_id: string; p_webhook_url?: string; p_signing_secret?: string }; Returns: undefined }
       admin_set_integration_settings: { Args: { p: Json }; Returns: undefined }
+      admin_set_order_status: { Args: { p_order_id: string; p_to_status: string; p_reason: string; p_customer_note?: string; p_notify?: boolean }; Returns: Json }
       admin_set_service_data: { Args: { p_order_id: string; p_values: Json }; Returns: Json }
       admin_start_action_run: { Args: { p_order_id: string; p_action_id: string }; Returns: Json }
       admin_update_order: { Args: { p_order_id: string; p_changes: Json; p_reason?: string }; Returns: Json }

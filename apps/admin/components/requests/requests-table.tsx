@@ -1,13 +1,13 @@
 "use client";
 
 import type { StaffRole } from "@retexia/supabase";
-import { Button, Dialog, Field, Select, Switch, formatDate, formatPrice } from "@retexia/ui";
+import { Alert, Button, Dialog, Field, Input, Select, Switch, Textarea, formatDate, formatPrice } from "@retexia/ui";
 import { DataTable, type ColumnDef } from "@retexia/ui/admin";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { assignOrders, bulkChangeStatus } from "@/app/(panel)/requests/actions";
+import { assignOrders, bulkChangeStatus, bulkSetAnyStatus, deleteRequests } from "@/app/(panel)/requests/actions";
 import { OrderStatus, ProductTag, label } from "@/components/common/status";
 import { TableToolbar, useUrlSort, type FilterDef, type SavedView } from "@/components/table/table-toolbar";
 import type { RequestRow } from "@/lib/queries/requests";
@@ -17,6 +17,8 @@ type Transition = { from_status: string; to_status: string; action_label: string
 export function RequestsTable({
   rows,
   canOperate,
+  canAdmin,
+  statuses,
   role,
   transitions,
   team,
@@ -27,6 +29,9 @@ export function RequestsTable({
 }: {
   rows: RequestRow[];
   canOperate: boolean;
+  /** Admins and owners: any status, delete. */
+  canAdmin: boolean;
+  statuses: { key: string; label: string }[];
   role: StaffRole;
   transitions: Transition[];
   team: { id: string; name: string }[];
@@ -41,6 +46,11 @@ export function RequestsTable({
   const [toStatus, setToStatus] = useState("");
   const [notify, setNotify] = useState(true);
   const [pending, setPending] = useState(false);
+  // Admin: any status (skips the usual steps) and delete, both with a reason.
+  const [anyMode, setAnyMode] = useState(false);
+  const [reason, setReason] = useState("");
+  const [toDelete, setToDelete] = useState<{ ids: string[]; clear: () => void } | null>(null);
+  const [confirmText, setConfirmText] = useState("");
 
   const columns = useMemo<ColumnDef<RequestRow>[]>(
     () => [
@@ -133,6 +143,11 @@ export function RequestsTable({
                 <Button size="sm" variant="secondary" onClick={() => setBulk({ ids, clear })}>
                   Change status
                 </Button>
+                {canAdmin ? (
+                  <Button size="sm" variant="ghost" onClick={() => setToDelete({ ids, clear })}>
+                    Delete
+                  </Button>
+                ) : null}
                 <label className="flex items-center gap-2 type-label text-ink">
                   <span className="sr-only">Assign to</span>
                   <select
@@ -167,26 +182,45 @@ export function RequestsTable({
       />
       <Dialog
         open={Boolean(bulk)}
-        onOpenChange={(o) => !o && setBulk(null)}
-        title={`Change status of ${bulk?.ids.length ?? 0} requests`}
-        description="Only changes that are allowed for every selected request are listed. Requests that need a payment or setup fields first are skipped with a reason."
+        onOpenChange={(o) => {
+          if (!o) {
+            setBulk(null);
+            setAnyMode(false);
+            setReason("");
+          }
+        }}
+        title={`Change status of ${bulk?.ids.length ?? 0} request${bulk?.ids.length === 1 ? "" : "s"}`}
+        description={
+          anyMode
+            ? "Admin: set any status, skipping the usual steps and payment checks. Linked panels follow (Active turns them on, Cancelled stops them)."
+            : "Only changes that are allowed for every selected request are listed. Requests that need a payment or setup fields first are skipped with a reason."
+        }
         footer={
           <>
-            <Button variant="ghost" onClick={() => setBulk(null)}>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setBulk(null);
+                setAnyMode(false);
+                setReason("");
+              }}
+            >
               Cancel
             </Button>
             <Button
               loading={pending}
-              disabled={!toStatus}
+              disabled={!toStatus || (anyMode && reason.trim().length < 3)}
               onClick={async () => {
                 if (!bulk) return;
                 setPending(true);
-                const r = await bulkChangeStatus({ ids: bulk.ids, toStatus, notify });
+                const r = anyMode ? await bulkSetAnyStatus({ ids: bulk.ids, toStatus, reason, notify }) : await bulkChangeStatus({ ids: bulk.ids, toStatus, notify });
                 setPending(false);
                 toast[r.ok ? "success" : "error"](r.message ?? "");
                 bulk.clear();
                 setBulk(null);
                 setToStatus("");
+                setAnyMode(false);
+                setReason("");
                 router.refresh();
               }}
             >
@@ -196,8 +230,17 @@ export function RequestsTable({
         }
       >
         {bulk ? (
-          sharedTargets(bulk.ids).length ? (
-            <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4">
+            {anyMode ? (
+              <>
+                <Field label="New status" required>
+                  <Select value={toStatus} onChange={(e) => setToStatus(e.target.value)} options={statuses.map((st) => ({ value: st.key, label: st.label }))} placeholder="Choose a status" />
+                </Field>
+                <Field label="Reason" hint="Saved in the request notes and the audit log." required>
+                  <Input value={reason} maxLength={1000} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Cancelled by mistake" />
+                </Field>
+              </>
+            ) : sharedTargets(bulk.ids).length ? (
               <Field label="New status" required>
                 <Select
                   value={toStatus}
@@ -205,12 +248,80 @@ export function RequestsTable({
                   options={sharedTargets(bulk.ids).map(([to, actionLabel]) => ({ value: to, label: `${actionLabel} (${label(to)})` }))}
                 />
               </Field>
-              <Switch checked={notify} onCheckedChange={setNotify} label="Notify customers" />
-            </div>
-          ) : (
-            <p className="type-body text-ink-muted">The selected requests have no status change in common. Select requests that are in the same status.</p>
-          )
+            ) : (
+              <p className="type-body text-ink-muted">
+                The selected requests have no usual next step in common{canAdmin ? ". As an admin you can set any status below." : ". Select requests that are in the same status."}
+              </p>
+            )}
+            {canAdmin ? (
+              <Switch
+                checked={anyMode}
+                onCheckedChange={(on) => {
+                  setAnyMode(on);
+                  setToStatus("");
+                }}
+                label="Set any status (admin)"
+                description="Also out of Cancelled or Rejected. Skips the usual steps, payment and setup checks."
+              />
+            ) : null}
+            <Switch checked={notify} onCheckedChange={setNotify} label="Notify customers" />
+          </div>
         ) : null}
+      </Dialog>
+      <Dialog
+        open={Boolean(toDelete)}
+        onOpenChange={(o) => {
+          if (!o) {
+            setToDelete(null);
+            setReason("");
+            setConfirmText("");
+          }
+        }}
+        title={`Delete ${toDelete?.ids.length ?? 0} request${toDelete?.ids.length === 1 ? "" : "s"}?`}
+        description="They are deleted for good, with their payments, receipts, timeline and notes. Open ones are cancelled first, so a linked Post business or Lingo bot stops."
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setToDelete(null);
+                setReason("");
+                setConfirmText("");
+              }}
+            >
+              Keep them
+            </Button>
+            <Button
+              variant="danger"
+              loading={pending}
+              disabled={confirmText.trim().toUpperCase() !== "DELETE" || reason.trim().length < 3}
+              onClick={async () => {
+                if (!toDelete) return;
+                setPending(true);
+                const r = await deleteRequests({ ids: toDelete.ids, reason });
+                setPending(false);
+                toast[r.ok ? "success" : "error"](r.message ?? "");
+                toDelete.clear();
+                setToDelete(null);
+                setReason("");
+                setConfirmText("");
+                router.refresh();
+              }}
+            >
+              Delete for good
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          <Alert tone="danger">This can&apos;t be undone. The audit log keeps a record of what was deleted.</Alert>
+          <Field label="Reason" hint="Saved in the audit log." required>
+            <Textarea rows={2} value={reason} maxLength={1000} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Duplicate request" />
+          </Field>
+          <Field label='Type "DELETE" to confirm' required>
+            <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} autoComplete="off" />
+          </Field>
+        </div>
       </Dialog>
     </>
   );

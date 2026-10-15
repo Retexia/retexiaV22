@@ -6,6 +6,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AuditList, type AuditEntry } from "@/components/common/audit-list";
+import { AdminRequestTools } from "@/components/requests/admin-request-tools";
 import { OrderStatus, label } from "@/components/common/status";
 import { ChangePricingButton, EditAnswersButton } from "@/components/requests/overview-editors";
 import { PayhereAwaiting, PayhereSubscription } from "@/components/requests/payhere-controls";
@@ -174,17 +175,27 @@ export default async function RequestPage({ params, searchParams }: { params: Pa
         }
         description={statusRow?.description}
         actions={
-          <RequestActions
-            orderId={orderId}
-            orderRef={ref}
-            transitions={options}
-            hasConfirmedPayment={hasConfirmedPayment}
-            canOverride={canAdmin}
-            canOperate={canOperate}
-            assignee={order.assigned_to}
-            team={(team.data ?? []).filter((m) => m.role !== "editor").map((m) => ({ id: m.id, name: m.full_name || m.email || "Team member" }))}
-            links={links}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <RequestActions
+              orderId={orderId}
+              orderRef={ref}
+              transitions={options}
+              hasConfirmedPayment={hasConfirmedPayment}
+              canOverride={canAdmin}
+              canOperate={canOperate}
+              assignee={order.assigned_to}
+              team={(team.data ?? []).filter((m) => m.role !== "editor").map((m) => ({ id: m.id, name: m.full_name || m.email || "Team member" }))}
+              links={links}
+            />
+            {canAdmin ? (
+              <AdminRequestTools
+                orderId={orderId}
+                orderRef={ref}
+                status={order.status ?? ""}
+                statuses={(statuses.data ?? []).map((st) => ({ key: st.key, label: st.label }))}
+              />
+            ) : null}
+          </div>
         }
       />
       <LinkTabs

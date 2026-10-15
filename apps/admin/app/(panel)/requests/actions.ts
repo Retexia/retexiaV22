@@ -392,3 +392,70 @@ export async function createRequest(input: {
     return { ok: true, message: "Request created", data: (data as { ref: string }).ref };
   });
 }
+
+// ---------------------------------------------------------------------------
+// Admins and owners: any status, delete
+// ---------------------------------------------------------------------------
+
+const anyStatus = z.object({
+  toStatus: z.string().min(1).max(60),
+  reason: z.string().trim().min(3, "Give a reason (it goes in the notes and the audit log)").max(1000),
+  customerNote: z.string().max(4000).optional(),
+  notify: z.boolean(),
+});
+
+/** Move a request to any status (also out of Cancelled), skipping the usual steps. Reason required. */
+export async function setAnyStatus(input: { orderId: string; ref: string; toStatus: string; reason: string; customerNote?: string; notify: boolean }): Promise<ActionResult> {
+  return run(async () => {
+    const { supabase } = await requireRole("manageSettings");
+    const d = anyStatus.extend({ orderId: uuid, ref: z.string() }).parse(input);
+    const { error } = await supabase.rpc("admin_set_order_status", {
+      p_order_id: d.orderId,
+      p_to_status: d.toStatus,
+      p_reason: d.reason,
+      p_customer_note: d.customerNote ?? "",
+      p_notify: d.notify,
+    });
+    if (error) return { ok: false, message: dbMessage(error) };
+    refresh(d.ref);
+    sendQueuedEmails();
+    return { ok: true, message: d.notify ? "Status set. The customer is emailed." : "Status set" };
+  });
+}
+
+export async function bulkSetAnyStatus(input: { ids: string[]; toStatus: string; reason: string; notify: boolean }): Promise<ActionResult> {
+  return run(async () => {
+    const { supabase } = await requireRole("manageSettings");
+    const d = anyStatus.omit({ customerNote: true }).extend({ ids: z.array(uuid).min(1).max(200) }).parse(input);
+    let done = 0;
+    const failed: string[] = [];
+    for (const id of d.ids) {
+      const { error } = await supabase.rpc("admin_set_order_status", { p_order_id: id, p_to_status: d.toStatus, p_reason: d.reason, p_notify: d.notify });
+      if (error) failed.push(dbMessage(error));
+      else done++;
+    }
+    refresh();
+    sendQueuedEmails();
+    if (failed.length) return { ok: done > 0, message: `${done} updated, ${failed.length} not: ${failed[0]}` } as ActionResult;
+    return { ok: true, message: `${done} request${done === 1 ? "" : "s"} updated` };
+  });
+}
+
+/** Delete requests for good (with their payments and timeline). They are cancelled first, so linked panels stop. */
+export async function deleteRequests(input: { ids: string[]; reason: string }): Promise<ActionResult> {
+  return run(async () => {
+    const { supabase } = await requireRole("manageSettings");
+    const d = z.object({ ids: z.array(uuid).min(1).max(200), reason: z.string().trim().min(3, "Give a reason (it goes in the audit log)").max(1000) }).parse(input);
+    let done = 0;
+    const failed: string[] = [];
+    for (const id of d.ids) {
+      const { error } = await supabase.rpc("admin_delete_order", { p_order_id: id, p_reason: d.reason });
+      if (error) failed.push(dbMessage(error));
+      else done++;
+    }
+    refresh();
+    revalidatePath("/payments");
+    if (failed.length) return { ok: done > 0, message: `${done} deleted, ${failed.length} not: ${failed[0]}` } as ActionResult;
+    return { ok: true, message: `${done} request${done === 1 ? "" : "s"} deleted` };
+  });
+}
