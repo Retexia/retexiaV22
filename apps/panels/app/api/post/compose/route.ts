@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { workerAuthorized } from "@/lib/cron";
+import { workerAuth } from "@/lib/cron";
 import { makeCutout, pasteProduct, productCanvas, zoneText, type Format } from "@/lib/post/product-cutout";
 import { postDb } from "@/lib/post/post-db";
 
@@ -18,14 +18,15 @@ export const maxDuration = 60;
 
 const path = z.string().min(3).max(300).regex(/^[0-9a-f-]{36}\/[\w./-]+$/).refine((p) => !p.includes(".."));
 const body = z.discriminatedUnion("step", [
-  z.object({ step: z.literal("prepare"), business_id: z.uuid(), photos: z.array(path).max(4), format: z.enum(["post", "story"]), size: z.string().regex(/^\d{3,4}x\d{3,4}$/) }),
+  z.object({ step: z.literal("prepare"), business_id: z.uuid(), product_id: z.uuid().or(z.literal("")).optional(), photos: z.array(path).max(4).default([]), format: z.enum(["post", "story"]), size: z.string().regex(/^\d{3,4}x\d{3,4}$/) }),
   z.object({ step: z.literal("paste"), business_id: z.uuid(), design_path: path, cutout_path: path.or(z.literal("")), canvas_path: path.or(z.literal("")).optional(), format: z.enum(["post", "story"]) }),
 ]);
 
 const json = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "cache-control": "no-store" } });
 
 export async function POST(request: NextRequest) {
-  if (!workerAuthorized(request)) return json({ ok: false, reason: "Unauthorized" }, 401);
+  const auth = workerAuth(request);
+  if (!auth.ok) return json({ ok: false, reason: `Unauthorized: ${auth.reason}` }, 401);
   const parsed = body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return json({ ok: false, reason: "Bad request" }, 400);
   const d = parsed.data;
@@ -39,7 +40,20 @@ export async function POST(request: NextRequest) {
   try {
     if (d.step === "prepare") {
       const [w, h] = d.size.split("x").map(Number) as [number, number];
-      for (const photo of d.photos.filter(own)) {
+      // The product's own photos, read here (oldest first = the one shown in the product dialog first).
+      const { data: rows } = d.product_id
+        ? await postDb()
+            .from("media")
+            .select("storage_path")
+            .eq("business_id", d.business_id)
+            .eq("product_id", d.product_id)
+            .eq("kind", "photo")
+            .neq("source", "ai")
+            .order("created_at")
+            .limit(3)
+        : { data: [] };
+      const photos = [...new Set([...(rows ?? []).map((r) => r.storage_path as string), ...d.photos])];
+      for (const photo of photos.filter(own)) {
         const cutoutPath = `${d.business_id}/cutouts/${photo.split("/").pop()!.replace(/\.[^.]+$/, "")}.png`;
         let cutout: Buffer | null = await read(cutoutPath);
         if (!cutout) {
@@ -55,7 +69,7 @@ export async function POST(request: NextRequest) {
         if (!signed?.signedUrl) return json({ ok: false, reason: "Couldn't sign the canvas." });
         return json({ ok: true, canvas_url: signed.signedUrl, canvas_path: canvasPath, cutout_path: cutoutPath, photo, zone: zoneText(d.format as Format) });
       }
-      return json({ ok: false, reason: d.photos.length ? "No photo with a plain background to cut out." : "No product photo." });
+      return json({ ok: false, reason: photos.length ? "No photo with a plain background to cut out." : d.product_id ? "This product has no photos." : "Not a post about one product." });
     }
 
     // paste
