@@ -38,8 +38,14 @@ export async function preparePhoto(file: File) {
   };
 }
 
+export type PreparedPhoto = Awaited<ReturnType<typeof preparePhoto>>;
+
 export async function photoForm(file: File, extra: Record<string, string> = {}) {
-  const p = await preparePhoto(file);
+  return preparedForm(await preparePhoto(file), extra);
+}
+
+/** The upload form for a photo already resized with preparePhoto. */
+export function preparedForm(p: PreparedPhoto, extra: Record<string, string> = {}) {
   const fd = new FormData();
   fd.set("file", p.file);
   fd.set("thumb", p.thumb);

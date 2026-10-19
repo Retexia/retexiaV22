@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { dbMessage, run, type ActionResult } from "@/lib/action";
 import { defaultLanguages } from "@/lib/post/languages";
-import { PLAN_LIMITS } from "@/lib/post/plans";
+import { MAX_PRODUCT_PHOTOS, PLAN_LIMITS } from "@/lib/post/plans";
 import { orderPrefill } from "@/lib/post/order-prefill";
 import { postDb } from "@/lib/post/post-db";
 import type { Brand, Json, PostFormat, Settings, Variants } from "@/lib/post/post-db.types";
@@ -232,6 +232,11 @@ async function storeImage(form: FormData, businessId: string, folder: string) {
   return { path, thumbPath, bytes: file.size };
 }
 
+async function productPhotoCount(db: Awaited<ReturnType<typeof requireBusiness>>["db"], businessId: string, productId: string) {
+  const { count } = await db.from("media").select("id", { count: "exact", head: true }).eq("business_id", businessId).eq("product_id", productId);
+  return count ?? 0;
+}
+
 export async function uploadMedia(form: FormData): Promise<ActionResult<{ id: string }>> {
   return run(async () => {
     const { db, business } = await requireBusiness();
@@ -239,6 +244,7 @@ export async function uploadMedia(form: FormData): Promise<ActionResult<{ id: st
     if (productId) {
       const { data: p } = await db.from("products").select("id").eq("id", productId).eq("business_id", business.id).maybeSingle();
       if (!p) return { ok: false, message: "Product not found." };
+      if ((await productPhotoCount(db, business.id, productId)) >= MAX_PRODUCT_PHOTOS) return { ok: false, message: `A product can have up to ${MAX_PRODUCT_PHOTOS} photos. Remove one first.` };
     }
     const description = z.string().trim().max(300).parse(String(form.get("description") ?? ""));
     const width = Number(form.get("width")) || null;
@@ -262,6 +268,9 @@ export async function updateMedia(input: { id: string; product_id: string | null
     if (d.product_id) {
       const { data: p } = await db.from("products").select("id").eq("id", d.product_id).eq("business_id", business.id).maybeSingle();
       if (!p) return { ok: false, message: "Product not found." };
+      const { data: current } = await db.from("media").select("product_id").eq("id", d.id).eq("business_id", business.id).maybeSingle();
+      if (current?.product_id !== d.product_id && (await productPhotoCount(db, business.id, d.product_id)) >= MAX_PRODUCT_PHOTOS)
+        return { ok: false, message: `That product already has ${MAX_PRODUCT_PHOTOS} photos. Remove one from it first.` };
     }
     const { error } = await db.from("media").update({ product_id: d.product_id, description: d.description || null, tags: d.tags }).eq("id", d.id).eq("business_id", business.id);
     if (error) return { ok: false, message: dbMessage(error) };
@@ -314,16 +323,33 @@ const productInput = z.object({
   active: z.boolean(),
 });
 
-export async function saveProduct(input: z.input<typeof productInput>): Promise<ActionResult> {
+export async function saveProduct(input: z.input<typeof productInput>): Promise<ActionResult<{ id: string }>> {
   return run(async () => {
     const { db, business } = await requireBusiness();
     const { id, ...d } = productInput.parse(input);
     const row = { ...d, description: d.description || null };
-    const { error } = id
-      ? await db.from("products").update(row).eq("id", id).eq("business_id", business.id)
-      : await db.from("products").insert({ ...row, business_id: business.id });
+    const { data, error } = id
+      ? await db.from("products").update(row).eq("id", id).eq("business_id", business.id).select("id").single()
+      : await db.from("products").insert({ ...row, business_id: business.id }).select("id").single();
+    if (error || !data) return { ok: false, message: dbMessage(error) };
+    done(id ? "Product saved" : "Product added", ["/products"]);
+    return { ok: true, message: id ? "Product saved" : "Product added", data: { id: data.id } };
+  });
+}
+
+/**
+ * Takes a photo off a product (product dialog). The photo is deleted, unless an
+ * upcoming post uses it: then it only leaves the product and stays in the library.
+ */
+export async function removeProductPhoto(input: { id: string }): Promise<ActionResult> {
+  return run(async () => {
+    const { db, business } = await requireBusiness();
+    const id = uuid.parse(input.id);
+    const deleted = await deleteMedia({ id });
+    if (deleted.ok || deleted.message === "Photo not found.") return deleted;
+    const { error } = await db.from("media").update({ product_id: null }).eq("id", id).eq("business_id", business.id);
     if (error) return { ok: false, message: dbMessage(error) };
-    return done(id ? "Product saved" : "Product added", ["/products"]);
+    return done("Photo removed from the product. An upcoming post uses it, so it stays in your library.", ["/products", "/library"]);
   });
 }
 

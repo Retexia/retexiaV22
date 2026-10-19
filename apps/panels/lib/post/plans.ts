@@ -15,6 +15,9 @@ export const PLAN_LIMITS: Record<
   pro: { label: "Pro", postsPerDay: 5, storiesPerDay: 5, images: 330, videos: 0, ai_videos: 0, regenerations: 500, accounts: 10, storageGb: 20, weekPlan: true },
 };
 
+/** Photos one product can have (product dialog and library). */
+export const MAX_PRODUCT_PHOTOS = 3;
+
 /** Default publish times for n items a day (same as post.default_times in the database). */
 export function defaultTimes(count: number, story: boolean): string[] {
   const posts = [["12:00"], ["09:00", "18:00"], ["09:00", "13:00", "19:00"], ["08:00", "12:00", "16:00", "20:00"], ["08:00", "11:00", "14:00", "17:00", "20:00"]];
