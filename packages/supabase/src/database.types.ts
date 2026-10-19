@@ -2071,6 +2071,7 @@ export type Database = {
       admin_form_locked_keys: { Args: { p_form_id: string }; Returns: string[] }
       admin_integration_status: { Args: never; Returns: Json }
       admin_order_secret_status: { Args: { p_order_id: string }; Returns: Json }
+      admin_purge_user: { Args: { p_user_id: string }; Returns: Json }
       admin_reorder: { Args: { p_table: string; p_ids: string[] }; Returns: undefined }
       admin_reveal_order_secret: { Args: { p_order_id: string; p_key: string }; Returns: string }
       admin_save_form: { Args: { p: Json }; Returns: number }

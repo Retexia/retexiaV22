@@ -330,6 +330,7 @@ const pay = { order_id: postOrder.id, transaction_id: "card_1", amount: "5900.00
 await q(`select public.svc_gateway_payment($1::jsonb)`, [JSON.stringify(pay)]);
 const afterCard = (await q(`select status, payment_method, renews_at from public.orders where id = $1`, [postOrder.id]))[0];
 ok(afterCard.status === "active" && afterCard.payment_method === "card", "a card payment for Post goes straight to active (the panel opens)");
+ok((await q(`select note from public.order_events where order_id = $1 and to_status = 'active'`, [postOrder.id]))[0]?.note?.includes("https://post.retexia.com"), "the live message links to the Post panel");
 ok(new Date(afterCard.renews_at).toISOString().startsWith("2026-11-09"), "the renewal date follows the paid period");
 await q(`select public.svc_gateway_payment($1::jsonb)`, [JSON.stringify(pay)]);
 ok((await q(`select count(*)::int n from public.payments where reference = 'card_1'`))[0].n === 1, "the same card payment is recorded once");

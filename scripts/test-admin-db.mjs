@@ -464,4 +464,22 @@ console.log("Dashboard and customers");
   ok(sc.actor_email === "support@retexia.test" && sc.summary.includes("submitted → reviewing"), "status changes record who did it");
 }
 
+// --- Delete a customer completely (0022) ---------------------------------------
+console.log("Delete a customer completely");
+{
+  const carol = await user("carol@example.com", "customer", { full_name: "Carol Fernando" });
+  const o = (await as("authenticated", carol, `insert into public.orders (product_id, package_id, billing_cycle) values ($1, $2, 'monthly') returning id`, [ids.lingo, ids.core])).rows[0];
+  await q(`insert into public.payments (order_id, kind, amount, status, method) values ($1, 'subscription', 100, 'pending', 'bank_transfer')`, [o.id]);
+  const biz = (await q(`insert into post.businesses (owner_id, name) values ($1, 'Carol Cakes') returning id`, [carol]))[0].id;
+  const tok = (await q(`select post.save_secret(null, 'CAROL-TOKEN') id`))[0].id;
+  await q(`insert into post.social_accounts (business_id, platform, external_id, token_secret_id) values ($1, 'facebook', 'carolpage', $2)`, [biz, tok]);
+  await expectError(() => as("authenticated", admin, `select public.admin_purge_user($1)`, [carol]), "admins can't delete customers completely (owners only)", /Only an owner/);
+  await expectError(() => as("authenticated", owner, `select public.admin_purge_user($1)`, [owner]), "an owner can't delete themselves", /cannot delete yourself/);
+  const r = (await as("authenticated", owner, `select public.admin_purge_user($1) r`, [carol])).rows[0].r;
+  ok(r.orders === 1 && r.payments === 1 && r.businesses.length === 1 && r.businesses[0] === biz, "an owner deletes everything the customer had");
+  ok((await q(`select count(*)::int n from public.orders where user_id = $1`, [carol]))[0].n === 0 && (await q(`select count(*)::int n from post.businesses where owner_id = $1`, [carol]))[0].n === 0, "requests and the Post business are gone");
+  ok((await q(`select count(*)::int n from vault.secrets where id = $1`, [tok]))[0].n === 0, "their Facebook / Instagram token is deleted from Vault");
+  ok((await q(`select count(*)::int n from public.audit_logs where record_id = $1 and action = 'customer.purge'`, [carol]))[0].n === 1, "the audit log keeps a record");
+}
+
 summary();

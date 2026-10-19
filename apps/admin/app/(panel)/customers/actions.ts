@@ -117,15 +117,67 @@ export async function changeCustomerEmail(input: { id: string; email: string }):
   });
 }
 
-/** Owner: remove the login, keep orders and payments (personal fields anonymised first). */
-export async function deleteCustomer(input: { id: string }): Promise<ActionResult> {
+/** Every file under a folder of a storage bucket (folders are listed level by level). */
+async function removeFolder(bucket: string, prefix: string): Promise<number> {
+  const storage = createAdminClient().storage.from(bucket);
+  const files: string[] = [];
+  const walk = async (dir: string, depth: number) => {
+    if (depth > 4) return;
+    const { data } = await storage.list(dir, { limit: 1000 });
+    for (const item of data ?? []) {
+      const path = `${dir}/${item.name}`;
+      if (item.id) files.push(path);
+      else await walk(path, depth + 1);
+    }
+  };
+  await walk(prefix, 0);
+  for (let i = 0; i < files.length; i += 100) await storage.remove(files.slice(i, i + 100));
+  return files.length;
+}
+
+/**
+ * Owner: delete a customer.
+ *   keep (default): remove the login, keep requests and payments for accounting (personal fields anonymised).
+ *   everything: also delete their requests, payments, Post business (with its Facebook / Instagram
+ *   tokens), messages and uploaded files. Lingo bots are unlinked and switched off.
+ */
+export async function deleteCustomer(input: { id: string; everything?: boolean }): Promise<ActionResult> {
   return run(async () => {
     const staff = await requireRole("manageTeam");
     const id = uuid.parse(input.id);
     if (id === staff.user.id) return { ok: false, message: "You can't delete yourself." };
+    const admin = createAdminClient();
+
+    if (input.everything) {
+      const { data, error } = await staff.supabase.rpc("admin_purge_user", { p_user_id: id });
+      if (error) return { ok: false, message: dbMessage(error) };
+      const purged = (data ?? {}) as { businesses?: string[]; orders?: number; payments?: number };
+      const { error: delError } = await admin.auth.admin.deleteUser(id);
+      if (delError && !/not found/i.test(delError.message)) {
+        return { ok: false, message: `Their data was deleted, but the login could not be: ${delError.message}` };
+      }
+      // Uploaded files: payment slips (payment-proofs/<user>/…) and Post pictures (media/<business>/…).
+      let files = 0;
+      try {
+        files += await removeFolder("payment-proofs", id);
+        for (const b of purged.businesses ?? []) files += await removeFolder("media", b);
+      } catch (e) {
+        console.error("[delete customer] storage", e);
+      }
+      await audit(staff, {
+        action: "auth.delete",
+        table: "profiles",
+        recordId: id,
+        summary: `Deleted customer completely (${purged.orders ?? 0} request(s), ${purged.payments ?? 0} payment(s), ${files} file(s))`,
+      });
+      revalidatePath("/customers");
+      revalidatePath("/requests", "layout");
+      revalidatePath("/payments");
+      return { ok: true, message: "Customer deleted with everything they had." };
+    }
+
     const { error } = await staff.supabase.rpc("admin_anonymise_user", { p_user_id: id });
     if (error) return { ok: false, message: dbMessage(error) };
-    const admin = createAdminClient();
     const { error: delError } = await admin.auth.admin.deleteUser(id);
     if (delError) return { ok: false, message: `Personal data was anonymised, but the login could not be deleted: ${delError.message}` };
     await audit(staff, { action: "auth.delete", table: "profiles", recordId: id, summary: "Deleted customer login (orders and payments kept)" });

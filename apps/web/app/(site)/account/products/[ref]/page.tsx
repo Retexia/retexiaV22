@@ -1,6 +1,6 @@
 import { Alert, Button, Card, ProductChip, StatusBadge, cn, type Tone } from "@retexia/ui";
 import { Icon } from "@retexia/ui/icon";
-import { ArrowLeft, CircleCheck, FileText } from "lucide-react";
+import { ArrowLeft, FileText } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -12,7 +12,7 @@ import { PaymentProofForm } from "@/components/account/payment-proof-form";
 import { PayherePay } from "@/components/account/payhere-pay";
 import { Markdown } from "@/components/markdown";
 import { requireUser } from "@/lib/auth";
-import { getForm, getOrderStatuses, getProducts, getSiteSettings } from "@/lib/content";
+import { getOrderStatuses, getProducts, getSiteSettings } from "@/lib/content";
 import { formatDate, formatPrice } from "@/lib/format";
 import { whatsappHref } from "@/lib/links";
 import { getMyOrder, getOrderPayments, getPaymentMethods, getVisibleServiceFields } from "@/lib/orders";
@@ -57,8 +57,6 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
   const statusLabel = (key: string | null) => statuses.find((s) => s.key === key)?.label ?? key ?? "";
   const currency = order.currency ?? settings.currency_code;
   const fmt = (n: number | null) => formatPrice(n, currency, settings.currency_locale);
-  const isNew = sp.new === "1";
-  const form = isNew && product?.onboarding_form_id ? await getForm(product.onboarding_form_id) : null;
   const panel = canOpenPanel(product, order);
   const wa = whatsappHref(
     settings,
@@ -72,9 +70,6 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
     groups.set(key, [...(groups.get(key) ?? []), a]);
   }
 
-  // What happens next: the open statuses after "submitted", in order.
-  const nextSteps = statuses.filter((s) => !s.is_final && s.description && s.key !== "paused").slice(0, 5);
-
   return (
     <div className="flex flex-col gap-8">
       <Link
@@ -85,50 +80,6 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
         {t("account.nav.products", "My products")}
       </Link>
 
-      {isNew ? (
-        <Card className="flex flex-col items-center gap-4 px-6 py-10 text-center">
-          <span className="flex size-12 items-center justify-center rounded-full bg-success-soft text-success">
-            <CircleCheck aria-hidden size={26} strokeWidth={1.5} />
-          </span>
-          <h1 className="type-display text-ink">{form?.success_title ?? t("order.success.title", "Request received")}</h1>
-          <p className="type-body text-ink-muted">
-            {t("order.success.ref", "Your reference is")} <span className="type-code text-ink">{order.ref}</span>
-          </p>
-          <p className="max-w-measure type-body-lg text-ink-muted">
-            {form?.success_message ?? t("order.success.text", "Thank you. We will review your details and message you within one working day.")}
-          </p>
-          {nextSteps.length ? (
-            <div className="mt-2 w-full max-w-measure text-left">
-              <h2 className="mb-3 text-center type-h3 text-ink">{t("order.success.next", "What happens next")}</h2>
-              <ol className="flex flex-col gap-3">
-                {nextSteps.map((s, i) => (
-                  <li key={s.key} className="flex items-start gap-3">
-                    <span
-                      aria-hidden
-                      className={cn(
-                        "mt-px flex size-6 shrink-0 items-center justify-center rounded-full type-caption",
-                        i === 0 ? "bg-brand text-on-brand" : "border border-line-strong text-ink-muted",
-                      )}
-                    >
-                      {i + 1}
-                    </span>
-                    <span className="flex flex-col">
-                      <span className="type-label text-ink">{s.label}</span>
-                      <span className="type-small text-ink-muted">{s.description}</span>
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          ) : null}
-          {wa ? (
-            <Button href={wa} className="mt-2" icon={<Icon name="message-circle" size={16} />}>
-              {t("order.success.whatsapp", "Message us about {ref}", { ref: order.ref ?? "" })}
-            </Button>
-          ) : null}
-        </Card>
-      ) : null}
-
       <header className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-3">
           {product ? (
@@ -137,11 +88,7 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
           <StatusBadge tone={(status?.tone as Tone) ?? "neutral"} label={status?.label ?? order.status} />
           <span className="type-code text-ink-muted">{order.ref}</span>
         </div>
-        {isNew ? (
-          <h2 className="type-h1 text-ink">{order.package_name}</h2>
-        ) : (
-          <h1 className="type-h1 text-ink">{order.package_name}</h1>
-        )}
+        <h1 className="type-h1 text-ink">{order.package_name}</h1>
         {status?.description ? <p className="max-w-content type-body-lg text-ink-muted">{status.description}</p> : null}
         {order.status_note && ["paused", "rejected", "cancelled"].includes(order.status) ? (
           <Alert tone={order.status === "rejected" ? "danger" : "warning"} title={order.status === "paused" ? t("order.paused_note", "Why it is paused") : t("order.closed_note", "Message from the team")} className="max-w-content">
@@ -262,7 +209,7 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
             </div>
           )
         ) : null}
-        {wa && !isNew ? (
+        {wa ? (
           <Button href={wa} variant="secondary" icon={<Icon name="message-circle" size={16} />}>
             {t("contact.whatsapp_button", "Message us on WhatsApp")}
           </Button>

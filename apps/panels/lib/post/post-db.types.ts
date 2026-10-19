@@ -267,6 +267,8 @@ export type Settings = {
   paused: boolean;
   /** types: items (each post/story with its caption when ready), published, alerts (needs you / failed). */
   whatsapp: { enabled: boolean; number: string | null; opted_in_at: string | null; types: WhatsAppType[]; quiet_hours: [string, string] };
+  /** First-time setup steps the owner has saved (Get started page). */
+  setup?: { playlist?: boolean; whatsapp?: boolean };
 };
 
 /** posts.variants */

@@ -1520,31 +1520,6 @@
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
   },
   {
-    "key": "order.success.next",
-    "fallback": "What happens next",
-    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
-    "key": "order.success.ref",
-    "fallback": "Your reference is",
-    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
-    "key": "order.success.text",
-    "fallback": "Thank you. We will review your details and message you within one working day.",
-    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
-    "key": "order.success.title",
-    "fallback": "Request received",
-    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
-    "key": "order.success.whatsapp",
-    "fallback": "Message us about {ref}",
-    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
-  },
-  {
     "key": "order.summary",
     "fallback": "Summary",
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"

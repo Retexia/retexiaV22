@@ -57,7 +57,9 @@ export async function createBusiness(input: z.input<typeof basics>): Promise<Act
         ...d,
         ...(plan?.[0] ? { plan: plan[0].plan, subscription_status: plan[0].subscription_status } : {}),
         category: d.category || null,
-        // Sensitive industries always need the owner's approval (product spec).
+        // Everything else from the order form, editable on the Brand page.
+        brand_brief: prefill?.brief || null,
+        brand: (prefill && Object.keys(prefill.contact).length ? { contact: prefill.contact } : {}) as unknown as Json,
         settings: {
           ...DEFAULT_SETTINGS,
           caption_language: defaultLanguages(d.languages).caption,
@@ -119,6 +121,7 @@ export async function saveSettings(input: z.input<typeof settingsInput>): Promis
         number: d.whatsapp.number || null,
         opted_in_at: d.whatsapp.enabled ? (settings.whatsapp.enabled ? settings.whatsapp.opted_in_at : new Date().toISOString()) : null,
       },
+      setup: { ...settings.setup, whatsapp: true },
     };
     const { error } = await db.from("businesses").update({ settings: next as unknown as Json }).eq("id", business.id);
     if (error) return { ok: false, message: dbMessage(error) };
@@ -176,6 +179,29 @@ export async function saveBrand(input: z.input<typeof brandInput>): Promise<Acti
       .eq("id", business.id);
     if (error) return { ok: false, message: dbMessage(error) };
     return done("Brand saved. New posts use it from tonight.");
+  });
+}
+
+/**
+ * "Fill in from my order": copies what the owner wrote on the order form into the
+ * Brand page where it is still empty (About your business, phone, Instagram, address…).
+ */
+export async function importFromOrder(): Promise<ActionResult> {
+  return run(async () => {
+    const { db, business, customer } = await requireBusiness();
+    const prefill = await orderPrefill(customer.order.id);
+    if (!prefill) return { ok: false, message: "We couldn't find the details from your order." };
+    const brand = (business.brand ?? {}) as Brand;
+    const current = (business.brand_brief ?? "").trim();
+    const orderText = prefill.brief.trim();
+    const brief = !current ? orderText : current.includes(orderText) ? current : `${current}\n\n${orderText}`.slice(0, 3000);
+    const contact = { ...prefill.contact, ...Object.fromEntries(Object.entries(brand.contact ?? {}).filter(([, v]) => v)) };
+    const { error } = await db
+      .from("businesses")
+      .update({ brand_brief: brief || null, brand: { ...brand, contact } as unknown as Json })
+      .eq("id", business.id);
+    if (error) return { ok: false, message: dbMessage(error) };
+    return done("Filled in from your order. Check it and change anything you like.");
   });
 }
 

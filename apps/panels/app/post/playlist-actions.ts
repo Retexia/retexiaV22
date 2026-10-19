@@ -375,6 +375,7 @@ export async function savePlaylistSettings(input: z.input<typeof settingsInput>)
       auto_publish: d.auto_publish,
       paused: d.paused,
       stories_per_day: d.stories,
+      setup: { ...settings.setup, playlist: true },
     };
     // A new planning time: the next run happens at that time (today too, if it hasn't come yet).
     const planTimeChanged = d.plan_time !== settings.playlist.plan_time;

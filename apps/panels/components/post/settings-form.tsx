@@ -42,7 +42,6 @@ export function SettingsForm({
 }) {
   const router = useRouter();
   const [b, setB] = useState(initialBasics);
-  const [s, setS] = useState(initial);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const finish = (r: { ok: boolean; message?: string; fieldErrors?: Record<string, string> }) => {
@@ -55,71 +54,7 @@ export function SettingsForm({
     <div className="flex flex-col gap-6">
       <PlaylistSection settings={initial} limits={limits} />
 
-      <Section title="WhatsApp messages" description="Get each post and story on WhatsApp with its caption as soon as it is ready, so you can check it before it goes out. Plus a note when it is published, and an alert when something needs you.">
-        {!whatsAppReady ? <Alert tone="info">WhatsApp messages start as soon as Retexia&apos;s WhatsApp line is switched on. Your settings are saved until then.</Alert> : null}
-        <Switch checked={s.whatsapp.enabled} onCheckedChange={(enabled) => setS({ ...s, whatsapp: { ...s.whatsapp, enabled } })} label="Send me WhatsApp messages" description="Reply STOP at any time to turn them off." />
-        {s.whatsapp.enabled ? (
-          <>
-            <Field label="WhatsApp number" hint="International format, e.g. +94771234567" error={errors["whatsapp.number"]} required>
-              <Input value={s.whatsapp.number ?? ""} onChange={(e) => setS({ ...s, whatsapp: { ...s.whatsapp, number: e.target.value } })} />
-            </Field>
-            {canTestWhatsApp ? (
-              <Button
-                className="self-start"
-                size="sm"
-                variant="secondary"
-                loading={busy === "wa-test"}
-                disabled={!s.whatsapp.number}
-                onClick={async () => {
-                  setBusy("wa-test");
-                  const r = await sendWhatsAppTest({ number: s.whatsapp.number ?? "" });
-                  setBusy(null);
-                  toast[r.ok ? "success" : "error"](r.message ?? "");
-                }}
-              >
-                Send a test message
-              </Button>
-            ) : null}
-            <Field label="Send" labelAs="legend">
-              <CheckboxGroup
-                name="wa-types"
-                value={s.whatsapp.types}
-                onChange={(types) => setS({ ...s, whatsapp: { ...s.whatsapp, types: types as WhatsAppType[] } })}
-                columns={2}
-                options={[
-                  { value: "items", label: "Each post and story with its caption, when it is ready" },
-                  { value: "published", label: "When it is published" },
-                  { value: "alerts", label: "Alerts: when something needs me" },
-                ]}
-              />
-            </Field>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Quiet from" hint="Messages wait until the quiet time ends.">
-                <Input type="time" value={s.whatsapp.quiet_hours[0]} onChange={(e) => setS({ ...s, whatsapp: { ...s.whatsapp, quiet_hours: [e.target.value, s.whatsapp.quiet_hours[1]] } })} />
-              </Field>
-              <Field label="Until">
-                <Input type="time" value={s.whatsapp.quiet_hours[1]} onChange={(e) => setS({ ...s, whatsapp: { ...s.whatsapp, quiet_hours: [s.whatsapp.quiet_hours[0], e.target.value] } })} />
-              </Field>
-            </div>
-          </>
-        ) : null}
-      </Section>
-
-      <div className="flex justify-end">
-        <Button
-          loading={busy === "settings"}
-          onClick={async () => {
-            setBusy("settings");
-            const r = await saveSettings({
-              whatsapp: { enabled: s.whatsapp.enabled, number: s.whatsapp.number || null, types: s.whatsapp.types, quiet_hours: s.whatsapp.quiet_hours },
-            });
-            setBusy(null);
-            finish(r);
-          }}
-        >
-          Save messages
-        </Button>
-      </div>
+      <WhatsAppSection settings={initial} whatsAppReady={whatsAppReady} canTestWhatsApp={canTestWhatsApp} />
 
       <Section title="Business details">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -157,8 +92,111 @@ export function SettingsForm({
   );
 }
 
+/** WhatsApp messages to the owner: number, which messages, quiet hours. */
+export function WhatsAppSection({
+  settings,
+  whatsAppReady,
+  canTestWhatsApp,
+  saveLabel = "Save messages",
+  enableByDefault = false,
+  onSaved,
+}: {
+  settings: Settings;
+  whatsAppReady: boolean;
+  canTestWhatsApp: boolean;
+  saveLabel?: string;
+  /** First-time setup: start switched on (the number comes from the order form). */
+  enableByDefault?: boolean;
+  onSaved?: () => void;
+}) {
+  const router = useRouter();
+  const [s, setS] = useState(enableByDefault && !settings.setup?.whatsapp ? { ...settings, whatsapp: { ...settings.whatsapp, enabled: true } } : settings);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  return (
+    <Section title="WhatsApp messages" description="Get each post and story on WhatsApp with its caption as soon as it is ready, so you can check it before it goes out. Plus a note when it is published, and an alert when something needs you.">
+      {!whatsAppReady ? <Alert tone="info">WhatsApp messages start as soon as Retexia&apos;s WhatsApp line is switched on. Your settings are saved until then.</Alert> : null}
+      <Switch checked={s.whatsapp.enabled} onCheckedChange={(enabled) => setS({ ...s, whatsapp: { ...s.whatsapp, enabled } })} label="Send me WhatsApp messages" description="Reply STOP at any time to turn them off." />
+      {s.whatsapp.enabled ? (
+        <>
+          <Field label="WhatsApp number" hint="International format, e.g. +94771234567" error={errors["whatsapp.number"]} required>
+            <Input value={s.whatsapp.number ?? ""} onChange={(e) => setS({ ...s, whatsapp: { ...s.whatsapp, number: e.target.value } })} />
+          </Field>
+          {canTestWhatsApp ? (
+            <Button
+              className="self-start"
+              size="sm"
+              variant="secondary"
+              loading={busy === "wa-test"}
+              disabled={!s.whatsapp.number}
+              onClick={async () => {
+                setBusy("wa-test");
+                const r = await sendWhatsAppTest({ number: s.whatsapp.number ?? "" });
+                setBusy(null);
+                toast[r.ok ? "success" : "error"](r.message ?? "");
+              }}
+            >
+              Send a test message
+            </Button>
+          ) : null}
+          <Field label="Send" labelAs="legend">
+            <CheckboxGroup
+              name="wa-types"
+              value={s.whatsapp.types}
+              onChange={(types) => setS({ ...s, whatsapp: { ...s.whatsapp, types: types as WhatsAppType[] } })}
+              columns={2}
+              options={[
+                { value: "items", label: "Each post and story with its caption, when it is ready" },
+                { value: "published", label: "When it is published" },
+                { value: "alerts", label: "Alerts: when something needs me" },
+              ]}
+            />
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Quiet from" hint="Messages wait until the quiet time ends.">
+              <Input type="time" value={s.whatsapp.quiet_hours[0]} onChange={(e) => setS({ ...s, whatsapp: { ...s.whatsapp, quiet_hours: [e.target.value, s.whatsapp.quiet_hours[1]] } })} />
+            </Field>
+            <Field label="Until">
+              <Input type="time" value={s.whatsapp.quiet_hours[1]} onChange={(e) => setS({ ...s, whatsapp: { ...s.whatsapp, quiet_hours: [s.whatsapp.quiet_hours[0], e.target.value] } })} />
+            </Field>
+          </div>
+        </>
+      ) : null}
+      <Button
+        className="self-start"
+        loading={busy === "settings"}
+        onClick={async () => {
+          setBusy("settings");
+          const r = await saveSettings({
+            whatsapp: { enabled: s.whatsapp.enabled, number: s.whatsapp.number || null, types: s.whatsapp.types, quiet_hours: s.whatsapp.quiet_hours },
+          });
+          setBusy(null);
+          setErrors(r.ok ? {} : (r.fieldErrors ?? {}));
+          toast[r.ok ? "success" : "error"](r.message ?? "");
+          if (r.ok) {
+            onSaved?.();
+            router.refresh();
+          }
+        }}
+      >
+        {saveLabel}
+      </Button>
+    </Section>
+  );
+}
+
 /** The daily playlist: how many posts and stories, their times, the languages, publishing. */
-function PlaylistSection({ settings, limits }: { settings: Settings; limits: { label: string; postsPerDay: number; storiesPerDay: number } }) {
+export function PlaylistSection({
+  settings,
+  limits,
+  saveLabel = "Save playlist",
+  onSaved,
+}: {
+  settings: Settings;
+  limits: { label: string; postsPerDay: number; storiesPerDay: number };
+  saveLabel?: string;
+  onSaved?: () => void;
+}) {
   const router = useRouter();
   const [v, setV] = useState({
     posts: settings.playlist.posts,
@@ -233,10 +271,13 @@ function PlaylistSection({ settings, limits }: { settings: Settings; limits: { l
           const r = await savePlaylistSettings(v);
           setBusy(false);
           toast[r.ok ? "success" : "error"](r.message ?? "");
-          if (r.ok) router.refresh();
+          if (r.ok) {
+            onSaved?.();
+            router.refresh();
+          }
         }}
       >
-        Save playlist
+        {saveLabel}
       </Button>
     </Section>
   );

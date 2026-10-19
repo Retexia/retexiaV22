@@ -93,6 +93,7 @@ export function AccountActions({ profile, canManage, isOwner, isSelf }: { profil
   const [role, setRole] = useState<Role>(profile.role);
   const [banOpen, setBanOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [everything, setEverything] = useState(false);
   const run = async (fn: () => Promise<{ ok: boolean; message?: string }>) => {
     const r = await fn();
     toast[r.ok ? "success" : "error"](r.message ?? "");
@@ -178,18 +179,33 @@ export function AccountActions({ profile, canManage, isOwner, isSelf }: { profil
       />
       <ConfirmDialog
         open={deleteOpen}
-        onOpenChange={setDeleteOpen}
+        onOpenChange={(o) => {
+          setDeleteOpen(o);
+          if (!o) setEverything(false);
+        }}
         title="Delete this customer?"
-        description="Their login is removed and personal details (name, phone, contact answers, messages, waitlist) are anonymised. Requests and payments are kept for accounting, without their name. This can't be undone."
-        confirmLabel="Delete customer"
+        description={
+          everything
+            ? "Everything is deleted: their login, requests, payments and receipts, Post business (posts, Facebook / Instagram access), messages and uploaded files. Lingo bots are unlinked and switched off. This can't be undone; the audit log keeps a record."
+            : "Their login is removed and personal details (name, phone, contact answers, messages, waitlist) are anonymised. Requests and payments are kept for accounting, without their name. This can't be undone."
+        }
+        confirmLabel={everything ? "Delete everything" : "Delete customer"}
         confirmText={profile.email || "DELETE"}
         onConfirm={async () => {
-          const r = await deleteCustomer({ id: profile.id });
+          const r = await deleteCustomer({ id: profile.id, everything });
           toast[r.ok ? "success" : "error"](r.message ?? "");
           setDeleteOpen(false);
+          setEverything(false);
           if (r.ok) router.push("/customers");
         }}
-      />
+      >
+        <Checkbox
+          label="Also delete their requests, payments and Post business"
+          description="Use this for test accounts or when the customer asks to be removed completely."
+          checked={everything}
+          onChange={(e) => setEverything(e.target.checked)}
+        />
+      </ConfirmDialog>
     </Card>
   );
 }

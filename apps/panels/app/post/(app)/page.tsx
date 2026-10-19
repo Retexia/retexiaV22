@@ -45,6 +45,8 @@ export default async function PlaylistPage({ searchParams }: { searchParams: Pro
   const connected = (accounts ?? []).some((a) => a.status === "connected" && a.enabled);
   const brand = (business.brand ?? {}) as Brand;
   const steps = [
+    { done: Boolean(settings.setup?.playlist), label: "Set up your daily playlist: how many posts and stories, and when", href: "/start" },
+    { done: Boolean(settings.setup?.whatsapp), label: "Choose your WhatsApp messages", href: "/start" },
     { done: Boolean(business.brand_brief || brand.colors?.length || brand.logo_path), label: "Add your brand: logo, colours and voice", href: "/brand" },
     { done: (products ?? 0) > 0, label: "Add the products or services to promote", href: "/products" },
     { done: connected, label: "Connect Facebook and Instagram", href: "/accounts" },

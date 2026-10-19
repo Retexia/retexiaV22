@@ -1,6 +1,7 @@
 import { Alert } from "@retexia/ui";
 import { PageHeader } from "@retexia/ui/admin";
 import { BrandForm } from "@/components/post/brand-form";
+import { ImportFromOrder } from "@/components/post/import-from-order";
 import { signPaths } from "@/lib/post/media";
 import type { Brand } from "@/lib/post/post-db.types";
 import { requireBusinessPage } from "@/lib/post/session";
@@ -15,7 +16,11 @@ export default async function BrandPage({ searchParams }: { searchParams: Promis
   const tone = typeof brand.tone === "object" && brand.tone ? brand.tone : {};
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Brand" description="How your posts look and sound. The more you add, the less generic the posts." />
+      <PageHeader
+        title="Brand"
+        description="How your posts look and sound. Posts only use what you write here and in Products: the more you add, the better and more detailed the posts."
+        actions={<ImportFromOrder />}
+      />
       {sp.welcome ? <Alert tone="success" title="Your business is set up">Now add your logo, colours and voice. Then your products, and we connect Facebook and Instagram.</Alert> : null}
       <BrandForm
         logoUrl={logo}
