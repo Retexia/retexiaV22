@@ -1,6 +1,6 @@
 import "server-only";
 
-import { designConfigured, panelPublishes, requestWhatsApp } from "./n8n";
+import { designConfigured, panelPublishes, requestWhatsApp, sendWhatsAppVia } from "./n8n";
 import type { PostDb } from "./post-db";
 import type { BusinessRow, PostRow, Variants } from "./post-db.types";
 import { readSettings } from "./session";
@@ -192,6 +192,10 @@ export async function sendOwnerMessages(db: PostDb) {
 /** A test message from the settings page. */
 export async function sendTestMessage(number: string, businessName: string, businessId = "") {
   if (!whatsAppConfigured()) return { ok: false as const, error: "Retexia's WhatsApp line is not set up yet." };
-  const ok = await sendText(businessId, number.replace(/[^\d]/g, ""), `👋 This is Retexia Post for ${businessName}. You'll get your posts and stories here with their captions before they go out.`);
-  return ok ? { ok: true as const } : { ok: false as const, error: "WhatsApp didn't accept the message. Check the number (with country code)." };
+  const text = `👋 This is Retexia Post for ${businessName}. You'll get your posts and stories here with their captions before they go out.`;
+  const digits = number.replace(/[^\d]/g, "");
+  // Through n8n: its answer says why a message wasn't sent (setup, worker, or WhatsApp itself).
+  if (!panelPublishes()) return sendWhatsAppVia({ business_id: businessId, number: digits, text });
+  const ok = await sendText(businessId, digits, text);
+  return ok ? { ok: true as const } : { ok: false as const, error: "WhatsApp didn't accept the message. Check the number (with country code) and that Retexia's WhatsApp line is connected in Evolution." };
 }

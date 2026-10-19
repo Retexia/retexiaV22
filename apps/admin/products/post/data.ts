@@ -120,3 +120,21 @@ export async function getPostBusiness(id: string) {
     events: (events.data ?? []) as { id: number; type: string; payload: Record<string, unknown>; created_at: string }[],
   };
 }
+
+/** Which business each Facebook Page / Instagram account (by Meta id) is connected to. */
+export async function pageOwners(externalIds: string[]) {
+  const map = new Map<string, { id: string; name: string }>();
+  if (!externalIds.length) return map;
+  const { data } = await post().from("social_accounts").select("external_id, business_id, businesses(name)").in("external_id", externalIds);
+  for (const r of (data ?? []) as unknown as { external_id: string; business_id: string; businesses: { name: string } | null }[]) {
+    if (!map.has(r.external_id)) map.set(r.external_id, { id: r.business_id, name: r.businesses?.name ?? "another business" });
+  }
+  return map;
+}
+
+/** Connected Facebook / Instagram accounts of some businesses (no tokens). */
+export async function accountsOf(businessIds: string[]) {
+  if (!businessIds.length) return [];
+  const { data } = await post().from("social_accounts").select("id, business_id, platform, display_name, external_id, status, enabled").in("business_id", businessIds).order("platform");
+  return (data ?? []) as { id: string; business_id: string; platform: string; display_name: string | null; external_id: string; status: string; enabled: boolean }[];
+}

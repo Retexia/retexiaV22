@@ -2,6 +2,7 @@
  * Types for the "post" schema (supabase/migrations/0005_post_schema.sql), in
  * the format `supabase gen types` produces.
  */
+import type { TopicMix } from "./focus";
 import type { CaptionLanguage, DesignLanguage } from "./languages";
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -263,6 +264,8 @@ export type Settings = {
   week_plan_enabled: boolean;
   slots: string[];
   content_mix: { photo: number; reel: number };
+  /** What the playlist's items are about (one product or the whole business). */
+  topic_mix: TopicMix;
   stories_per_day: number;
   paused: boolean;
   /** types: items (each post/story with its caption when ready), published, alerts (needs you / failed). */

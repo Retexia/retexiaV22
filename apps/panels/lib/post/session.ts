@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import { AccessError } from "../action";
 import { getCustomer as getCustomerFor, requirePayingCustomer, type Customer, type PayingCustomer } from "../customer";
+import { isTopicMix } from "./focus";
 import { defaultLanguages, isCaptionLanguage, isDesignLanguage } from "./languages";
 import { PLAN_LIMITS, defaultTimes } from "./plans";
 import { postDb, type PostDb } from "./post-db";
@@ -63,6 +64,7 @@ export const DEFAULT_SETTINGS: Settings = {
   week_plan_enabled: false,
   slots: ["09:00", "13:00", "19:00"],
   content_mix: { photo: 2, reel: 1 },
+  topic_mix: "balanced",
   stories_per_day: 2,
   paused: false,
   whatsapp: { enabled: false, number: null, opted_in_at: null, types: ["items", "published", "alerts"], quiet_hours: ["22:00", "07:00"] },
@@ -109,6 +111,7 @@ export function readSettings(b: Pick<BusinessRow, "settings" | "plan" | "languag
     design_language: isDesignLanguage(s.design_language) ? s.design_language : langs.design,
     slots: Array.isArray(s.slots) && s.slots.length === 3 ? s.slots : DEFAULT_SETTINGS.slots,
     content_mix: { ...DEFAULT_SETTINGS.content_mix, ...(s.content_mix ?? {}) },
+    topic_mix: isTopicMix(s.topic_mix) ? s.topic_mix : DEFAULT_SETTINGS.topic_mix,
     whatsapp: readWhatsApp(s.whatsapp),
   };
 }

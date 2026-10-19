@@ -1,7 +1,7 @@
 import { can } from "@retexia/supabase";
 import { Badge, Button, Card, formatDate } from "@retexia/ui";
 import { DescriptionList, PageHeader, StatCard } from "@retexia/ui/admin";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Share2 } from "lucide-react";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { requireStaffPage } from "@/lib/auth";
@@ -88,7 +88,14 @@ export default async function PostBusinessPage({ params }: { params: Promise<{ i
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <div className="flex flex-col gap-6">
           <Card className="flex flex-col gap-4">
-            <h2 className="type-h3 text-ink">Facebook and Instagram</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="type-h3 text-ink">Facebook and Instagram</h2>
+              {can(staff.role, "manageCustomers") ? (
+                <Button href={`/products/post/businesses/${b.id}/connect`} size="sm" variant="secondary" icon={<Share2 aria-hidden size={14} strokeWidth={1.5} />}>
+                  {accounts.length ? "Add or reconnect" : "Add Facebook & Instagram"}
+                </Button>
+              ) : null}
+            </div>
             {accounts.length ? (
               <ul className="flex flex-col divide-y divide-line">
                 {accounts.map((a) => (

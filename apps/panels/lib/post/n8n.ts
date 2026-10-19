@@ -119,14 +119,25 @@ export const requestEditText = (body: { post_id: string; business_id: string; me
 
 /** One WhatsApp message to an owner, sent by n8n through Retexia's Evolution line. */
 export async function requestWhatsApp(body: { business_id: string; number: string; text: string; image_url?: string }): Promise<boolean> {
-  if (!url()) return false;
+  return (await sendWhatsAppVia(body)).ok;
+}
+
+/** One WhatsApp message through the n8n worker, with the reason when it isn't sent. */
+export async function sendWhatsAppVia(body: { business_id: string; number: string; text: string; image_url?: string }): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!url()) return { ok: false, error: "The Post worker (n8n) is not connected: N8N_POST_URL is not set." };
   try {
     const res = await call({ action: "whatsapp", ...body }, 45_000);
-    if (!res.ok) return false;
-    const json = (await res.json().catch(() => null)) as { ok?: boolean } | null;
-    return json?.ok === true;
-  } catch {
-    return false;
+    const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; message?: string } | null;
+    if (res.status === 404) return { ok: false, error: "The Post worker isn't listening (n8n replied 404): activate the Retexia — Post workflow and use its Production webhook URL." };
+    if (res.status === 401 || res.status === 403) return { ok: false, error: `The Post worker refused the request (n8n replied ${res.status}): check N8N_POST_KEY.` };
+    if (!res.ok) {
+      const why = json?.message ? `: ${json.message}` : "";
+      return { ok: false, error: `The Post worker failed (n8n replied ${res.status}${why}). Open n8n → Executions to see the step that failed (often retexiaKey or the Evolution settings in Config).` };
+    }
+    if (json?.ok === true) return { ok: true };
+    return { ok: false, error: json?.error ? `WhatsApp didn't send it: ${json.error}` : "The Post worker answered without sending. Import the latest n8n/retexia-post.json." };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error && e.name === "TimeoutError" ? "The Post worker didn't answer within 45 seconds." : "Couldn't reach the Post worker (n8n)." };
   }
 }
 

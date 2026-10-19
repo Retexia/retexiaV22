@@ -1,6 +1,6 @@
 import "server-only";
 
-import { readFocus, type Focus } from "./focus";
+import { TOPIC_MIXES, readFocus, type Focus } from "./focus";
 import type { CaptionLanguage } from "./languages";
 import { requestDesign, requestPlan, type PlanSlot } from "./n8n";
 import { PLAN_LIMITS } from "./plans";
@@ -51,10 +51,12 @@ const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${St
  */
 export async function planDay(db: PostDb, b: BusinessRow, date: string, mode: "all" | "fill" = "all"): Promise<number> {
   const s = readSettings(b);
-  const [{ data: existing }, { data: items }, { data: products }, left] = await Promise.all([
+  const [{ data: existing }, { data: items }, { data: products }, { data: history }, left] = await Promise.all([
     db.from("posts").select("slot, is_story, scheduled_at").eq("business_id", b.id).eq("local_date", date),
     db.from("plan_items").select("*").eq("business_id", b.id).eq("active", true).lte("start_date", date).gte("end_date", date),
-    db.from("products").select("id, name, price, currency, description").eq("business_id", b.id).eq("active", true).limit(40),
+    db.from("products").select("id, name, price, currency, description").eq("business_id", b.id).eq("active", true).order("created_at").limit(100),
+    // What recent items were about: the product queue and the product / business mix.
+    db.from("posts").select("brief, source, slot").eq("business_id", b.id).order("scheduled_at", { ascending: false }).limit(400),
     imagesLeft(db, b),
   ]);
   const taken = new Set((existing ?? []).filter((e) => e.slot <= PLAYLIST_SLOTS).map((e) => `${e.is_story ? "story" : "post"}-${e.slot}`));
@@ -63,14 +65,32 @@ export async function planDay(db: PostDb, b: BusinessRow, date: string, mode: "a
   const offers = ((items ?? []) as PlanItemRow[]).filter((i) => i.type === "offer");
   const notes = s.week_plan_enabled && PLAN_LIMITS[b.plan].weekPlan ? ((items ?? []) as PlanItemRow[]).filter((i) => i.type === "week_note") : [];
 
-  // Items that aren't for an offer or a week-plan note are about one product or the
-  // whole business, picked at random (each product at most once a day while there are enough).
+  // Items that aren't for an offer or a week-plan note are about one product or the whole
+  // business, in the owner's mix (settings.topic_mix). Products take turns in a queue: never
+  // featured first (oldest first), then the one featured longest ago, so none is missed.
   const list = (products ?? []) as Pick<ProductRow, "id" | "name" | "price" | "currency" | "description">[];
-  const deck = [...list].sort(() => Math.random() - 0.5);
+  const past = (history ?? []).map((h) => ({ focus: readFocus(h.brief), source: h.source, slot: h.slot }));
+  const lastShown = new Map<string, number>();
+  past.forEach((h, i) => {
+    if (h.focus.type === "product" && !lastShown.has(h.focus.id)) lastShown.set(h.focus.id, i);
+  });
+  // Newest post = index 0, so a higher index was shown longer ago; never shown = first.
+  const queue = list
+    .map((p, order) => ({ p, order, ago: lastShown.has(p.id) ? lastShown.get(p.id)! : Infinity }))
+    .sort((x, y) => y.ago - x.ago || x.order - y.order)
+    .map((x) => x.p);
+  const share = TOPIC_MIXES.find((m) => m.value === s.topic_mix)?.share ?? 0.7;
+  // The last 20 playlist items set the running mix; each new item keeps it closest to the share.
+  const recent = past.filter((h) => h.source === "ai" && h.slot <= PLAYLIST_SLOTS).slice(0, 20);
+  let shown = recent.length;
+  let aboutProduct = recent.filter((h) => h.focus.type === "product").length;
+  let turn = 0;
   const pickFocus = (): { focus: Focus; product: (typeof list)[number] | null } => {
-    if (!deck.length && list.length) deck.push(...[...list].sort(() => Math.random() - 0.5));
-    if (!deck.length || Math.random() < 0.3) return { focus: { type: "business" }, product: null };
-    const p = deck.shift()!;
+    const productNext = queue.length > 0 && share > 0 && Math.abs((aboutProduct + 1) / (shown + 1) - share) <= Math.abs(aboutProduct / (shown + 1) - share);
+    shown += 1;
+    if (!productNext) return { focus: { type: "business" }, product: null };
+    aboutProduct += 1;
+    const p = queue[turn++ % queue.length]!;
     return { focus: { type: "product", id: p.id, name: p.name }, product: p };
   };
   const money = (p: { price: number | null; currency: string }) => (p.price != null ? ` (${p.currency} ${Number(p.price).toLocaleString("en-US")})` : "");

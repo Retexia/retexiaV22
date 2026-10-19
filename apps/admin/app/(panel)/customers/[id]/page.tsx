@@ -8,6 +8,7 @@ import { OrderStatus, ProductTag, label, paymentStatusTone } from "@/components/
 import { AccountActions, CustomerNotes, ProfileCard } from "@/components/customers/customer-panels";
 import { requireStaffPage } from "@/lib/auth";
 import { param, type SearchParams } from "@/lib/list-params";
+import { PostCustomerCard } from "@/products/post/customer-card";
 
 export const metadata = { title: "Customer" };
 
@@ -92,21 +93,26 @@ export default async function CustomerPage({ params, searchParams }: { params: P
 
       {tab === "overview" ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <ProfileCard
-            canEdit={can(role, "manageCustomers")}
-            profile={{
-              id,
-              full_name: c.full_name ?? "",
-              email,
-              phone: c.phone ?? "",
-              whatsapp: c.whatsapp ?? "",
-              business_name: c.business_name ?? "",
-              marketing_opt_in: Boolean(c.marketing_opt_in),
-              role: (c.role ?? "customer") as Role,
-              is_banned: Boolean(c.is_banned),
-              email_confirmed: Boolean(c.email_confirmed_at),
-            }}
-          />
+          <div className="flex flex-col gap-6">
+            <ProfileCard
+              canEdit={can(role, "manageCustomers")}
+              profile={{
+                id,
+                full_name: c.full_name ?? "",
+                email,
+                phone: c.phone ?? "",
+                whatsapp: c.whatsapp ?? "",
+                business_name: c.business_name ?? "",
+                marketing_opt_in: Boolean(c.marketing_opt_in),
+                role: (c.role ?? "customer") as Role,
+                is_banned: Boolean(c.is_banned),
+                email_confirmed: Boolean(c.email_confirmed_at),
+              }}
+            />
+            {isStaff ? null : (
+              <PostCustomerCard userId={id} canConnect={can(role, "manageCustomers")} hasPost={(c.active_products ?? []).includes(process.env.POST_PRODUCT_SLUG || "post")} />
+            )}
+          </div>
           <div className="flex flex-col gap-6">
             <Card className="flex flex-col gap-4">
               <h2 className="type-h2 text-ink">At a glance</h2>

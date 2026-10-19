@@ -47,3 +47,18 @@ export function parseFocus(value: string | undefined, c: FocusChoices): Focus {
   }
   return BUSINESS_FOCUS;
 }
+
+/**
+ * settings.topic_mix: what the daily playlist's items are about. share = the
+ * part about one product (the rest is about the whole business). Products take
+ * turns in a queue (the one featured longest ago goes next), so none is missed.
+ */
+export type TopicMix = "balanced" | "products_only" | "mostly_products" | "mostly_business" | "business_only";
+export const TOPIC_MIXES: { value: TopicMix; label: string; description: string; share: number }[] = [
+  { value: "balanced", label: "A mix", description: "About 7 in 10 about a product, the rest about the whole business.", share: 0.7 },
+  { value: "mostly_products", label: "Mostly products", description: "About 9 in 10 about a product.", share: 0.9 },
+  { value: "products_only", label: "Only products", description: "Every item is about one product, each one in turn.", share: 1 },
+  { value: "mostly_business", label: "Mostly the whole business", description: "About 9 in 10 about the business; products now and then.", share: 0.1 },
+  { value: "business_only", label: "Only the whole business", description: "What you do and why people choose you; no single product.", share: 0 },
+];
+export const isTopicMix = (v: unknown): v is TopicMix => TOPIC_MIXES.some((m) => m.value === v);

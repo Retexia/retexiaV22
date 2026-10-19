@@ -188,6 +188,21 @@ ok(whole.focus.type === "business" && whole.products.length >= 3 && "brand_brief
 const stray = (await q(`select post.design_context($1, $2::jsonb) c`, [biz, JSON.stringify({ type: "product", id: "00000000-0000-4000-8000-000000000000" })]))[0].c;
 ok(stray.focus.type === "business", "an unknown or deleted product falls back to the whole business");
 ok((await q(`select post.design_context($1) c`, [biz]))[0].c.business.name === "Amaya Cakes", "the old one-argument call still works");
+console.log("Real product photos in designs (0024)");
+const photo = (product, path, source = "upload", ago = 0) =>
+  q(`insert into post.media (business_id, product_id, kind, source, storage_path, created_at) values ($1, $2, 'photo', $3, $4, now() - make_interval(mins => $5))`, [biz, product, source, path, ago]);
+for (const [i, n] of ["a", "b", "c", "d"].entries()) await photo(cake, `${biz}/uploads/cake-${n}.jpg`, "upload", 10 - i);
+await photo(cake, `${biz}/ai/cake-design.jpg`, "ai", 20);
+await photo(bun, `${biz}/uploads/bun.jpg`);
+const withPhotos = (await q(`select post.design_context($1, $2::jsonb) c`, [biz, JSON.stringify({ type: "product", id: cake })]))[0].c;
+ok(withPhotos.photos.length === 3 && withPhotos.photos[0].endsWith("cake-a.jpg"), "a product post gets the owner's own photos of it (first 3)");
+ok(!withPhotos.photos.some((p) => p.includes("/ai/")), "AI designs are never used as the product photo");
+const grpPhotos = (await q(`select post.design_context($1, $2::jsonb) c`, [biz, JSON.stringify({ type: "group", id: grp })]))[0].c;
+ok(grpPhotos.photos.length === 2 && grpPhotos.photos.some((p) => p.endsWith("bun.jpg")), "a group post gets one photo of each product");
+ok((await q(`select post.design_context($1, $2::jsonb) c`, [biz, JSON.stringify({ type: "business" })]))[0].c.photos.length === 0, "a whole-business post gets no product photo");
+ok((await q(`select post.design_context($1, $2::jsonb) c`, [biz, JSON.stringify({ type: "product", id: soap })]))[0].c.photos.length === 0, "a product without photos gets none (designed from text)");
+await q(`delete from post.media where business_id = $1`, [biz]);
+
 await q(`delete from post.products where id = $1`, [bun]);
 ok((await q(`select product_ids from post.product_groups where id = $1`, [grp]))[0].product_ids.length === 1, "a deleted product leaves its groups");
 await q(`delete from post.posts where business_id = $1 and local_date = '2026-12-20'`, [biz]);

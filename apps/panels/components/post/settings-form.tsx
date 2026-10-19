@@ -6,6 +6,7 @@ import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { saveSettings, sendWhatsAppTest, updateBasics } from "@/app/post/actions";
 import { savePlaylistSettings } from "@/app/post/playlist-actions";
+import { TOPIC_MIXES, type TopicMix } from "@/lib/post/focus";
 import { CAPTION_LANGUAGES, DESIGN_LANGUAGES } from "@/lib/post/languages";
 import { defaultTimes } from "@/lib/post/plans";
 import { CATEGORIES, COUNTRIES, LANGUAGES } from "@/lib/post/options";
@@ -208,6 +209,7 @@ export function PlaylistSection({
     plan_time: settings.playlist.plan_time,
     auto_publish: settings.auto_publish,
     paused: settings.paused,
+    topic_mix: settings.topic_mix,
   });
   const [busy, setBusy] = useState(false);
   const resize = (times: string[], n: number, story: boolean) => {
@@ -257,6 +259,13 @@ export function PlaylistSection({
           </div>
         </div>
       </div>
+      <Field
+        label="What the posts are about"
+        labelAs="legend"
+        hint="Products take turns: the one shown longest ago (or never) goes next, so none is missed. Applies from the next playlist; you can still change any item's topic."
+      >
+        <RadioCards name="topic-mix" value={v.topic_mix} onChange={(topic_mix) => setV({ ...v, topic_mix: topic_mix as TopicMix })} columns={3} compact options={TOPIC_MIXES.map((m) => ({ value: m.value, label: m.label, description: m.description }))} />
+      </Field>
       <Field label="Captions in" labelAs="legend" hint="Each item can use another language too: change it on the item.">
         <RadioCards name="caption-language" value={v.caption_language} onChange={(caption_language) => setV({ ...v, caption_language })} columns={3} compact options={CAPTION_LANGUAGES.map((l) => ({ value: l.value, label: l.label, description: l.description }))} />
       </Field>

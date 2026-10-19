@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { z } from "zod";
 import { dbMessage, run, type ActionResult } from "@/lib/action";
-import { parseFocus, readFocus } from "@/lib/post/focus";
+import { TOPIC_MIXES, parseFocus, readFocus, type TopicMix } from "@/lib/post/focus";
 import { focusChoices } from "@/lib/post/focus-server";
 import { CAPTION_LANGUAGES, DESIGN_LANGUAGES } from "@/lib/post/languages";
 import { deletePublished, updateFacebookText } from "@/lib/post/meta";
@@ -326,6 +326,7 @@ const settingsInput = z.object({
   plan_time: time,
   auto_publish: z.boolean(),
   paused: z.boolean(),
+  topic_mix: z.enum(TOPIC_MIXES.map((m) => m.value) as [TopicMix, ...TopicMix[]]).optional(),
 });
 
 /** Designs whatever is due now, after the answer has been sent (the scheduler would do it within 5 minutes). */
@@ -374,6 +375,7 @@ export async function savePlaylistSettings(input: z.input<typeof settingsInput>)
       design_language: d.design_language as Settings["design_language"],
       auto_publish: d.auto_publish,
       paused: d.paused,
+      topic_mix: d.topic_mix ?? settings.topic_mix,
       stories_per_day: d.stories,
       setup: { ...settings.setup, playlist: true },
     };
