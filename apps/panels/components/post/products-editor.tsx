@@ -188,7 +188,7 @@ export function ProductsEditor({ products, currency }: { products: P[]; currency
             <Field label="Short description" hint="What makes it good, sizes, flavours…" optionalLabel="Optional">
               <Textarea rows={3} value={edit.description} maxLength={1000} onChange={(e) => setEdit({ ...edit, description: e.target.value })} />
             </Field>
-            <Field label={`Photos (up to ${MAX_PRODUCT_PHOTOS})`} labelAs="legend" hint="Clear photos of this product. Posts about it use them." optionalLabel="Optional">
+            <Field label={`Photos (up to ${MAX_PRODUCT_PHOTOS})`} labelAs="legend" hint="Posts about this product show the first photo exactly as it is. Best: the product alone on a plain white or one-colour background (or a PNG without background)." optionalLabel="Optional">
               <div className="grid grid-cols-3 gap-3">
                 {edit.photos.map((ph) => (
                   <Thumb key={ph.id} url={ph.url} label="Remove photo" onRemove={() => setEdit({ ...edit, photos: edit.photos.filter((x) => x.id !== ph.id), removed: [...edit.removed, ph.id] })} />

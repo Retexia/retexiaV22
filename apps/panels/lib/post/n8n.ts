@@ -135,7 +135,10 @@ export async function sendWhatsAppVia(body: { business_id: string; number: strin
       return { ok: false, error: `The Post worker failed (n8n replied ${res.status}${why}). Open n8n → Executions to see the step that failed (often retexiaKey or the Evolution settings in Config).` };
     }
     if (json?.ok === true) return { ok: true };
-    return { ok: false, error: json?.error ? `WhatsApp didn't send it: ${json.error}` : "The Post worker answered without sending. Import the latest n8n/retexia-post.json." };
+    if (json?.error) return { ok: false, error: `WhatsApp didn't send it: ${json.error}` };
+    // An older worker answers {"ok": false} without the reason: Evolution refused the message.
+    if (json?.ok === false) return { ok: false, error: "Retexia's WhatsApp line (Evolution) refused the message. n8n → Executions → the last run → \"WA · Send Text\" shows why. Import the latest n8n/retexia-post.json to see the reason here." };
+    return { ok: false, error: "The Post worker answered without sending. Import the latest n8n/retexia-post.json." };
   } catch (e) {
     return { ok: false, error: e instanceof Error && e.name === "TimeoutError" ? "The Post worker didn't answer within 45 seconds." : "Couldn't reach the Post worker (n8n)." };
   }

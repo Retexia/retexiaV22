@@ -10,3 +10,11 @@ export function cronAuthorized(request: NextRequest): boolean {
   const given = request.headers.get("x-retexia-key") ?? request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
   return given.length === key.length && timingSafeEqual(Buffer.from(given), Buffer.from(key));
 }
+
+/** Calls from the n8n Post worker: X-Retexia-Key = N8N_POST_KEY (its Config retexiaKey). */
+export function workerAuthorized(request: NextRequest): boolean {
+  const key = process.env.N8N_POST_KEY ?? "";
+  if (key.length < 16) return false;
+  const given = request.headers.get("x-retexia-key") ?? "";
+  return given.length === key.length && timingSafeEqual(Buffer.from(given), Buffer.from(key));
+}
