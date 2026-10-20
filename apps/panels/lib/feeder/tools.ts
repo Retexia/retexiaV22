@@ -9,3 +9,6 @@ export function toolFor(packageSlug: string): FeederTool | null {
   if (/bulk/.test(packageSlug)) return "bulk-import";
   return null;
 }
+
+/** The Products Google Sheet Bulk import matches lead forms against (names, prices, item codes, aliases). */
+export const PRODUCTS_SHEET_URL = "https://docs.google.com/spreadsheets/d/1mdp_tNC0aHyNQiOCrdio9HdRKjg49V7EcAfydHRUYWM/edit?usp=sharing";

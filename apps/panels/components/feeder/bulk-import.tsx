@@ -1,8 +1,9 @@
 "use client";
 
 import { Alert, Button, Card } from "@retexia/ui";
-import { FileSpreadsheet, Upload, X } from "lucide-react";
+import { ExternalLink, FileSpreadsheet, Upload, X } from "lucide-react";
 import { useRef, useState } from "react";
+import { PRODUCTS_SHEET_URL } from "@/lib/feeder/tools";
 
 const MAX_TOTAL = 4 * 1024 * 1024; // what one upload can carry (hosting limit)
 const OK_TYPE = /\.(xls|csv)$/i;
@@ -65,6 +66,17 @@ export function BulkImport() {
 
   return (
     <div className="flex flex-col gap-6">
+      <Card className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <h2 className="type-h3 text-ink">Your products</h2>
+          <p className="type-body text-ink-muted">
+            Prices, item codes and delivery fees in the courier file come from your products sheet. Add a new product, change a price, or add a form name to a product&apos;s aliases there; the next file you build uses it.
+          </p>
+        </div>
+        <Button href={PRODUCTS_SHEET_URL} variant="secondary" target="_blank" rel="noopener noreferrer" iconAfter={<ExternalLink aria-hidden size={14} strokeWidth={1.5} />}>
+          Add or edit products
+        </Button>
+      </Card>
       <Card className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <h2 className="type-h3 text-ink">Facebook leads → courier CSV</h2>
@@ -136,7 +148,15 @@ export function BulkImport() {
         </Alert>
       ) : null}
       {result?.kind === "problems" ? (
-        <Alert tone="danger" title="The courier file was not created">
+        <Alert
+          tone="danger"
+          title="The courier file was not created"
+          action={
+            <Button href={PRODUCTS_SHEET_URL} size="sm" variant="secondary" target="_blank" rel="noopener noreferrer" iconAfter={<ExternalLink aria-hidden size={14} strokeWidth={1.5} />}>
+              Open products sheet
+            </Button>
+          }
+        >
           <ul className="flex list-disc flex-col gap-1.5 pl-5">
             {result.problems.map((p) => (
               <li key={p}>{p}</li>
