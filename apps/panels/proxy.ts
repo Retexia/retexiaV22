@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { webUrl } from "@/lib/env";
 import { panelForHost } from "@/lib/panel";
 
-const OWN_PATHS = /^\/(auth|api\/health|api\/post|api\/meta)(\/|$)/;
+const OWN_PATHS = /^\/(auth|api\/health|api\/post|api\/meta|api\/feeder)(\/|$)/;
 const WEB_PATHS = /^\/(account|login|signup|forgot-password|reset-password|logout|pricing|contact)(\/|$)/;
 
 /**

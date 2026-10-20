@@ -28,13 +28,14 @@ export async function GET(request: NextRequest) {
     const { data } = await (await createServerClient()).auth.getUser();
     body.signed_in = Boolean(data.user);
     if (data.user) {
-      const slug = panel === "lingo" ? process.env.LINGO_PRODUCT_SLUG || "lingo" : process.env.POST_PRODUCT_SLUG || "post";
+      const slug =
+        panel === "lingo" ? process.env.LINGO_PRODUCT_SLUG || "lingo" : panel === "feeder" ? process.env.FEEDER_PRODUCT_SLUG || "feeder" : process.env.POST_PRODUCT_SLUG || "post";
       const customer = await getCustomer(slug);
       body.order = customer?.order ? { ref: customer.order.ref, status: customer.order.status } : "none with status setting_up / active / paused";
       if (panel === "lingo") {
         const { data: own, error } = await lingoDb().from("lingo_users").select("id, active").eq("owner_id", data.user.id);
         body.lingo_bot = error ? `error: ${error.message}` : own?.length ? own : "not connected (Admin → request → Setup → Lingo bot account)";
-      } else {
+      } else if (panel === "post") {
         const { data: own, error } = await postDb().from("businesses").select("id, onboarding_done").eq("owner_id", data.user.id);
         body.post_business = error ? `error: ${error.message}` : own?.length ? own : "none yet (set up at /welcome)";
       }

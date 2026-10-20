@@ -1,0 +1,455 @@
+{
+  "name": "FB Leads → Courier CSV (Google Sheets)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## FB Leads → Courier CSV\n\n**Setup (one time)**\n1. Make a Google Sheet with a tab named **Products** (import `Products_sheet_template.csv` → File → Import → *Replace current sheet*). Row 1 = headers.\n2. Open **Read Products Sheet** → create a *Google Sheets* credential (sign in with Google) → pick your spreadsheet in **Document** and the **Products** tab in **Sheet**.\n3. Save & **Activate** the workflow.\n4. Open **Upload FB Leads** → copy the **Production URL** and bookmark it.\n\n**Daily use**\nOpen the form → drop in all FB `.xls`/`.csv` lead files → Submit → `yyyy_MM_dd(orders).csv` downloads. The page lists which product each form matched.\n\n**How products are found**\nEach form name is split into words and searched in `product_name`, `product_id` and `aliases`. If at least half the form words are found, the best-scoring product wins (\"Cholesterol\" → Ayora Cholesterol Care Tablet). Numbers like 30 / 60 tell pack sizes apart. Only real ties (e.g. \"Gastric\" with both 30 and 60 packs) are refused.\n\n**If a form can't be matched**\nAdd the form name to that product's `aliases` cell (comma-separated) and upload again. Set `active` to FALSE for old products.\n\nprice ← price · item_code ← product_ID_Feeder · delivery ← delivery_fee\n\n**feeder.retexia.com → Bulk import**\nThe panel posts the lead files to **Panel: Bulk import** (Production URL → `FEEDER_N8N_URL` on Vercel) with header `X-Retexia-Key`. Put the same value in **Check panel key** (`KEY`) and in `FEEDER_N8N_KEY`. The CSV goes straight back to the customer's computer; nothing is saved.",
+        "height": 820,
+        "width": 460,
+        "color": 4
+      },
+      "id": "2793d372-9e81-4c82-b8d0-48d87faecc07",
+      "name": "Read me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "formTitle": "FB Leads → Courier CSV",
+        "formDescription": "Upload one or more lead files downloaded from Facebook Leads Center (.xls or .csv). You'll get one courier CSV back.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Lead files",
+              "fieldType": "file",
+              "acceptFileTypes": ".xls, .csv",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {
+          "buttonLabel": "Build courier CSV"
+        }
+      },
+      "id": "0da32b12-c5f1-40af-9349-ec04468212f4",
+      "name": "Upload FB Leads",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        560,
+        240
+      ],
+      "webhookId": "4943764d-7ff0-4507-9015-c4e771019172"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─────────────────────────────────────────────────────────────────────────────\n// PARSE LEAD FILES\n// Reads every file uploaded through the form and turns it into lead rows.\n// Supports the files Facebook Leads Center gives you:\n//   • .xls  → really an XML spreadsheet (SpreadsheetML 2003)\n//   • .csv  → UTF-16 or UTF-8, tab- or comma-separated (phones like \"p:+9477…\")\n// Output: ONE item → { leads, files, problems, formNames }\n// ─────────────────────────────────────────────────────────────────────────────\n\nconst input = $input.first();\nconst binaries = input.binary || {};\n\nconst leads = [];\nconst files = [];\nconst problems = [];\n\n// ---------- helpers ----------\nfunction decodeXml(s) {\n  return s.replace(/&(#x[0-9a-f]+|#\\d+|amp|lt|gt|quot|apos);/gi, (m, e) => {\n    const l = e.toLowerCase();\n    if (l === 'amp') return '&';\n    if (l === 'lt') return '<';\n    if (l === 'gt') return '>';\n    if (l === 'quot') return '\"';\n    if (l === 'apos') return \"'\";\n    const code = l[1] === 'x' ? parseInt(l.slice(2), 16) : parseInt(l.slice(1), 10);\n    return Number.isFinite(code) ? String.fromCodePoint(code) : m;\n  });\n}\n\nfunction decodeText(buf) {\n  if (buf[0] === 0xff && buf[1] === 0xfe) return buf.slice(2).toString('utf16le');\n  if (buf[0] === 0xfe && buf[1] === 0xff) {\n    const b = Buffer.from(buf.slice(2, buf.length - ((buf.length - 2) % 2)));\n    b.swap16();\n    return b.toString('utf16le');\n  }\n  if (buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) return buf.slice(3).toString('utf8');\n  // UTF-16 LE without a BOM → lots of 0x00 bytes in odd positions\n  let zeros = 0;\n  const n = Math.min(buf.length, 400);\n  for (let i = 1; i < n; i += 2) if (buf[i] === 0) zeros++;\n  if (n > 10 && zeros > n / 4) return buf.toString('utf16le');\n  return buf.toString('utf8');\n}\n\n// SpreadsheetML (Facebook .xls) → array of sheets, each an array of rows (arrays of strings)\nfunction parseSpreadsheetML(xml) {\n  const sheets = xml.match(/<(?:ss:)?Worksheet\\b[\\s\\S]*?<\\/(?:ss:)?Worksheet>/g) || [xml];\n  return sheets.map((sheet) => {\n    const out = [];\n    const rowRe = /<(?:ss:)?Row\\b[^>]*?(?:\\/>|>([\\s\\S]*?)<\\/(?:ss:)?Row>)/g;\n    let rm;\n    while ((rm = rowRe.exec(sheet))) {\n      const cells = [];\n      const cellRe = /<(?:ss:)?Cell\\b([^>]*?)(?:\\/>|>([\\s\\S]*?)<\\/(?:ss:)?Cell>)/g;\n      let cm;\n      while ((cm = cellRe.exec(rm[1] || ''))) {\n        const idx = /(?:ss:)?Index=\"(\\d+)\"/.exec(cm[1]);\n        if (idx) while (cells.length < Number(idx[1]) - 1) cells.push('');\n        const dm = /<(?:ss:)?Data\\b[^>]*>([\\s\\S]*?)<\\/(?:ss:)?Data>/.exec(cm[2] || '');\n        cells.push(dm ? decodeXml(dm[1].replace(/<[^>]+>/g, '')) : '');\n      }\n      out.push(cells);\n    }\n    return out;\n  });\n}\n\n// CSV / TSV → [rows]\nfunction parseDelimited(text) {\n  const firstLine = text.split(/\\r?\\n/, 1)[0] || '';\n  const count = (ch) => firstLine.split(ch).length - 1;\n  const d = ['\\t', ',', ';'].sort((a, b) => count(b) - count(a))[0];\n  const rows = [];\n  let row = [];\n  let field = '';\n  let quoted = false;\n  for (let i = 0; i < text.length; i++) {\n    const c = text[i];\n    if (quoted) {\n      if (c === '\"') {\n        if (text[i + 1] === '\"') { field += '\"'; i++; } else quoted = false;\n      } else field += c;\n    } else if (c === '\"' && field === '') quoted = true;\n    else if (c === d) { row.push(field); field = ''; }\n    else if (c === '\\n' || c === '\\r') {\n      if (c === '\\r' && text[i + 1] === '\\n') i++;\n      row.push(field); rows.push(row); row = []; field = '';\n    } else field += c;\n  }\n  if (field !== '' || row.length) { row.push(field); rows.push(row); }\n  return [rows];\n}\n\nconst normHeader = (h) =>\n  String(h ?? '').replace(/^\\uFEFF/, '').trim().toLowerCase().replace(/[\\s\\-]+/g, '_');\n\nfunction sheetToObjects(rows) {\n  // header = first row (within the first 10) that looks like a FB leads header\n  const hIdx = rows.slice(0, 10).findIndex((r) =>\n    r.map(normHeader).some((h) => ['phone_number', 'full_name', 'form_name', 'street_address'].includes(h)),\n  );\n  if (hIdx === -1) return null;\n  const header = rows[hIdx].map(normHeader);\n  const objs = [];\n  for (const r of rows.slice(hIdx + 1)) {\n    if (!r.some((v) => String(v ?? '').trim() !== '')) continue; // blank row\n    const o = {};\n    header.forEach((h, i) => { if (h) o[h] = String(r[i] ?? '').trim(); });\n    objs.push(o);\n  }\n  return objs;\n}\n\nconst pick = (o, ...keys) => {\n  for (const k of keys) if (o[k] != null && String(o[k]).trim() !== '') return String(o[k]).trim();\n  return '';\n};\n\n// ---------- main ----------\nconst keys = Object.keys(binaries);\nif (keys.length === 0) problems.push('No files were uploaded.');\n\nfor (const key of keys) {\n  const meta = binaries[key] || {};\n  const fileName = meta.fileName || key;\n  try {\n    let buf = await this.helpers.getBinaryDataBuffer(0, key);\n    if (!Buffer.isBuffer(buf)) buf = Buffer.from(buf && buf.data ? buf.data : buf);\n\n    if (buf[0] === 0x50 && buf[1] === 0x4b) {\n      throw new Error('this is an .xlsx file. Upload the original .xls or .csv exactly as downloaded from Facebook (or re-save it as \"CSV UTF-8\").');\n    }\n    if (buf[0] === 0xd0 && buf[1] === 0xcf) {\n      throw new Error('this is an old binary Excel file. Upload the original .xls or .csv exactly as downloaded from Facebook (or re-save it as \"CSV UTF-8\").');\n    }\n\n    const text = decodeText(buf);\n    const isXml = /<(?:ss:)?Workbook[\\s>]|urn:schemas-microsoft-com:office:spreadsheet/.test(text.slice(0, 5000));\n    const sheets = isXml ? parseSpreadsheetML(text) : parseDelimited(text);\n\n    let found = 0;\n    let headerSeen = false;\n    // product name fallback from FB file name: \"<Form_Name>_Leads_<from>_<to>.xls\"\n    const formFromFile = fileName.replace(/\\.[^.]+$/, '').replace(/_Leads_.*$/i, '').replace(/_/g, ' ').trim();\n\n    for (const rows of sheets) {\n      const objs = sheetToObjects(rows);\n      if (!objs) continue;\n      headerSeen = true;\n      for (const o of objs) {\n        const lead = {\n          lead_id: pick(o, 'id', 'lead_id').replace(/^l:/, ''),\n          created_time: pick(o, 'created_time'),\n          form_name: pick(o, 'form_name', 'form') || formFromFile,\n          name: pick(o, 'full_name', 'name') || [pick(o, 'first_name'), pick(o, 'last_name')].filter(Boolean).join(' '),\n          address: pick(o, 'street_address', 'address', 'full_address'),\n          phone_number: pick(o, 'phone_number', 'phone', 'mobile_number'),\n          work_phone_number: pick(o, 'work_phone_number', 'work_phone'),\n          file: fileName,\n        };\n        if (!lead.name && !lead.address && !lead.phone_number) continue;\n        leads.push(lead);\n        found++;\n      }\n    }\n    if (!headerSeen) throw new Error('could not find the lead columns (full_name, street_address, phone_number…).');\n    files.push({ file: fileName, leads: found });\n  } catch (err) {\n    problems.push(`${fileName}: ${err.message}`);\n  }\n}\n\n// ---------- distinct form names for the product search ----------\n// \"Kinoki Detox Foot Pads - Copy 2\" → \"Kinoki Detox Foot Pads\"; drop control chars and \"$\"\nconst cleanForm = (s) =>\n  String(s ?? '')\n    .replace(/[\\u0000-\\u001f\\u007f$]/g, ' ')\n    .replace(/(\\s*[-–_]?\\s*\\bcopy\\b(\\s*\\d+)?)+\\s*$/i, '')\n    .replace(/\\s+/g, ' ')\n    .trim();\nfor (const lead of leads) lead.form_key = cleanForm(lead.form_name);\nconst formNames = [...new Set(leads.map((l) => l.form_key).filter(Boolean))];\n\nreturn [{ json: { leads, files, problems, formNames } }];\n"
+      },
+      "id": "7a3cf670-aaa0-44c7-8bc0-87410faa25b1",
+      "name": "Parse Lead Files",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": ""
+        },
+        "options": {}
+      },
+      "id": "5b1e2c7a-9d3f-4e61-8a2b-7c4d9e0f1a23",
+      "name": "Read Products Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1008,
+        240
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─────────────────────────────────────────────────────────────────────────────\n// BUILD COURIER CSV\n// Input  : every row of the \"Products\" Google Sheet (from \"Read Products Sheet\")\n// Leads  : from \"Parse Lead Files\"\n// Does   : the same word search the old Supabase ILIKE query did, then builds\n//          name,address,tp_1,tp_2,price,qty,item_code,delivery\n//          file name yyyy_MM_dd(<orders>).csv   e.g. 2026_10_20(56).csv\n// ─────────────────────────────────────────────────────────────────────────────\n\n// ---- settings ----\nconst TIMEZONE = 'Asia/Colombo';\nconst QTY = 1;\nconst MIN_FORM_COVERAGE = 0.5;    // at least half of the form name's words must be found in the product (name, id or aliases)\n                                  // the best-scoring product then wins; only a real tie is refused\nconst DEDUPE_BY_LEAD_ID = true;   // same FB lead in two uploaded files → keep once\n// ------------------\n\nconst parsed = $('Parse Lead Files').first().json;\nconst leads = parsed.leads || [];\nconst problems = [...(parsed.problems || [])];\n\nconst htmlEsc = (s) => String(s ?? '').replace(/[&<>\"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\n\n// ---------- read the Products sheet ----------\n// Headers are matched loosely: \"product_ID_Feeder\", \"Product ID Feeder\", \"product id feeder\" all work.\nconst normKey = (h) => String(h ?? '').replace(/^\\uFEFF/, '').trim().toLowerCase().replace(/[\\s\\-]+/g, '_');\nconst cell = (row, ...names) => {\n  for (const n of names) {\n    const v = row[n];\n    if (v != null && String(v).trim() !== '') return String(v).trim();\n  }\n  return '';\n};\n// \"Rs. 1,990.00\" → \"1990\"   (keeps the text as-is if it isn't a number)\nconst money = (v) => {\n  const s = String(v ?? '').trim();\n  if (s === '') return '';\n  const n = Number(s.replace(/rs\\.?|lkr|,|\\s/gi, ''));\n  return Number.isFinite(n) ? String(n) : s;\n};\nconst isActive = (v) => !/^(false|no|n|0|inactive|off)$/i.test(String(v ?? '').trim()); // blank = active\n\n// same tokenising as the old SQL: \"Ayora Gastric Care 30Tablets\" → ayora, gastric, care, tablet\nconst STOP_FORM = new Set(['copy', 'the', 'and', 'for', 'with', 'new', 'form', 'lead', 'leads']);\nconst STOP_PRODUCT = new Set(['the', 'and', 'for', 'with']);\nfunction words(text, stop) {\n  const t = String(text ?? '')\n    .replace(/(?<=[0-9])(?=\\p{L})/gu, ' ')\n    .replace(/(?<=\\p{L})(?=[0-9])/gu, ' ')\n    .replace(/[^\\p{L}\\p{N}]+/gu, ' ')\n    .toLowerCase();\n  const out = new Set();\n  for (const w of t.split(/\\s+/)) {\n    if (w.length < 3 || /^[0-9]+$/.test(w) || stop.has(w)) continue;\n    out.add(w.length > 4 ? w.replace(/s$/, '') : w);\n  }\n  return [...out];\n}\nconst numbers = (text) => [...new Set((String(text ?? '').match(/[0-9]+/g) || []).map((n) => n.replace(/^0+/, '')))];\n\nconst products = [];\nlet rowNo = 1;\nfor (const { json: raw } of $input.all()) {\n  rowNo++;\n  if (!raw || typeof raw !== 'object') continue;\n  const r = {};\n  for (const [k, v] of Object.entries(raw)) r[normKey(k)] = v;\n  const product_name = cell(r, 'product_name', 'name', 'product');\n  const product_id = cell(r, 'product_id', 'id');\n  if (!product_name && !product_id) continue; // blank row\n  const aliasesRaw = cell(r, 'aliases', 'alias');\n  products.push({\n    row: r.row_number ?? rowNo,\n    product_id,\n    product_name,\n    price: money(cell(r, 'price')),\n    delivery_fee: money(cell(r, 'delivery_fee', 'delivery')),\n    item_code: cell(r, 'product_id_feeder', 'item_code', 'feeder_id').replace(/\\.0+$/, ''),\n    active: isActive(r.active),\n    aliases: aliasesRaw.toLowerCase(),\n    alias_list: aliasesRaw\n      .split(/[,;|\\n\\r]/)\n      .map((a) => a.replace(/^[\\s\"'\\[\\]]+|[\\s\"'\\[\\]]+$/g, '').toLowerCase())\n      .filter(Boolean),\n    // searched text = product name + product id + aliases\n    haystack: (product_name + ' ' + product_id.replace(/_/g, ' ') + ' ' + aliasesRaw).toLowerCase(),\n    // the product name and every alias are scored on their own; the best one counts\n    phrases: [product_name, ...aliasesRaw.split(/[,;|\\n\\r]/)]\n      .map((t) => words(t, STOP_PRODUCT))\n      .filter((w) => w.length),\n    nums: numbers(product_name),\n  });\n}\nif (products.length === 0) problems.push('The Products Google Sheet is empty or could not be read (check the sheet name and the header row).');\n\n// ---------- the search (same rules as the old ILIKE query) ----------\nconst round3 = (x) => Math.round(x * 1000) / 1000;\nfunction rankProducts(formName) {\n  const form = formName.toLowerCase();\n  const fWords = words(formName, STOP_FORM);\n  const fNums = new Set(numbers(formName));\n  const list = [];\n  for (const p of products) {\n    const aliasHit = p.alias_list.includes(form) || (form.length >= 12 && p.aliases.includes(form));\n    const wordHit = fWords.some((w) => p.haystack.includes(w));\n    if (!aliasHit && !wordHit) continue;\n    const exact = aliasHit || p.product_name.toLowerCase() === form;\n    const form_hits = fWords.filter((w) => p.haystack.includes(w)).length;\n    const fc = round3(form_hits / Math.max(fWords.length, 1));\n    // how much of the product name (or its best alias) appears in the form name\n    const pc = round3(Math.max(0, ...p.phrases.map((ws) => ws.filter((w) => form.includes(w)).length / ws.length)));\n    const nums = p.nums.reduce((s, n) => s + (fNums.has(n) ? 1 : -1), 0); // +1 shared pack size, -1 different\n    list.push({ ...p, exact, fc, pc, score: round3(fc + pc), nums, form_hits });\n  }\n  list.sort((a, b) =>\n    (b.exact - a.exact) ||\n    (b.score - a.score) ||\n    (b.nums - a.nums) ||\n    (b.form_hits - a.form_hits) ||\n    (b.active - a.active) ||\n    (a.product_name.length - b.product_name.length) ||\n    a.product_id.localeCompare(b.product_id));\n  return list;\n}\n\nconst accepted = (c) => c && (c.exact || c.fc >= MIN_FORM_COVERAGE);\n\nconst decisions = new Map();\nfunction decide(formKey) {\n  if (decisions.has(formKey)) return decisions.get(formKey);\n  const list = formKey ? rankProducts(formKey) : [];\n  const [top, second] = list;\n  // equally good = same exact flag, same score, same number match, same active flag\n  const sameAsTop = (c) => c.exact === top.exact && Math.abs(c.score - top.score) < 0.001 && c.nums === top.nums && c.active === top.active;\n  let d;\n  if (!top) d = { status: 'none' };\n  else if (!accepted(top)) d = { status: 'weak', closest: top };\n  else if (second && accepted(second) && sameAsTop(second)) d = { status: 'tie', options: list.filter(sameAsTop).slice(0, 5) };\n  else d = { status: 'ok', product: top };\n  decisions.set(formKey, d);\n  return d;\n}\n\n// ---------- phone → 07XXXXXXXX (landlines → 0XXXXXXXXX) ----------\nfunction toLocal(raw) {\n  const d = String(raw ?? '').replace(/\\D/g, '');   // drops \"+\", \"p:\", spaces, dashes\n  if (d.length < 9) return '';\n  const local = '0' + d.slice(-9);                    // last 9 digits = SL number without the 0\n  return /^0[1-9]\\d{8}$/.test(local) ? local : '';\n}\n\n// ---------- build rows ----------\nconst rows = [];\nconst failed = new Map();       // formKey → { d, count }\nconst incomplete = new Map();   // product_name → { row, missing columns }\nconst matchedCount = new Map(); // \"form → product\" → orders\nconst seen = new Set();\nlet duplicates = 0;\n\nfor (const lead of products.length ? leads : []) {\n  if (DEDUPE_BY_LEAD_ID && lead.lead_id) {\n    if (seen.has(lead.lead_id)) { duplicates++; continue; }\n    seen.add(lead.lead_id);\n  }\n\n  const key = lead.form_key || lead.form_name || '';\n  const d = decide(key);\n  if (d.status !== 'ok') {\n    const f = failed.get(key) || { d, count: 0 };\n    f.count++;\n    failed.set(key, f);\n    continue;\n  }\n\n  const p = d.product;\n  const missing = ['price', 'item_code', 'delivery_fee'].filter((k) => String(p[k] ?? '').trim() === '');\n  if (missing.length) { incomplete.set(p.product_name, { row: p.row, missing }); continue; }\n\n  const tp1 = toLocal(lead.phone_number) || toLocal(lead.work_phone_number) || String(lead.phone_number || '').replace(/\\D/g, '');\n  const tp2 = toLocal(lead.work_phone_number) || tp1;\n\n  rows.push({\n    name: String(lead.name || '').trim(),\n    address: String(lead.address || '').replace(/\\s*[\\r\\n]+\\s*/g, ', ').trim(),\n    tp_1: tp1,\n    tp_2: tp2,\n    price: p.price,\n    qty: QTY,\n    item_code: p.item_code,\n    delivery: p.delivery_fee,\n  });\n  const label = `${key} → ${p.product_name}`;\n  matchedCount.set(label, (matchedCount.get(label) || 0) + 1);\n}\n\n// ---------- problems → show them on the form instead of a wrong file ----------\nconst aliasHint = (form) =>\n  `Fix: in the Products Google Sheet add <b>${htmlEsc(form)}</b> to the <code>aliases</code> column of the correct product (comma-separated), then upload again.`;\nfor (const [form, { d, count }] of failed) {\n  const head = `Form <b>\"${htmlEsc(form)}\"</b> (${count} lead${count > 1 ? 's' : ''}): `;\n  if (d.status === 'none') problems.push(head + `no product found. ${aliasHint(form)}`);\n  if (d.status === 'weak') problems.push(head + `no confident match — closest is \"${htmlEsc(d.closest.product_name)}\" (sheet row ${d.closest.row}). ${aliasHint(form)}`);\n  if (d.status === 'tie') problems.push(head + `matches several products equally (${d.options.map((c) => `\"${htmlEsc(c.product_name)}\"`).join(', ')}). ${aliasHint(form)}`);\n}\nfor (const [name, { row, missing }] of incomplete) {\n  problems.push(`Product <b>\"${htmlEsc(name)}\"</b> (sheet row ${row}) is missing ${missing.map((c) => `<code>${c === 'item_code' ? 'product_ID_Feeder' : c}</code>`).join(', ')} in the Products Google Sheet.`);\n}\nif (problems.length === 0 && rows.length === 0) problems.push('No leads were found in the uploaded file(s).');\n\nif (problems.length) {\n  const html = `<h2>Courier file was NOT created</h2><ul>${problems.map((p) => `<li style=\"margin-bottom:8px\">${p}</li>`).join('')}</ul>`;\n  return [{ json: { ok: false, html, problems } }];\n}\n\n// ---------- CSV (UTF-8 BOM + CRLF, same as the courier sample) ----------\nconst HEADER = ['name', 'address', 'tp_1', 'tp_2', 'price', 'qty', 'item_code', 'delivery'];\nconst esc = (v) => {\n  const s = v == null ? '' : String(v);\n  return /[\",\\r\\n]/.test(s) ? `\"${s.replace(/\"/g, '\"\"')}\"` : s;\n};\nconst csv = '\\uFEFF' + [HEADER, ...rows.map((r) => HEADER.map((h) => r[h]))]\n  .map((r) => r.map(esc).join(','))\n  .join('\\r\\n');\n\nconst fileName = `${$now.setZone(TIMEZONE).toFormat('yyyy_MM_dd')}(${rows.length}).csv`;\nconst fileCount = (parsed.files || []).length;\nconst summary =\n  `${rows.length} orders from ${fileCount} file${fileCount === 1 ? '' : 's'}` +\n  (duplicates ? ` · ${duplicates} duplicate lead${duplicates > 1 ? 's' : ''} skipped` : '') +\n  `<br>` +\n  [...matchedCount].map(([label, n]) => `${htmlEsc(label)} (${n})`).join('<br>');\n\nreturn [{\n  json: { ok: true, fileName, orders: rows.length, duplicates, matches: Object.fromEntries(matchedCount), summary },\n  binary: {\n    data: {\n      data: Buffer.from(csv, 'utf8').toString('base64'),\n      mimeType: 'text/csv',\n      fileName,\n      fileExtension: 'csv',\n    },\n  },\n}];\n"
+      },
+      "id": "31b1fedb-1d8c-4c0b-b8e1-82d4f0654779",
+      "name": "Build Courier CSV",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1232,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "d0779f02-7a44-476a-9be7-b13909f51b17",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "637616df-34c0-45a4-9868-f37b6388f2c4",
+      "name": "File ready?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "returnBinary",
+        "completionTitle": "Your courier CSV is ready",
+        "completionMessage": "={{ $json.summary }}",
+        "options": {}
+      },
+      "id": "9da962d9-447d-44c0-9019-d5bd14147ec2",
+      "name": "Download Courier CSV",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "position": [
+        1664,
+        144
+      ],
+      "webhookId": "d482db13-c6eb-4029-a8fd-5c2d09868cc4"
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "showText",
+        "responseText": "={{ $json.html }}"
+      },
+      "id": "abcbc1b7-f760-49df-84e7-ab327af18387",
+      "name": "Show Problems",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "position": [
+        1664,
+        352
+      ],
+      "webhookId": "d0c6cf38-55b7-4e2f-b14b-00a8521a6ab6"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "feeder-bulk-import",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "8f1d2c3b-4a5e-4f60-9b7c-1d2e3f4a5b6c",
+      "name": "Panel: Bulk import",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        560,
+        500
+      ],
+      "webhookId": "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Only feeder.retexia.com may call this webhook: X-Retexia-Key = FEEDER_N8N_KEY on the panel (Vercel).\nconst KEY = 'EDIT: the same value as FEEDER_N8N_KEY in the Retexia panels (Vercel)';\nconst item = $input.first();\nconst given = String((item.json.headers || {})['x-retexia-key'] || '');\nif (KEY.startsWith('EDIT') || given !== KEY) throw new Error('Unauthorized: wrong or missing X-Retexia-Key.');\nif (!item.binary || !Object.keys(item.binary).length) throw new Error('No lead files were sent.');\n// The files go on to Parse Lead Files exactly like a form upload.\nreturn [{ json: {}, binary: item.binary }];\n"
+      },
+      "id": "9a2e3d4c-5b6f-4071-8c8d-2e3f4a5b6c7d",
+      "name": "Check panel key",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "b3f4e5d6-7c8a-4b9c-9d0e-3f4a5b6c7d8e",
+              "leftValue": "={{ $('Panel: Bulk import').isExecuted }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c4a5f6e7-8d9b-4cad-8e1f-4a5b6c7d8e9f",
+      "name": "From the panel?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "d5b6a7f8-9e0c-4dbe-9f2a-5b6c7d8e9f0a",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e6c7b8a9-0f1d-4ecf-a03b-6c7d8e9f0a1b",
+      "name": "Panel: file ready?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "binary",
+        "responseDataSource": "set",
+        "inputFieldName": "data",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/csv; charset=utf-8"
+              },
+              {
+                "name": "Content-Disposition",
+                "value": "=attachment; filename=\"{{ $json.fileName }}\""
+              },
+              {
+                "name": "X-Feeder-Orders",
+                "value": "={{ $json.orders }}"
+              },
+              {
+                "name": "X-Feeder-Summary",
+                "value": "={{ encodeURIComponent(String($json.summary || '').replace(/<br\\s*\\/?>/gi, '\\n').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '\"').replace(/&#39;/g, \"'\").replace(/&lt;/g, '<').replace(/&gt;/g, '>')) }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "f7d8c9b0-1a2e-4fd0-b14c-7d8e9f0a1b2c",
+      "name": "Respond: courier CSV",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1888,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, problems: $json.problems || [] }) }}",
+        "options": {}
+      },
+      "id": "a8e9d0c1-2b3f-4ae1-8c5d-8e9f0a1b2c3d",
+      "name": "Respond: problems",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1888,
+        740
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Upload FB Leads": {
+      "main": [
+        [
+          {
+            "node": "Parse Lead Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Lead Files": {
+      "main": [
+        [
+          {
+            "node": "Read Products Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Courier CSV": {
+      "main": [
+        [
+          {
+            "node": "From the panel?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "File ready?": {
+      "main": [
+        [
+          {
+            "node": "Download Courier CSV",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Show Problems",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Products Sheet": {
+      "main": [
+        [
+          {
+            "node": "Build Courier CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Panel: Bulk import": {
+      "main": [
+        [
+          {
+            "node": "Check panel key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check panel key": {
+      "main": [
+        [
+          {
+            "node": "Parse Lead Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "From the panel?": {
+      "main": [
+        [
+          {
+            "node": "Panel: file ready?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "File ready?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Panel: file ready?": {
+      "main": [
+        [
+          {
+            "node": "Respond: courier CSV",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: problems",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "meta": {
+    "instanceId": "de6eda717186e702616e1da1fc41332fb22fd532667d0c54056d17627731f41c"
+  },
+  "nodeGroups": [],
+  "tags": []
+}

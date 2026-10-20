@@ -1,6 +1,6 @@
 "use client";
 
-import { Menu, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
+import { Lock, Menu, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
@@ -16,6 +16,8 @@ export type PanelNavItem = {
   dot?: string;
   /** Match only this exact path (default: path prefix). */
   exact?: boolean;
+  /** Shown greyed out with a lock (e.g. a package the customer hasn't bought); still a link. */
+  locked?: boolean;
 };
 export type PanelNavGroup = { label?: string; items: PanelNavItem[] };
 
@@ -76,10 +78,11 @@ function NavList({ groups, collapsed, onNavigate }: { groups: PanelNavGroup[]; c
                 href={item.href}
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
-                title={collapsed ? item.label : undefined}
+                title={collapsed ? `${item.label}${item.locked ? " (locked)" : ""}` : item.locked ? "Not in your plan" : undefined}
                 className={cn(
                   "flex h-9 items-center gap-3 rounded-md px-3 type-label transition-hover focus-visible:focus-ring",
                   active ? "bg-brand-soft text-brand" : "text-ink-muted hover:bg-surface-raised hover:text-ink",
+                  item.locked && !active && "opacity-50 grayscale hover:opacity-80",
                   collapsed && "justify-center px-0",
                 )}
               >
@@ -91,6 +94,12 @@ function NavList({ groups, collapsed, onNavigate }: { groups: PanelNavGroup[]; c
                   )}
                 </span>
                 <span className={cn("min-w-0 flex-1 truncate", collapsed && "sr-only")}>{item.label}</span>
+                {item.locked ? (
+                  <>
+                    <Lock aria-hidden size={14} strokeWidth={1.5} className={cn("shrink-0", collapsed && "hidden")} />
+                    <span className="sr-only"> (locked)</span>
+                  </>
+                ) : null}
                 {item.badge ? (
                   <span
                     className={cn(

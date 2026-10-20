@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 
 /** Order statuses that unlock a product panel (paid and being set up, live, or paused). */
-const ACCESS_STATUSES = ["setting_up", "active", "paused"];
+export const ACCESS_STATUSES = ["setting_up", "active", "paused"];
 
 export type Customer = {
   id: string;
