@@ -40,18 +40,7 @@ export function BulkImport() {
       const res = await fetch("/api/feeder/bulk-import", { method: "POST", body: fd });
       const type = res.headers.get("content-type") ?? "";
       if (res.ok && type.includes("text/csv")) {
-        const blob = await res.blob();
-        const name = /filename="?([^";]+)"?/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? "orders.csv";
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = decodeURIComponent(name);
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 10_000);
-        const summary = decodeURIComponent(res.headers.get("x-feeder-summary") ?? "").split("\n").filter(Boolean);
-        setResult({ kind: "done", fileName: a.download, orders: res.headers.get("x-feeder-orders"), summary });
+        setResult({ kind: "done", ...(await downloadCsv(res)) });
         setFiles([]);
       } else {
         const json = (await res.json().catch(() => null)) as { problems?: string[]; error?: string } | null;
@@ -66,17 +55,7 @@ export function BulkImport() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Card className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <h2 className="type-h3 text-ink">Your products</h2>
-          <p className="type-body text-ink-muted">
-            Prices, item codes and delivery fees in the courier file come from your products sheet. Add a new product, change a price, or add a form name to a product&apos;s aliases there; the next file you build uses it.
-          </p>
-        </div>
-        <Button href={PRODUCTS_SHEET_URL} variant="secondary" target="_blank" rel="noopener noreferrer" iconAfter={<ExternalLink aria-hidden size={14} strokeWidth={1.5} />}>
-          Add or edit products
-        </Button>
-      </Card>
+      <ProductsSheetCard />
       <Card className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <h2 className="type-h3 text-ink">Facebook leads → courier CSV</h2>
@@ -166,4 +145,36 @@ export function BulkImport() {
       ) : null}
     </div>
   );
+}
+
+/** Where prices, item codes and delivery fees come from (the customer's Products Google Sheet). */
+export function ProductsSheetCard() {
+  return (
+    <Card className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <h2 className="type-h3 text-ink">Your products</h2>
+        <p className="type-body text-ink-muted">
+          Prices, item codes and delivery fees in the courier file come from your products sheet. Add a new product, change a price, or add a form name to a product&apos;s aliases there; the next file you build uses it.
+        </p>
+      </div>
+      <Button href={PRODUCTS_SHEET_URL} variant="secondary" target="_blank" rel="noopener noreferrer" iconAfter={<ExternalLink aria-hidden size={14} strokeWidth={1.5} />}>
+        Add or edit products
+      </Button>
+    </Card>
+  );
+}
+
+/** Saves the courier CSV the worker sent back to this computer. */
+export async function downloadCsv(res: Response) {
+  const blob = await res.blob();
+  const name = decodeURIComponent(/filename="?([^";]+)"?/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? "orders.csv");
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  return { fileName: name, orders: res.headers.get("x-feeder-orders"), summary: decodeURIComponent(res.headers.get("x-feeder-summary") ?? "").split("\n").filter(Boolean) };
 }

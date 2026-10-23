@@ -33,7 +33,7 @@ export type GeneralSettings = {
   announcement_href: string;
   maintenance_mode: boolean;
   maintenance_message: string;
-  default_theme: "light" | "dark" | "system";
+  default_theme: "light" | "dark";
   currency_code: string;
   currency_locale: string;
   auth_google_enabled: boolean;
@@ -169,9 +169,8 @@ export function GeneralForm({ initial }: { initial: GeneralSettings }) {
           <Field label="Default theme">
             <Select
               value={v.default_theme}
-              onChange={(e) => set("default_theme", (e.target.value || "system") as GeneralSettings["default_theme"])}
+              onChange={(e) => set("default_theme", (e.target.value === "dark" ? "dark" : "light") as GeneralSettings["default_theme"])}
               options={[
-                { value: "system", label: "Follow the device" },
                 { value: "light", label: "Light" },
                 { value: "dark", label: "Dark" },
               ]}

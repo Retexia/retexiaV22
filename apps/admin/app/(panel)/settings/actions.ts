@@ -54,7 +54,7 @@ const general = z
     announcement_href: url,
     maintenance_mode: z.boolean(),
     maintenance_message: text(600),
-    default_theme: z.enum(["light", "dark", "system"]),
+    default_theme: z.enum(["light", "dark"]),
     currency_code: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/),
     currency_locale: z.string().trim().min(2).max(20),
     auth_google_enabled: z.boolean(),

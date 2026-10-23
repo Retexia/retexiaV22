@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import { ACCESS_STATUSES } from "../customer";
 import { webUrl } from "../env";
+import { toolFor } from "./tools";
 
 export const feederSlug = () => process.env.FEEDER_PRODUCT_SLUG || "feeder";
 
@@ -46,12 +47,15 @@ export const getFeeder = cache(async () => {
       const o = bought.get(p.id);
       return { id: p.id, slug: p.slug, name: p.name, tagline: p.tagline, owned: Boolean(o), orderRef: o?.ref ?? null, orderStatus: o?.status ?? null };
     });
+  // Bulk import v2 does everything v1 does: owners of v2 don't see v1 offered to them.
+  const hasV2 = list.some((p) => p.owned && toolFor(p.slug) === "bulk-import-v2");
+  const shown = hasV2 ? list.filter((p) => p.owned || toolFor(p.slug) !== "bulk-import") : list;
   return {
     user: { id: auth.user.id, email: profile?.email ?? auth.user.email ?? "", name: profile?.full_name ?? "" },
     productName: product?.name ?? "Retexia Feeder",
     /** Where a locked package is bought on retexia.com. */
     buyUrl: (slug: string) => `${webUrl()}/${product?.page_slug || feederSlug()}/get-started?package=${encodeURIComponent(slug)}`,
-    packages: list,
+    packages: shown,
   };
 });
 

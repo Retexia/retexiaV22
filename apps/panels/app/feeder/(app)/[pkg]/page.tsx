@@ -3,6 +3,7 @@ import { PageHeader } from "@retexia/ui/admin";
 import { Lock } from "lucide-react";
 import { notFound } from "next/navigation";
 import { BulkImport } from "@/components/feeder/bulk-import";
+import { BulkImportV2 } from "@/components/feeder/bulk-import-v2";
 import { requireFeederPage } from "@/lib/feeder/access";
 import { toolFor } from "@/lib/feeder/tools";
 
@@ -39,7 +40,9 @@ export default async function FeederPackagePage({ params }: { params: Promise<{ 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={p.name} description={p.tagline ?? undefined} />
-      {tool === "bulk-import" ? (
+      {tool === "bulk-import-v2" ? (
+        <BulkImportV2 />
+      ) : tool === "bulk-import" ? (
         <BulkImport />
       ) : (
         <Alert tone="info" title="We're setting this up">

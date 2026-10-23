@@ -1,32 +1,64 @@
 {
-  "name": "FB Leads → Courier CSV (Google Sheets)",
+  "name": "Leads (FB · TikTok · CRM) → Courier CSV",
   "nodes": [
     {
       "parameters": {
-        "content": "## FB Leads → Courier CSV\n\n**Setup (one time)**\n1. Make a Google Sheet with a tab named **Products** (import `Products_sheet_template.csv` → File → Import → *Replace current sheet*). Row 1 = headers.\n2. Open **Read Products Sheet** → create a *Google Sheets* credential (sign in with Google) → pick your spreadsheet in **Document** and the **Products** tab in **Sheet**.\n3. Save & **Activate** the workflow.\n4. Open **Upload FB Leads** → copy the **Production URL** and bookmark it.\n\n**Daily use**\nOpen the form → drop in all FB `.xls`/`.csv` lead files → Submit → `yyyy_MM_dd(orders).csv` downloads. The page lists which product each form matched.\n\n**How products are found**\nEach form name is split into words and searched in `product_name`, `product_id` and `aliases`. If at least half the form words are found, the best-scoring product wins (\"Cholesterol\" → Ayora Cholesterol Care Tablet). Numbers like 30 / 60 tell pack sizes apart. Only real ties (e.g. \"Gastric\" with both 30 and 60 packs) are refused.\n\n**If a form can't be matched**\nAdd the form name to that product's `aliases` cell (comma-separated) and upload again. Set `active` to FALSE for old products.\n\nprice ← price · item_code ← product_ID_Feeder · delivery ← delivery_fee\n\n**feeder.retexia.com → Bulk import**\nThe panel posts the lead files to **Panel: Bulk import** (Production URL → `FEEDER_N8N_URL` on Vercel) with header `X-Retexia-Key`. Put the same value in **Check panel key** (`KEY`) and in `FEEDER_N8N_KEY`. The CSV goes straight back to the customer's computer; nothing is saved.",
-        "height": 820,
-        "width": 460,
+        "content": "## Leads → Courier CSV  (Facebook · TikTok · CRM)\n\n**Setup (one time)**\n1. **Read Products Sheet** → Google Sheets credential → your Products sheet (row 1 = headers).\n2. **OpenRouter Chat Model** → create an *OpenRouter* credential (API key from openrouter.ai/keys) → pick a model (any cheap one that supports JSON, e.g. `openai/gpt-4o-mini`).\n3. Save & **Activate**. **Upload Lead Files** → copy the **Production URL**.\n\n**Daily use**\nOpen the form → drop in Facebook `.xls/.csv` and TikTok `.xlsx/.csv` files together → Submit → `yyyy_MM_dd(orders).csv` downloads.\n\n**Columns — any order, any names, nothing required**\nKnown names (full_name, Name, Phone number, Mobile, Address, City, Form name, Product, Qty, Price/COD, SKU/item_code, Delivery…, Sinhala/Tamil words too) are read instantly; phone columns are also spotted by their values. If name, phone, address or product is not found, **AI: map columns** works it out once and the answer is remembered for that header layout. Missing columns are left blank and listed as ⚠ warnings — the file is still built.\nPrice / item_code / delivery / qty from the file win; anything missing comes from the matched product. Only 6 sample rows of an unclear file are sent to OpenRouter.\n\nOnly stop: a row names a product that is not in the Products sheet (set `STOP_ON_UNKNOWN_PRODUCT = false` in **Build Courier CSV** to build anyway with blanks).\n\n**How products are found**\nEach form/product name is split into words and searched in `product_name`, `product_id` and `aliases`. Half the words must match; best score wins; real ties are refused. If a form isn't matched, add it to that product's `aliases`.\n\nprice ← price · item_code ← product_ID_Feeder · delivery ← delivery_fee\n\n**feeder.retexia.com → Bulk import**\nPanel posts files to **Panel: Bulk import** with header `X-Retexia-Key` (= `KEY` in **Check panel key** = `FEEDER_N8N_KEY`). TikTok files work there too. **Bulk import v2** in the panel also reads the customer's CRM Google Sheets (view links) itself and sends each as a `CRM - <sheet> - <tab>.csv` file in the same request, so one courier CSV covers everything.",
+        "height": 1000,
+        "width": 500,
         "color": 4
       },
-      "id": "2793d372-9e81-4c82-b8d0-48d87faecc07",
+      "id": "70a1aff4-3b34-4362-931b-7a1ac22519bf",
       "name": "Read me",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        0,
-        0
+        1728,
+        1200
       ]
     },
     {
       "parameters": {
-        "formTitle": "FB Leads → Courier CSV",
-        "formDescription": "Upload one or more lead files downloaded from Facebook Leads Center (.xls or .csv). You'll get one courier CSV back.",
+        "content": "## CRM import (manual)\n1. Share the CRM sheet: *Anyone with the link → Viewer*.\n2. Paste its link (open the right tab first) into **CRM: sheet link**.\n3. Click **Execute workflow** on **Run CRM import**.\n4. Open **CRM: courier CSV** → Output → Binary → **Download**.\n\nColumns can be in any order with any names; nothing is required.",
+        "height": 360,
+        "width": 700,
+        "color": 6
+      },
+      "id": "401e42eb-4b0a-4e57-9478-5517b884cf5f",
+      "name": "CRM note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        2240
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## AI column reader\nRuns only when name, phone, address or product can't be found by column name. If OpenRouter fails, the columns found by name are used and a ⚠ warning says so.",
+        "height": 520,
+        "width": 520,
+        "color": 5
+      },
+      "id": "896499fd-a849-4982-aee4-68f4f0bf4a61",
+      "name": "AI note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2864,
+        1232
+      ]
+    },
+    {
+      "parameters": {
+        "formTitle": "Leads → Courier CSV",
+        "formDescription": "Upload one or more lead files from Facebook Leads Center (.xls / .csv) or TikTok Leads Center (.xlsx / .csv). You'll get one courier CSV back.",
         "formFields": {
           "values": [
             {
               "fieldLabel": "Lead files",
               "fieldType": "file",
-              "acceptFileTypes": ".xls, .csv",
+              "acceptFileTypes": ".xls, .xlsx, .csv",
               "requiredField": true
             }
           ]
@@ -35,137 +67,15 @@
           "buttonLabel": "Build courier CSV"
         }
       },
-      "id": "0da32b12-c5f1-40af-9349-ec04468212f4",
-      "name": "Upload FB Leads",
+      "id": "710c593c-758a-4288-9099-6dfd47fde724",
+      "name": "Upload Lead Files",
       "type": "n8n-nodes-base.formTrigger",
       "typeVersion": 2.2,
       "position": [
-        560,
-        240
+        2288,
+        1616
       ],
-      "webhookId": "4943764d-7ff0-4507-9015-c4e771019172"
-    },
-    {
-      "parameters": {
-        "jsCode": "// ─────────────────────────────────────────────────────────────────────────────\n// PARSE LEAD FILES\n// Reads every file uploaded through the form and turns it into lead rows.\n// Supports the files Facebook Leads Center gives you:\n//   • .xls  → really an XML spreadsheet (SpreadsheetML 2003)\n//   • .csv  → UTF-16 or UTF-8, tab- or comma-separated (phones like \"p:+9477…\")\n// Output: ONE item → { leads, files, problems, formNames }\n// ─────────────────────────────────────────────────────────────────────────────\n\nconst input = $input.first();\nconst binaries = input.binary || {};\n\nconst leads = [];\nconst files = [];\nconst problems = [];\n\n// ---------- helpers ----------\nfunction decodeXml(s) {\n  return s.replace(/&(#x[0-9a-f]+|#\\d+|amp|lt|gt|quot|apos);/gi, (m, e) => {\n    const l = e.toLowerCase();\n    if (l === 'amp') return '&';\n    if (l === 'lt') return '<';\n    if (l === 'gt') return '>';\n    if (l === 'quot') return '\"';\n    if (l === 'apos') return \"'\";\n    const code = l[1] === 'x' ? parseInt(l.slice(2), 16) : parseInt(l.slice(1), 10);\n    return Number.isFinite(code) ? String.fromCodePoint(code) : m;\n  });\n}\n\nfunction decodeText(buf) {\n  if (buf[0] === 0xff && buf[1] === 0xfe) return buf.slice(2).toString('utf16le');\n  if (buf[0] === 0xfe && buf[1] === 0xff) {\n    const b = Buffer.from(buf.slice(2, buf.length - ((buf.length - 2) % 2)));\n    b.swap16();\n    return b.toString('utf16le');\n  }\n  if (buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) return buf.slice(3).toString('utf8');\n  // UTF-16 LE without a BOM → lots of 0x00 bytes in odd positions\n  let zeros = 0;\n  const n = Math.min(buf.length, 400);\n  for (let i = 1; i < n; i += 2) if (buf[i] === 0) zeros++;\n  if (n > 10 && zeros > n / 4) return buf.toString('utf16le');\n  return buf.toString('utf8');\n}\n\n// SpreadsheetML (Facebook .xls) → array of sheets, each an array of rows (arrays of strings)\nfunction parseSpreadsheetML(xml) {\n  const sheets = xml.match(/<(?:ss:)?Worksheet\\b[\\s\\S]*?<\\/(?:ss:)?Worksheet>/g) || [xml];\n  return sheets.map((sheet) => {\n    const out = [];\n    const rowRe = /<(?:ss:)?Row\\b[^>]*?(?:\\/>|>([\\s\\S]*?)<\\/(?:ss:)?Row>)/g;\n    let rm;\n    while ((rm = rowRe.exec(sheet))) {\n      const cells = [];\n      const cellRe = /<(?:ss:)?Cell\\b([^>]*?)(?:\\/>|>([\\s\\S]*?)<\\/(?:ss:)?Cell>)/g;\n      let cm;\n      while ((cm = cellRe.exec(rm[1] || ''))) {\n        const idx = /(?:ss:)?Index=\"(\\d+)\"/.exec(cm[1]);\n        if (idx) while (cells.length < Number(idx[1]) - 1) cells.push('');\n        const dm = /<(?:ss:)?Data\\b[^>]*>([\\s\\S]*?)<\\/(?:ss:)?Data>/.exec(cm[2] || '');\n        cells.push(dm ? decodeXml(dm[1].replace(/<[^>]+>/g, '')) : '');\n      }\n      out.push(cells);\n    }\n    return out;\n  });\n}\n\n// CSV / TSV → [rows]\nfunction parseDelimited(text) {\n  const firstLine = text.split(/\\r?\\n/, 1)[0] || '';\n  const count = (ch) => firstLine.split(ch).length - 1;\n  const d = ['\\t', ',', ';'].sort((a, b) => count(b) - count(a))[0];\n  const rows = [];\n  let row = [];\n  let field = '';\n  let quoted = false;\n  for (let i = 0; i < text.length; i++) {\n    const c = text[i];\n    if (quoted) {\n      if (c === '\"') {\n        if (text[i + 1] === '\"') { field += '\"'; i++; } else quoted = false;\n      } else field += c;\n    } else if (c === '\"' && field === '') quoted = true;\n    else if (c === d) { row.push(field); field = ''; }\n    else if (c === '\\n' || c === '\\r') {\n      if (c === '\\r' && text[i + 1] === '\\n') i++;\n      row.push(field); rows.push(row); row = []; field = '';\n    } else field += c;\n  }\n  if (field !== '' || row.length) { row.push(field); rows.push(row); }\n  return [rows];\n}\n\nconst normHeader = (h) =>\n  String(h ?? '').replace(/^\\uFEFF/, '').trim().toLowerCase().replace(/[\\s\\-]+/g, '_');\n\nfunction sheetToObjects(rows) {\n  // header = first row (within the first 10) that looks like a FB leads header\n  const hIdx = rows.slice(0, 10).findIndex((r) =>\n    r.map(normHeader).some((h) => ['phone_number', 'full_name', 'form_name', 'street_address'].includes(h)),\n  );\n  if (hIdx === -1) return null;\n  const header = rows[hIdx].map(normHeader);\n  const objs = [];\n  for (const r of rows.slice(hIdx + 1)) {\n    if (!r.some((v) => String(v ?? '').trim() !== '')) continue; // blank row\n    const o = {};\n    header.forEach((h, i) => { if (h) o[h] = String(r[i] ?? '').trim(); });\n    objs.push(o);\n  }\n  return objs;\n}\n\nconst pick = (o, ...keys) => {\n  for (const k of keys) if (o[k] != null && String(o[k]).trim() !== '') return String(o[k]).trim();\n  return '';\n};\n\n// ---------- main ----------\nconst keys = Object.keys(binaries);\nif (keys.length === 0) problems.push('No files were uploaded.');\n\nfor (const key of keys) {\n  const meta = binaries[key] || {};\n  const fileName = meta.fileName || key;\n  try {\n    let buf = await this.helpers.getBinaryDataBuffer(0, key);\n    if (!Buffer.isBuffer(buf)) buf = Buffer.from(buf && buf.data ? buf.data : buf);\n\n    if (buf[0] === 0x50 && buf[1] === 0x4b) {\n      throw new Error('this is an .xlsx file. Upload the original .xls or .csv exactly as downloaded from Facebook (or re-save it as \"CSV UTF-8\").');\n    }\n    if (buf[0] === 0xd0 && buf[1] === 0xcf) {\n      throw new Error('this is an old binary Excel file. Upload the original .xls or .csv exactly as downloaded from Facebook (or re-save it as \"CSV UTF-8\").');\n    }\n\n    const text = decodeText(buf);\n    const isXml = /<(?:ss:)?Workbook[\\s>]|urn:schemas-microsoft-com:office:spreadsheet/.test(text.slice(0, 5000));\n    const sheets = isXml ? parseSpreadsheetML(text) : parseDelimited(text);\n\n    let found = 0;\n    let headerSeen = false;\n    // product name fallback from FB file name: \"<Form_Name>_Leads_<from>_<to>.xls\"\n    const formFromFile = fileName.replace(/\\.[^.]+$/, '').replace(/_Leads_.*$/i, '').replace(/_/g, ' ').trim();\n\n    for (const rows of sheets) {\n      const objs = sheetToObjects(rows);\n      if (!objs) continue;\n      headerSeen = true;\n      for (const o of objs) {\n        const lead = {\n          lead_id: pick(o, 'id', 'lead_id').replace(/^l:/, ''),\n          created_time: pick(o, 'created_time'),\n          form_name: pick(o, 'form_name', 'form') || formFromFile,\n          name: pick(o, 'full_name', 'name') || [pick(o, 'first_name'), pick(o, 'last_name')].filter(Boolean).join(' '),\n          address: pick(o, 'street_address', 'address', 'full_address'),\n          phone_number: pick(o, 'phone_number', 'phone', 'mobile_number'),\n          work_phone_number: pick(o, 'work_phone_number', 'work_phone'),\n          file: fileName,\n        };\n        if (!lead.name && !lead.address && !lead.phone_number) continue;\n        leads.push(lead);\n        found++;\n      }\n    }\n    if (!headerSeen) throw new Error('could not find the lead columns (full_name, street_address, phone_number…).');\n    files.push({ file: fileName, leads: found });\n  } catch (err) {\n    problems.push(`${fileName}: ${err.message}`);\n  }\n}\n\n// ---------- distinct form names for the product search ----------\n// \"Kinoki Detox Foot Pads - Copy 2\" → \"Kinoki Detox Foot Pads\"; drop control chars and \"$\"\nconst cleanForm = (s) =>\n  String(s ?? '')\n    .replace(/[\\u0000-\\u001f\\u007f$]/g, ' ')\n    .replace(/(\\s*[-–_]?\\s*\\bcopy\\b(\\s*\\d+)?)+\\s*$/i, '')\n    .replace(/\\s+/g, ' ')\n    .trim();\nfor (const lead of leads) lead.form_key = cleanForm(lead.form_name);\nconst formNames = [...new Set(leads.map((l) => l.form_key).filter(Boolean))];\n\nreturn [{ json: { leads, files, problems, formNames } }];\n"
-      },
-      "id": "7a3cf670-aaa0-44c7-8bc0-87410faa25b1",
-      "name": "Parse Lead Files",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        784,
-        240
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "read",
-        "documentId": {
-          "__rl": true,
-          "value": "",
-          "mode": "list",
-          "cachedResultName": ""
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "",
-          "mode": "list",
-          "cachedResultName": ""
-        },
-        "options": {}
-      },
-      "id": "5b1e2c7a-9d3f-4e61-8a2b-7c4d9e0f1a23",
-      "name": "Read Products Sheet",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
-      "position": [
-        1008,
-        240
-      ],
-      "executeOnce": true,
-      "alwaysOutputData": true
-    },
-    {
-      "parameters": {
-        "jsCode": "// ─────────────────────────────────────────────────────────────────────────────\n// BUILD COURIER CSV\n// Input  : every row of the \"Products\" Google Sheet (from \"Read Products Sheet\")\n// Leads  : from \"Parse Lead Files\"\n// Does   : the same word search the old Supabase ILIKE query did, then builds\n//          name,address,tp_1,tp_2,price,qty,item_code,delivery\n//          file name yyyy_MM_dd(<orders>).csv   e.g. 2026_10_20(56).csv\n// ─────────────────────────────────────────────────────────────────────────────\n\n// ---- settings ----\nconst TIMEZONE = 'Asia/Colombo';\nconst QTY = 1;\nconst MIN_FORM_COVERAGE = 0.5;    // at least half of the form name's words must be found in the product (name, id or aliases)\n                                  // the best-scoring product then wins; only a real tie is refused\nconst DEDUPE_BY_LEAD_ID = true;   // same FB lead in two uploaded files → keep once\n// ------------------\n\nconst parsed = $('Parse Lead Files').first().json;\nconst leads = parsed.leads || [];\nconst problems = [...(parsed.problems || [])];\n\nconst htmlEsc = (s) => String(s ?? '').replace(/[&<>\"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\n\n// ---------- read the Products sheet ----------\n// Headers are matched loosely: \"product_ID_Feeder\", \"Product ID Feeder\", \"product id feeder\" all work.\nconst normKey = (h) => String(h ?? '').replace(/^\\uFEFF/, '').trim().toLowerCase().replace(/[\\s\\-]+/g, '_');\nconst cell = (row, ...names) => {\n  for (const n of names) {\n    const v = row[n];\n    if (v != null && String(v).trim() !== '') return String(v).trim();\n  }\n  return '';\n};\n// \"Rs. 1,990.00\" → \"1990\"   (keeps the text as-is if it isn't a number)\nconst money = (v) => {\n  const s = String(v ?? '').trim();\n  if (s === '') return '';\n  const n = Number(s.replace(/rs\\.?|lkr|,|\\s/gi, ''));\n  return Number.isFinite(n) ? String(n) : s;\n};\nconst isActive = (v) => !/^(false|no|n|0|inactive|off)$/i.test(String(v ?? '').trim()); // blank = active\n\n// same tokenising as the old SQL: \"Ayora Gastric Care 30Tablets\" → ayora, gastric, care, tablet\nconst STOP_FORM = new Set(['copy', 'the', 'and', 'for', 'with', 'new', 'form', 'lead', 'leads']);\nconst STOP_PRODUCT = new Set(['the', 'and', 'for', 'with']);\nfunction words(text, stop) {\n  const t = String(text ?? '')\n    .replace(/(?<=[0-9])(?=\\p{L})/gu, ' ')\n    .replace(/(?<=\\p{L})(?=[0-9])/gu, ' ')\n    .replace(/[^\\p{L}\\p{N}]+/gu, ' ')\n    .toLowerCase();\n  const out = new Set();\n  for (const w of t.split(/\\s+/)) {\n    if (w.length < 3 || /^[0-9]+$/.test(w) || stop.has(w)) continue;\n    out.add(w.length > 4 ? w.replace(/s$/, '') : w);\n  }\n  return [...out];\n}\nconst numbers = (text) => [...new Set((String(text ?? '').match(/[0-9]+/g) || []).map((n) => n.replace(/^0+/, '')))];\n\nconst products = [];\nlet rowNo = 1;\nfor (const { json: raw } of $input.all()) {\n  rowNo++;\n  if (!raw || typeof raw !== 'object') continue;\n  const r = {};\n  for (const [k, v] of Object.entries(raw)) r[normKey(k)] = v;\n  const product_name = cell(r, 'product_name', 'name', 'product');\n  const product_id = cell(r, 'product_id', 'id');\n  if (!product_name && !product_id) continue; // blank row\n  const aliasesRaw = cell(r, 'aliases', 'alias');\n  products.push({\n    row: r.row_number ?? rowNo,\n    product_id,\n    product_name,\n    price: money(cell(r, 'price')),\n    delivery_fee: money(cell(r, 'delivery_fee', 'delivery')),\n    item_code: cell(r, 'product_id_feeder', 'item_code', 'feeder_id').replace(/\\.0+$/, ''),\n    active: isActive(r.active),\n    aliases: aliasesRaw.toLowerCase(),\n    alias_list: aliasesRaw\n      .split(/[,;|\\n\\r]/)\n      .map((a) => a.replace(/^[\\s\"'\\[\\]]+|[\\s\"'\\[\\]]+$/g, '').toLowerCase())\n      .filter(Boolean),\n    // searched text = product name + product id + aliases\n    haystack: (product_name + ' ' + product_id.replace(/_/g, ' ') + ' ' + aliasesRaw).toLowerCase(),\n    // the product name and every alias are scored on their own; the best one counts\n    phrases: [product_name, ...aliasesRaw.split(/[,;|\\n\\r]/)]\n      .map((t) => words(t, STOP_PRODUCT))\n      .filter((w) => w.length),\n    nums: numbers(product_name),\n  });\n}\nif (products.length === 0) problems.push('The Products Google Sheet is empty or could not be read (check the sheet name and the header row).');\n\n// ---------- the search (same rules as the old ILIKE query) ----------\nconst round3 = (x) => Math.round(x * 1000) / 1000;\nfunction rankProducts(formName) {\n  const form = formName.toLowerCase();\n  const fWords = words(formName, STOP_FORM);\n  const fNums = new Set(numbers(formName));\n  const list = [];\n  for (const p of products) {\n    const aliasHit = p.alias_list.includes(form) || (form.length >= 12 && p.aliases.includes(form));\n    const wordHit = fWords.some((w) => p.haystack.includes(w));\n    if (!aliasHit && !wordHit) continue;\n    const exact = aliasHit || p.product_name.toLowerCase() === form;\n    const form_hits = fWords.filter((w) => p.haystack.includes(w)).length;\n    const fc = round3(form_hits / Math.max(fWords.length, 1));\n    // how much of the product name (or its best alias) appears in the form name\n    const pc = round3(Math.max(0, ...p.phrases.map((ws) => ws.filter((w) => form.includes(w)).length / ws.length)));\n    const nums = p.nums.reduce((s, n) => s + (fNums.has(n) ? 1 : -1), 0); // +1 shared pack size, -1 different\n    list.push({ ...p, exact, fc, pc, score: round3(fc + pc), nums, form_hits });\n  }\n  list.sort((a, b) =>\n    (b.exact - a.exact) ||\n    (b.score - a.score) ||\n    (b.nums - a.nums) ||\n    (b.form_hits - a.form_hits) ||\n    (b.active - a.active) ||\n    (a.product_name.length - b.product_name.length) ||\n    a.product_id.localeCompare(b.product_id));\n  return list;\n}\n\nconst accepted = (c) => c && (c.exact || c.fc >= MIN_FORM_COVERAGE);\n\nconst decisions = new Map();\nfunction decide(formKey) {\n  if (decisions.has(formKey)) return decisions.get(formKey);\n  const list = formKey ? rankProducts(formKey) : [];\n  const [top, second] = list;\n  // equally good = same exact flag, same score, same number match, same active flag\n  const sameAsTop = (c) => c.exact === top.exact && Math.abs(c.score - top.score) < 0.001 && c.nums === top.nums && c.active === top.active;\n  let d;\n  if (!top) d = { status: 'none' };\n  else if (!accepted(top)) d = { status: 'weak', closest: top };\n  else if (second && accepted(second) && sameAsTop(second)) d = { status: 'tie', options: list.filter(sameAsTop).slice(0, 5) };\n  else d = { status: 'ok', product: top };\n  decisions.set(formKey, d);\n  return d;\n}\n\n// ---------- phone → 07XXXXXXXX (landlines → 0XXXXXXXXX) ----------\nfunction toLocal(raw) {\n  const d = String(raw ?? '').replace(/\\D/g, '');   // drops \"+\", \"p:\", spaces, dashes\n  if (d.length < 9) return '';\n  const local = '0' + d.slice(-9);                    // last 9 digits = SL number without the 0\n  return /^0[1-9]\\d{8}$/.test(local) ? local : '';\n}\n\n// ---------- build rows ----------\nconst rows = [];\nconst failed = new Map();       // formKey → { d, count }\nconst incomplete = new Map();   // product_name → { row, missing columns }\nconst matchedCount = new Map(); // \"form → product\" → orders\nconst seen = new Set();\nlet duplicates = 0;\n\nfor (const lead of products.length ? leads : []) {\n  if (DEDUPE_BY_LEAD_ID && lead.lead_id) {\n    if (seen.has(lead.lead_id)) { duplicates++; continue; }\n    seen.add(lead.lead_id);\n  }\n\n  const key = lead.form_key || lead.form_name || '';\n  const d = decide(key);\n  if (d.status !== 'ok') {\n    const f = failed.get(key) || { d, count: 0 };\n    f.count++;\n    failed.set(key, f);\n    continue;\n  }\n\n  const p = d.product;\n  const missing = ['price', 'item_code', 'delivery_fee'].filter((k) => String(p[k] ?? '').trim() === '');\n  if (missing.length) { incomplete.set(p.product_name, { row: p.row, missing }); continue; }\n\n  const tp1 = toLocal(lead.phone_number) || toLocal(lead.work_phone_number) || String(lead.phone_number || '').replace(/\\D/g, '');\n  const tp2 = toLocal(lead.work_phone_number) || tp1;\n\n  rows.push({\n    name: String(lead.name || '').trim(),\n    address: String(lead.address || '').replace(/\\s*[\\r\\n]+\\s*/g, ', ').trim(),\n    tp_1: tp1,\n    tp_2: tp2,\n    price: p.price,\n    qty: QTY,\n    item_code: p.item_code,\n    delivery: p.delivery_fee,\n  });\n  const label = `${key} → ${p.product_name}`;\n  matchedCount.set(label, (matchedCount.get(label) || 0) + 1);\n}\n\n// ---------- problems → show them on the form instead of a wrong file ----------\nconst aliasHint = (form) =>\n  `Fix: in the Products Google Sheet add <b>${htmlEsc(form)}</b> to the <code>aliases</code> column of the correct product (comma-separated), then upload again.`;\nfor (const [form, { d, count }] of failed) {\n  const head = `Form <b>\"${htmlEsc(form)}\"</b> (${count} lead${count > 1 ? 's' : ''}): `;\n  if (d.status === 'none') problems.push(head + `no product found. ${aliasHint(form)}`);\n  if (d.status === 'weak') problems.push(head + `no confident match — closest is \"${htmlEsc(d.closest.product_name)}\" (sheet row ${d.closest.row}). ${aliasHint(form)}`);\n  if (d.status === 'tie') problems.push(head + `matches several products equally (${d.options.map((c) => `\"${htmlEsc(c.product_name)}\"`).join(', ')}). ${aliasHint(form)}`);\n}\nfor (const [name, { row, missing }] of incomplete) {\n  problems.push(`Product <b>\"${htmlEsc(name)}\"</b> (sheet row ${row}) is missing ${missing.map((c) => `<code>${c === 'item_code' ? 'product_ID_Feeder' : c}</code>`).join(', ')} in the Products Google Sheet.`);\n}\nif (problems.length === 0 && rows.length === 0) problems.push('No leads were found in the uploaded file(s).');\n\nif (problems.length) {\n  const html = `<h2>Courier file was NOT created</h2><ul>${problems.map((p) => `<li style=\"margin-bottom:8px\">${p}</li>`).join('')}</ul>`;\n  return [{ json: { ok: false, html, problems } }];\n}\n\n// ---------- CSV (UTF-8 BOM + CRLF, same as the courier sample) ----------\nconst HEADER = ['name', 'address', 'tp_1', 'tp_2', 'price', 'qty', 'item_code', 'delivery'];\nconst esc = (v) => {\n  const s = v == null ? '' : String(v);\n  return /[\",\\r\\n]/.test(s) ? `\"${s.replace(/\"/g, '\"\"')}\"` : s;\n};\nconst csv = '\\uFEFF' + [HEADER, ...rows.map((r) => HEADER.map((h) => r[h]))]\n  .map((r) => r.map(esc).join(','))\n  .join('\\r\\n');\n\nconst fileName = `${$now.setZone(TIMEZONE).toFormat('yyyy_MM_dd')}(${rows.length}).csv`;\nconst fileCount = (parsed.files || []).length;\nconst summary =\n  `${rows.length} orders from ${fileCount} file${fileCount === 1 ? '' : 's'}` +\n  (duplicates ? ` · ${duplicates} duplicate lead${duplicates > 1 ? 's' : ''} skipped` : '') +\n  `<br>` +\n  [...matchedCount].map(([label, n]) => `${htmlEsc(label)} (${n})`).join('<br>');\n\nreturn [{\n  json: { ok: true, fileName, orders: rows.length, duplicates, matches: Object.fromEntries(matchedCount), summary },\n  binary: {\n    data: {\n      data: Buffer.from(csv, 'utf8').toString('base64'),\n      mimeType: 'text/csv',\n      fileName,\n      fileExtension: 'csv',\n    },\n  },\n}];\n"
-      },
-      "id": "31b1fedb-1d8c-4c0b-b8e1-82d4f0654779",
-      "name": "Build Courier CSV",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1232,
-        240
-      ]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 1
-          },
-          "conditions": [
-            {
-              "id": "d0779f02-7a44-476a-9be7-b13909f51b17",
-              "leftValue": "={{ $json.ok }}",
-              "rightValue": "",
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "637616df-34c0-45a4-9868-f37b6388f2c4",
-      "name": "File ready?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        1440,
-        240
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "completion",
-        "respondWith": "returnBinary",
-        "completionTitle": "Your courier CSV is ready",
-        "completionMessage": "={{ $json.summary }}",
-        "options": {}
-      },
-      "id": "9da962d9-447d-44c0-9019-d5bd14147ec2",
-      "name": "Download Courier CSV",
-      "type": "n8n-nodes-base.form",
-      "typeVersion": 1,
-      "position": [
-        1664,
-        144
-      ],
-      "webhookId": "d482db13-c6eb-4029-a8fd-5c2d09868cc4"
-    },
-    {
-      "parameters": {
-        "operation": "completion",
-        "respondWith": "showText",
-        "responseText": "={{ $json.html }}"
-      },
-      "id": "abcbc1b7-f760-49df-84e7-ab327af18387",
-      "name": "Show Problems",
-      "type": "n8n-nodes-base.form",
-      "typeVersion": 1,
-      "position": [
-        1664,
-        352
-      ],
-      "webhookId": "d0c6cf38-55b7-4e2f-b14b-00a8521a6ab6"
+      "webhookId": "17349dc0-b4f4-40e7-86da-883389c65a71"
     },
     {
       "parameters": {
@@ -174,13 +84,13 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "8f1d2c3b-4a5e-4f60-9b7c-1d2e3f4a5b6c",
+      "id": "ace0f855-a98d-4dd4-a721-83f69e543c05",
       "name": "Panel: Bulk import",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        560,
-        500
+        2288,
+        1808
       ],
       "webhookId": "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f"
     },
@@ -188,13 +98,201 @@
       "parameters": {
         "jsCode": "// Only feeder.retexia.com may call this webhook: X-Retexia-Key = FEEDER_N8N_KEY on the panel (Vercel).\nconst KEY = 'EDIT: the same value as FEEDER_N8N_KEY in the Retexia panels (Vercel)';\nconst item = $input.first();\nconst given = String((item.json.headers || {})['x-retexia-key'] || '');\nif (KEY.startsWith('EDIT') || given !== KEY) throw new Error('Unauthorized: wrong or missing X-Retexia-Key.');\nif (!item.binary || !Object.keys(item.binary).length) throw new Error('No lead files were sent.');\n// The files go on to Parse Lead Files exactly like a form upload.\nreturn [{ json: {}, binary: item.binary }];\n"
       },
-      "id": "9a2e3d4c-5b6f-4071-8c8d-2e3f4a5b6c7d",
+      "id": "795a4102-c468-4e68-be4d-2ea4997993e9",
       "name": "Check panel key",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        560,
-        700
+        2288,
+        2000
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "c4f25b89-bbc1-4505-ad34-6947ff26a047",
+      "name": "Run CRM import",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        1840,
+        2400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─────────────────────────────────────────────────────────────────────────────\n// CRM: SHEET LINK\n// 1. In the CRM Google Sheet: Share → General access → \"Anyone with the link\" → Viewer.\n// 2. Open the tab that holds the orders, copy the browser link (it ends with #gid=…)\n//    and paste it below.\n// 3. Click \"Execute workflow\" on \"Run CRM import\".\n// ─────────────────────────────────────────────────────────────────────────────\nconst SHEET_URL = 'PASTE_YOUR_GOOGLE_SHEET_LINK_HERE';\n\nconst gid = (/[#&?]gid=(\\d+)/.exec(SHEET_URL) || [])[1] || '0';\nconst published = /\\/spreadsheets\\/d\\/e\\/([a-zA-Z0-9-_]+)/.exec(SHEET_URL); // File → Share → Publish to web\nconst normal = /\\/spreadsheets\\/d\\/([a-zA-Z0-9-_]+)/.exec(SHEET_URL);\nlet export_url;\nif (published) export_url = `https://docs.google.com/spreadsheets/d/e/${published[1]}/pub?output=csv&gid=${gid}`;\nelse if (normal) export_url = `https://docs.google.com/spreadsheets/d/${normal[1]}/export?format=csv&gid=${gid}`;\nelse throw new Error('Open \"CRM: sheet link\" and paste the Google Sheet link into SHEET_URL.');\n\nreturn [{ json: { export_url } }];\n"
+      },
+      "id": "fc25f4ea-ae3a-4c85-b607-80fbd21a14d4",
+      "name": "CRM: sheet link",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2064,
+        2400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.export_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "a789510a-48d0-493d-b757-6986a8b907aa",
+      "name": "CRM: download sheet",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2288,
+        2400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─────────────────────────────────────────────────────────────────────────────\n// PARSE LEAD FILES   (Facebook · TikTok · CRM Google Sheet)\n// Reads every uploaded file and turns it into lead rows.\n//   • Facebook .xls → XML spreadsheet (SpreadsheetML 2003)\n//   • TikTok  .xlsx → real Excel file (unzipped right here, no extra modules)\n//   • .csv          → UTF-16 or UTF-8, tab / comma / semicolon separated\n// Columns are found by their names (COLUMN NAMES below). When a file's columns\n// can't be recognised, the file goes to \"AI: map columns\" (OpenRouter), which\n// works out which column is what. That answer is remembered, so the same\n// column layout never needs the AI again.\n// Output: ONE item → { leads, files, problems, pending, ai_request }\n// ─────────────────────────────────────────────────────────────────────────────\n\n// ---- COLUMN NAMES (compared in lower case; spaces and symbols become \"_\") ----\n// Add your own names to these lists any time.\nconst COLUMNS = {\n  name: ['full_name', 'name', 'customer_name', 'customer', 'client_name', 'your_name', 'contact_name', 'fullname', 'buyer_name', 'receiver_name', 'recipient_name'],\n  first_name: ['first_name', 'firstname', 'given_name'],\n  last_name: ['last_name', 'lastname', 'surname', 'family_name'],\n  phone: ['phone_number', 'phone', 'mobile', 'mobile_number', 'mobile_no', 'phone_no', 'contact_number', 'contact_no', 'telephone', 'telephone_number', 'tel', 'tp', 'tp_1', 'tp1', 'whatsapp', 'whatsapp_number', 'whatsapp_no'],\n  phone2: ['work_phone_number', 'work_phone', 'phone_2', 'phone2', 'tp_2', 'tp2', 'second_phone', 'other_phone', 'alternate_phone', 'alternative_phone', 'alt_phone', 'mobile_2', 'secondary_phone', 'landline'],\n  address: ['street_address', 'address', 'full_address', 'delivery_address', 'shipping_address', 'home_address', 'address_line_1', 'address_1', 'address1', 'street', 'deliver_to', 'delivery_to', 'ship_to', 'location'],\n  address_extra: ['address_line_2', 'address_2', 'address2', 'city', 'town', 'district', 'province'],\n  form: ['form_name', 'form', 'instant_form_name', 'lead_form_name', 'form_title', 'product', 'product_name', 'products', 'item', 'item_name', 'order_item', 'package'],\n  form_fallback: ['campaign_name', 'ad_group_name', 'adgroup_name', 'ad_set_name', 'adset_name', 'ad_name', 'campaign'],\n  lead_id: ['id', 'lead_id', 'leadid', 'order_id', 'order_no', 'order_number', 'invoice_no'],\n  created: ['created_time', 'create_time', 'created_at', 'creation_time', 'submit_time', 'submitted_time', 'submitted_at', 'date', 'timestamp'],\n  // courier columns a CRM / order sheet may already have (used before the Products sheet)\n  price: ['price', 'cod', 'cod_amount', 'amount', 'total', 'total_price', 'total_amount', 'order_value', 'selling_price', 'sale_price', 'unit_price'],\n  qty: ['qty', 'quantity', 'qnty', 'pcs', 'units', 'no_of_items', 'item_count'],\n  item_code: ['item_code', 'itemcode', 'item_id', 'sku', 'product_id_feeder', 'product_code', 'feeder_id', 'code'],\n  delivery: ['delivery', 'delivery_fee', 'delivery_charge', 'delivery_charges', 'shipping', 'shipping_fee', 'shipping_cost', 'courier_charge', 'courier_fee'],\n};\n// If a header has no exact match, these words inside it are enough (Sinhala / Tamil too).\nconst KEYWORDS = {\n  phone: /phone|mobile|whatsapp|contact_n|telephone|දුරකථන|ජංගම|தொலைபேசி|கைபேசி/,\n  address: /address|deliver_to|ship_to|ලිපින|முகவரி/,\n  name: /name|නම|பெயர்/,\n  not_name: /form|campaign|ad_|adgroup|adset|ad_set|product|item|page|platform|file|user_?name|city|district/,\n  price: /price|amount|මිල|விலை/,\n  qty: /qty|quantity|ප්‍රමාණ|அளவு/,\n  delivery: /delivery|shipping|courier/,\n};\n// The AI is asked whenever name, phone, address or product (or item code) can't be found by name.\n// None of them is required: a column that doesn't exist just stays blank in the CSV.\n// ------------------------------------------------------------------------------\n\nconst input = $input.first();\nconst binaries = input.binary || {};\n\nconst leads = [];\nconst files = [];\nconst problems = [];\nconst pending = []; // files the AI has to look at\n\nlet memory = {};\ntry { memory = $getWorkflowStaticData('global'); } catch (e) { memory = {}; }\nconst savedMaps = memory.columnMaps || {};\n\n// ---------- text helpers ----------\nconst norm = (h) =>\n  String(h ?? '').replace(/^\\uFEFF/, '').trim().toLowerCase()\n    .replace(/[^\\p{L}\\p{M}\\p{N}]+/gu, '_').replace(/^_+|_+$/g, '');\nconst sig = (row) => row.map(norm).filter(Boolean).join('|'); // \"fingerprint\" of a header row\n\nfunction decodeXml(s) {\n  return s.replace(/&(#x[0-9a-f]+|#\\d+|amp|lt|gt|quot|apos);/gi, (m, e) => {\n    const l = e.toLowerCase();\n    if (l === 'amp') return '&';\n    if (l === 'lt') return '<';\n    if (l === 'gt') return '>';\n    if (l === 'quot') return '\"';\n    if (l === 'apos') return \"'\";\n    const code = l[1] === 'x' ? parseInt(l.slice(2), 16) : parseInt(l.slice(1), 10);\n    return Number.isFinite(code) ? String.fromCodePoint(code) : m;\n  });\n}\n\nfunction decodeText(buf) {\n  if (buf[0] === 0xff && buf[1] === 0xfe) return buf.slice(2).toString('utf16le');\n  if (buf[0] === 0xfe && buf[1] === 0xff) {\n    const b = Buffer.from(buf.slice(2, buf.length - ((buf.length - 2) % 2)));\n    b.swap16();\n    return b.toString('utf16le');\n  }\n  if (buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) return buf.slice(3).toString('utf8');\n  // UTF-16 LE without a BOM → lots of 0x00 bytes in odd positions\n  let zeros = 0;\n  const n = Math.min(buf.length, 400);\n  for (let i = 1; i < n; i += 2) if (buf[i] === 0) zeros++;\n  if (n > 10 && zeros > n / 4) return buf.toString('utf16le');\n  return buf.toString('utf8');\n}\n\n// ---------- SpreadsheetML (Facebook .xls) → [sheets] of [rows] ----------\nfunction parseSpreadsheetML(xml) {\n  const sheets = xml.match(/<(?:ss:)?Worksheet\\b[\\s\\S]*?<\\/(?:ss:)?Worksheet>/g) || [xml];\n  return sheets.map((sheet) => {\n    const out = [];\n    const rowRe = /<(?:ss:)?Row\\b[^>]*?(?:\\/>|>([\\s\\S]*?)<\\/(?:ss:)?Row>)/g;\n    let rm;\n    while ((rm = rowRe.exec(sheet))) {\n      const cells = [];\n      const cellRe = /<(?:ss:)?Cell\\b([^>]*?)(?:\\/>|>([\\s\\S]*?)<\\/(?:ss:)?Cell>)/g;\n      let cm;\n      while ((cm = cellRe.exec(rm[1] || ''))) {\n        const idx = /(?:ss:)?Index=\"(\\d+)\"/.exec(cm[1]);\n        if (idx) while (cells.length < Number(idx[1]) - 1) cells.push('');\n        const dm = /<(?:ss:)?Data\\b[^>]*>([\\s\\S]*?)<\\/(?:ss:)?Data>/.exec(cm[2] || '');\n        cells.push(dm ? decodeXml(dm[1].replace(/<[^>]+>/g, '')) : '');\n      }\n      out.push(cells);\n    }\n    return out;\n  });\n}\n\n// ---------- CSV / TSV → [rows] ----------\nfunction parseDelimited(text) {\n  const firstLine = text.split(/\\r?\\n/, 1)[0] || '';\n  const count = (ch) => firstLine.split(ch).length - 1;\n  const d = ['\\t', ',', ';'].sort((a, b) => count(b) - count(a))[0];\n  const rows = [];\n  let row = [];\n  let field = '';\n  let quoted = false;\n  for (let i = 0; i < text.length; i++) {\n    const c = text[i];\n    if (quoted) {\n      if (c === '\"') {\n        if (text[i + 1] === '\"') { field += '\"'; i++; } else quoted = false;\n      } else field += c;\n    } else if (c === '\"' && field === '') quoted = true;\n    else if (c === d) { row.push(field); field = ''; }\n    else if (c === '\\n' || c === '\\r') {\n      if (c === '\\r' && text[i + 1] === '\\n') i++;\n      row.push(field); rows.push(row); row = []; field = '';\n    } else field += c;\n  }\n  if (field !== '' || row.length) { row.push(field); rows.push(row); }\n  return [rows];\n}\n\n// ---------- .xlsx (TikTok) → [rows] of the first sheet ----------\n// An .xlsx is a zip of XML files. This tiny unzip + inflate needs no npm modules.\nfunction inflateRaw(src, size) {\n  let out = new Uint8Array(Math.max(size, 1024));\n  let op = 0, ip = 0, bb = 0, bc = 0;\n  const put = (b) => {\n    if (op >= out.length) { const n = new Uint8Array(out.length * 2); n.set(out); out = n; }\n    out[op++] = b;\n  };\n  const bits = (n) => {\n    while (bc < n) { if (ip >= src.length) throw new Error('broken xlsx (deflate data ended early)'); bb |= src[ip++] << bc; bc += 8; }\n    const v = bb & ((1 << n) - 1); bb >>>= n; bc -= n; return v;\n  };\n  const build = (lengths) => {\n    const counts = new Uint16Array(16), offs = new Uint16Array(16), symbols = new Uint16Array(lengths.length);\n    for (const l of lengths) counts[l]++;\n    counts[0] = 0;\n    for (let i = 1; i < 15; i++) offs[i + 1] = offs[i] + counts[i];\n    lengths.forEach((l, s) => { if (l) symbols[offs[l]++] = s; });\n    return { counts, symbols };\n  };\n  const decode = (h) => {\n    let code = 0, first = 0, index = 0;\n    for (let len = 1; len < 16; len++) {\n      code |= bits(1);\n      const c = h.counts[len];\n      if (code - c < first) return h.symbols[index + (code - first)];\n      index += c; first += c; first <<= 1; code <<= 1;\n    }\n    throw new Error('broken xlsx (bad Huffman code)');\n  };\n  const LB = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258];\n  const LE = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0];\n  const DB = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577];\n  const DE = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13];\n  const ORDER = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];\n  let fixed = null;\n  let last = 0;\n  while (!last) {\n    last = bits(1);\n    const type = bits(2);\n    if (type === 0) {\n      bb = 0; bc = 0;\n      const len = src[ip] | (src[ip + 1] << 8);\n      ip += 4;\n      for (let i = 0; i < len; i++) put(src[ip++]);\n      continue;\n    }\n    let lit, dist;\n    if (type === 1) {\n      if (!fixed) {\n        const l = new Array(288);\n        for (let i = 0; i < 288; i++) l[i] = i < 144 ? 8 : i < 256 ? 9 : i < 280 ? 7 : 8;\n        fixed = { lit: build(l), dist: build(new Array(30).fill(5)) };\n      }\n      ({ lit, dist } = fixed);\n    } else if (type === 2) {\n      const hlit = bits(5) + 257, hdist = bits(5) + 1, hclen = bits(4) + 4;\n      const cl = new Array(19).fill(0);\n      for (let i = 0; i < hclen; i++) cl[ORDER[i]] = bits(3);\n      const clh = build(cl);\n      const lens = [];\n      while (lens.length < hlit + hdist) {\n        const s = decode(clh);\n        if (s < 16) lens.push(s);\n        else if (s === 16) { const p = lens[lens.length - 1]; for (let r = 3 + bits(2); r > 0; r--) lens.push(p); }\n        else if (s === 17) for (let r = 3 + bits(3); r > 0; r--) lens.push(0);\n        else for (let r = 11 + bits(7); r > 0; r--) lens.push(0);\n      }\n      lit = build(lens.slice(0, hlit));\n      dist = build(lens.slice(hlit, hlit + hdist));\n    } else throw new Error('broken xlsx (bad block type)');\n    for (;;) {\n      const s = decode(lit);\n      if (s < 256) put(s);\n      else if (s === 256) break;\n      else {\n        const i = s - 257;\n        const len = LB[i] + bits(LE[i]);\n        const ds = decode(dist);\n        const d = DB[ds] + bits(DE[ds]);\n        for (let k = 0; k < len; k++) put(out[op - d]);\n      }\n    }\n  }\n  return Buffer.from(out.buffer, 0, op);\n}\n\nfunction unzip(buf) {\n  let eocd = -1;\n  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--) {\n    if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }\n  }\n  if (eocd < 0) throw new Error('broken xlsx (zip directory not found)');\n  const count = buf.readUInt16LE(eocd + 10);\n  let p = buf.readUInt32LE(eocd + 16);\n  const entries = {};\n  for (let i = 0; i < count; i++) {\n    if (buf.readUInt32LE(p) !== 0x02014b50) break;\n    const method = buf.readUInt16LE(p + 10);\n    const csize = buf.readUInt32LE(p + 20);\n    const usize = buf.readUInt32LE(p + 24);\n    const nlen = buf.readUInt16LE(p + 28), elen = buf.readUInt16LE(p + 30), clen = buf.readUInt16LE(p + 32);\n    const off = buf.readUInt32LE(p + 42);\n    const name = buf.slice(p + 46, p + 46 + nlen).toString('utf8');\n    entries[name] = { method, csize, usize, off };\n    p += 46 + nlen + elen + clen;\n  }\n  return (name) => {\n    const e = entries[name];\n    if (!e) return null;\n    const start = e.off + 30 + buf.readUInt16LE(e.off + 26) + buf.readUInt16LE(e.off + 28);\n    const data = buf.slice(start, start + e.csize);\n    if (e.method === 0) return data.toString('utf8');\n    if (e.method === 8) return inflateRaw(data, e.usize).toString('utf8');\n    throw new Error('unsupported xlsx compression');\n  };\n}\n\nfunction parseXlsx(buf) {\n  const read = unzip(buf);\n  const textOf = (xml) => decodeXml((xml.match(/<t\\b[^>]*>([\\s\\S]*?)<\\/t>/g) || []).map((t) => t.replace(/<[^>]+>/g, '')).join(''));\n  const shared = ((read('xl/sharedStrings.xml') || '').match(/<si\\b[\\s\\S]*?<\\/si>/g) || [])\n    .map((si) => textOf(si.replace(/<rPh\\b[\\s\\S]*?<\\/rPh>/g, '')));\n  // first sheet in workbook order\n  let sheetPath = 'xl/worksheets/sheet1.xml';\n  const wb = read('xl/workbook.xml') || '';\n  const rels = read('xl/_rels/workbook.xml.rels') || '';\n  const rid = /<sheet\\b[^>]*\\br:id=\"([^\"]+)\"/.exec(wb);\n  if (rid) {\n    const rel = new RegExp(`<Relationship\\\\b[^>]*Id=\"${rid[1]}\"[^>]*>`).exec(rels);\n    const target = rel && /Target=\"([^\"]+)\"/.exec(rel[0]);\n    if (target) sheetPath = target[1].startsWith('/') ? target[1].slice(1) : 'xl/' + target[1].replace(/^\\.\\//, '');\n  }\n  const xml = read(sheetPath);\n  if (!xml) throw new Error('could not find the first sheet inside the .xlsx file');\n  const colNo = (ref) => {\n    const letters = /^[A-Z]+/.exec(ref || '');\n    if (!letters) return -1;\n    let n = 0;\n    for (const ch of letters[0]) n = n * 26 + (ch.charCodeAt(0) - 64);\n    return n - 1;\n  };\n  const rows = [];\n  const rowRe = /<row\\b([^>]*?)(?:\\/>|>([\\s\\S]*?)<\\/row>)/g;\n  let rm;\n  while ((rm = rowRe.exec(xml))) {\n    const rNo = /\\br=\"(\\d+)\"/.exec(rm[1]);\n    if (rNo) while (rows.length < Number(rNo[1]) - 1) rows.push([]);\n    const cells = [];\n    const cellRe = /<c\\b([^>]*?)(?:\\/>|>([\\s\\S]*?)<\\/c>)/g;\n    let cm;\n    while ((cm = cellRe.exec(rm[2] || ''))) {\n      const ref = /\\br=\"([A-Z]+)\\d+\"/.exec(cm[1]);\n      const t = (/\\bt=\"(\\w+)\"/.exec(cm[1]) || [])[1] || 'n';\n      const body = cm[2] || '';\n      const v = /<v>([\\s\\S]*?)<\\/v>/.exec(body);\n      let val = '';\n      if (t === 's') val = v ? shared[Number(v[1])] ?? '' : '';\n      else if (t === 'inlineStr') val = textOf(body);\n      else if (v) {\n        val = decodeXml(v[1]);\n        if (t === 'n' && /e/i.test(val) && Number.isFinite(Number(val)) && Number.isInteger(Number(val))) val = Number(val).toFixed(0);\n      }\n      const c = ref ? colNo(ref[1]) : cells.length;\n      while (cells.length < c) cells.push('');\n      cells[c] = val;\n    }\n    rows.push(cells);\n  }\n  return [rows];\n}\n\n// ---------- which column is what ----------\n// A map = { header_row, name:[], phone:[], address:[], form:[], price, qty, item_code, delivery, lead_id, created }\n// (lists = several columns joined / tried in order; single fields = one column or null)\nconst PHONE_VALUE = (v) => { const d = String(v).replace(/\\D/g, ''); return d.length >= 9 && d.length <= 12 && /^(0|94)?[1-9]\\d{8}$/.test(d); };\n\nfunction mapHeader(hdr, sample) {\n  const h = hdr.map(norm);\n  const used = new Set();\n  const find = (list) => h.map((x, i) => (x && list.includes(x) && !used.has(i) ? i : -1)).filter((i) => i >= 0);\n  const take = (cols) => { cols.forEach((c) => used.add(c)); return cols; };\n  const one = (list) => take(find(list).slice(0, 1))[0] ?? null;\n  const m = {};\n  m.lead_id = one(COLUMNS.lead_id);\n  m.created = one(COLUMNS.created);\n  m.item_code = one(COLUMNS.item_code);\n  m.qty = one(COLUMNS.qty);\n  m.delivery = one(COLUMNS.delivery);\n  m.price = one(COLUMNS.price);\n  m.form = take([...find(COLUMNS.form), ...find(COLUMNS.form_fallback)]);\n  m.name = take(find(COLUMNS.name).slice(0, 1));\n  if (!m.name.length) m.name = take([...find(COLUMNS.first_name).slice(0, 1), ...find(COLUMNS.last_name).slice(0, 1)]);\n  m.phone = take([...find(COLUMNS.phone), ...find(COLUMNS.phone2)]);\n  const mainAddr = take(find(COLUMNS.address));\n  const extraAddr = take(find(COLUMNS.address_extra)); // city / district alone is not an address\n  const exact = Object.values(m).filter((v) => (Array.isArray(v) ? v.length : v != null)).length + (mainAddr.length || extraAddr.length ? 1 : 0);\n  // second pass: words inside longer headers (\"Please enter your phone number\", \"ලිපිනය\")\n  const kw = (re, extra = () => true) => h.map((x, i) => (x && !used.has(i) && re.test(x) && extra(x) ? i : -1)).filter((i) => i >= 0);\n  if (!m.phone.length) m.phone = take(kw(KEYWORDS.phone));\n  if (!mainAddr.length) mainAddr.push(...take(kw(KEYWORDS.address)));\n  m.address = [...mainAddr, ...extraAddr];\n  if (!m.name.length) m.name = take(kw(KEYWORDS.name, (x) => !KEYWORDS.not_name.test(x)).slice(0, 1));\n  if (m.price == null) m.price = take(kw(KEYWORDS.price).slice(0, 1))[0] ?? null;\n  if (m.qty == null) m.qty = take(kw(KEYWORDS.qty).slice(0, 1))[0] ?? null;\n  if (m.delivery == null) m.delivery = take(kw(KEYWORDS.delivery).slice(0, 1))[0] ?? null;\n  // third pass: a column whose VALUES look like phone numbers\n  if (!m.phone.length && sample.length) {\n    const width = Math.max(hdr.length, ...sample.map((r) => r.length));\n    for (let i = 0; i < width; i++) {\n      if (used.has(i)) continue;\n      const vals = sample.map((r) => String(r[i] ?? '').trim()).filter(Boolean);\n      if (vals.length && vals.filter(PHONE_VALUE).length / vals.length >= 0.6) m.phone.push(i);\n    }\n    take(m.phone);\n  }\n  const score = exact + [m.name, m.phone, m.address].filter((x) => x.length).length;\n  m.missing = [\n    !m.name.length && 'name',\n    !m.phone.length && 'phone',\n    !mainAddr.length && 'address',\n    !m.form.length && m.item_code == null && 'product',\n  ].filter(Boolean);\n  return { m, score };\n}\n\nfunction findColumns(rows) {\n  // 1) a layout the AI already mapped before (remembered)\n  for (let i = 0; i < Math.min(rows.length, 10); i++) {\n    const s = sig(rows[i]);\n    if (s && savedMaps[s]) return { map: { ...savedMaps[s], header_row: i }, how: 'saved AI map' };\n  }\n  // 2) known column names → best header row in the first 10 rows\n  let best = null;\n  for (let i = 0; i < Math.min(rows.length, 10); i++) {\n    const { m, score } = mapHeader(rows[i] || [], rows.slice(i + 1, i + 21));\n    if (score >= 2 && (!best || score > best.score)) best = { m: { ...m, header_row: i }, score };\n  }\n  if (!best) {\n    // no header row we recognise → maybe there is no header at all; guess from the values\n    const { m } = mapHeader([], rows.slice(0, 20));\n    best = { m: { ...m, header_row: -1 }, score: 0 };\n  }\n  if (best.m.missing.length === 0) return { map: best.m, how: 'auto' };\n  return { map: best.m, how: null }; // partial → ask the AI, keep this as a fallback\n}\n\nconst cellAt = (r, i) => (i == null || i < 0 ? '' : String(r[i] ?? '').trim());\nfunction joinParts(parts, sep) {\n  const out = [];\n  for (const p of parts.filter(Boolean)) {\n    const lp = p.toLowerCase();\n    if (out.some((o) => o.toLowerCase().includes(lp))) continue; // city already inside the address\n    out.push(p);\n  }\n  return out.join(sep);\n}\nfunction rowsToLeads(rows, m, fileName, formFromFile) {\n  const list = [];\n  const L = (k) => (Array.isArray(m[k]) ? m[k] : m[k] == null ? [] : [m[k]]);\n  for (const r of rows.slice(m.header_row + 1)) {\n    if (!r.some((v) => String(v ?? '').trim() !== '')) continue; // blank row\n    const phones = [...new Set(L('phone').map((i) => cellAt(r, i)).filter(Boolean))];\n    const form = L('form').map((i) => cellAt(r, i)).find(Boolean);\n    const lead = {\n      lead_id: cellAt(r, m.lead_id).replace(/^l:/, ''),\n      created_time: cellAt(r, m.created),\n      form_name: form || formFromFile,\n      form_from_file: !form,\n      name: joinParts(L('name').map((i) => cellAt(r, i)), ' '),\n      address: joinParts(L('address').map((i) => cellAt(r, i)), ', '),\n      phone_number: phones[0] || '',\n      work_phone_number: phones[1] || '',\n      price: cellAt(r, m.price),\n      qty: cellAt(r, m.qty),\n      item_code: cellAt(r, m.item_code),\n      delivery: cellAt(r, m.delivery),\n      file: fileName,\n    };\n    if (!lead.name && !lead.address && !lead.phone_number) continue; // nothing to deliver to\n    list.push(lead);\n  }\n  return list;\n}\n\n// ---------- main ----------\nconst keys = Object.keys(binaries);\nif (keys.length === 0) problems.push('No files were uploaded.');\n\nfor (const key of keys) {\n  const meta = binaries[key] || {};\n  const fileName = meta.fileName || key;\n  try {\n    let buf = await this.helpers.getBinaryDataBuffer(0, key);\n    if (!Buffer.isBuffer(buf)) buf = Buffer.from(buf && buf.data ? buf.data : buf);\n\n    if (buf[0] === 0xd0 && buf[1] === 0xcf) {\n      throw new Error('this is an old binary Excel file. Upload the file exactly as downloaded from Facebook / TikTok (or re-save it as \"CSV UTF-8\").');\n    }\n    let tables;\n    if (buf[0] === 0x50 && buf[1] === 0x4b) tables = parseXlsx(buf);\n    else {\n      const text = decodeText(buf);\n      if (/^\\s*<(!doctype html|html)/i.test(text)) {\n        throw new Error('this is a web page, not a spreadsheet. If it is a Google Sheet link, set Share → \"Anyone with the link\" → Viewer.');\n      }\n      const isXml = /<(?:ss:)?Workbook[\\s>]|urn:schemas-microsoft-com:office:spreadsheet/.test(text.slice(0, 5000));\n      tables = isXml ? parseSpreadsheetML(text) : parseDelimited(text);\n    }\n    tables = tables\n      .map((rows) => rows.map((r) => r.map((c) => String(c ?? '').trim())))\n      .filter((rows) => rows.some((r) => r.some(Boolean)));\n    if (tables.length === 0) throw new Error('the file is empty.');\n\n    // product name fallback from FB file name: \"<Form_Name>_Leads_<from>_<to>.xls\"\n    const formFromFile = fileName.replace(/\\.[^.]+$/, '').replace(/_Leads_.*$/i, '').replace(/_/g, ' ').trim();\n\n    // the sheet that looks most like orders (FB/TikTok files have one)\n    const scored = tables.map((rows) => ({ rows, hit: findColumns(rows) }))\n      .sort((a, b) => (!!b.hit.how - !!a.hit.how) || (a.hit.map.missing.length - b.hit.map.missing.length));\n    const { rows, hit } = scored[0];\n    if (hit.how) {\n      const list = rowsToLeads(rows, hit.map, fileName, formFromFile);\n      leads.push(...list);\n      files.push({ file: fileName, leads: list.length, columns: hit.how });\n    } else {\n      pending.push({ file: fileName, formFromFile, rows, guess: hit.map });\n      files.push({ file: fileName, leads: 0, columns: 'AI' });\n    }\n  } catch (err) {\n    problems.push(`${fileName}: ${err.message}`);\n  }\n}\n\n// What the AI gets: the first rows of each unclear file, every cell numbered by its column.\nconst AI_SAMPLE_ROWS = 6;\nconst ai_request = JSON.stringify(\n  pending.map((p) => ({\n    file: p.file,\n    first_rows: p.rows.slice(0, AI_SAMPLE_ROWS).map((r, ri) => ({\n      row: ri,\n      cells: Object.fromEntries(r.map((c, ci) => [ci, String(c).slice(0, 80)]).filter(([, c]) => c !== '')),\n    })),\n  })),\n  null,\n  1,\n);\n\nreturn [{ json: { leads, files, problems, warnings: [], pending, ai_request } }];\n"
+      },
+      "id": "71e229b7-1b92-476f-a7e4-6ee9da25582e",
+      "name": "Parse Lead Files",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2512,
+        1616
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "baa15ef6-225f-4419-824f-3195c7d59229",
+              "leftValue": "={{ ($json.pending || []).length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "885a5648-dbfa-4c7f-9e4c-e47c30a535c5",
+      "name": "Needs AI mapping?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2736,
+        1616
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You read order / lead spreadsheets for a Sri Lankan cash-on-delivery shop (Facebook lead ads, TikTok lead ads, CRM or order sheets). Every file can be different: columns in any order, any names (English, Sinhala, Tamil, long questions, abbreviations), a title row above the header, or no header at all. No field is required — many files only have some of them.\n\nThe goal is a courier file with: name, address, phone 1, phone 2, price, qty, item code, delivery fee — plus the product name so the product can be looked up.\n\nFor EACH file below, work out which column holds what. Columns are the numbered keys in \"cells\" (starting at 0). Rows are numbered from 0.\n\nReply with ONLY this JSON and nothing else:\n{\"files\":[{\"file\":\"<exact file name>\",\"header_row\":<row number of the header row, or -1 if there is no header row>,\"name\":[<customer name column(s); first name then last name if split>],\"phone\":[<phone column(s); main number first, then a second / work / WhatsApp number>],\"address\":[<address column(s) in order: street, town/city, district>],\"form_name\":[<product / package / instant form / campaign name column(s), best first>],\"price\":<price or COD amount column, or null>,\"qty\":<quantity column, or null>,\"item_code\":<item code / SKU / product code column, or null>,\"delivery\":<delivery or shipping fee column, or null>,\"lead_id\":<lead or order id column, or null>,\"created_time\":<date/time column, or null>,\"note\":\"<short note on anything unclear or missing>\"}]}\n\nRules:\n- Only use column numbers that exist in the data; use [] or null when a field isn't in the file.\n- Decide from the cell VALUES as well as the headers (Sri Lankan phones look like 07XXXXXXXX, 947XXXXXXXX or +94 7X XXX XXXX; prices look like 1990 or Rs. 2,490; qty is a small whole number).\n- Never put the same column in two fields.\n- Ignore columns that are not listed above (email, status, notes, ad ids, platform…).\n\nFILES:\n{{ $json.ai_request }}",
+        "hasOutputParser": false
+      },
+      "id": "f6ab64fa-869c-4da3-aa54-4b99e02a3776",
+      "name": "AI: map columns",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [
+        2960,
+        1392
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-4o-mini",
+        "options": {
+          "temperature": 0,
+          "responseFormat": "json_object",
+          "maxTokens": 1500
+        }
+      },
+      "id": "ab76dec5-9f7a-43c6-8733-e3ce4108bf87",
+      "name": "OpenRouter Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        2960,
+        1600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─────────────────────────────────────────────────────────────────────────────\n// APPLY AI COLUMN MAP\n// Reads the JSON answer from \"AI: map columns\", checks it, turns the waiting\n// files into lead rows and remembers each column layout, so the next file with\n// the same headers is mapped instantly without the AI.\n// Output: ONE item → { leads, files, problems, warnings } (same shape as Parse Lead Files)\n// ─────────────────────────────────────────────────────────────────────────────\n\nconst parsed = $('Parse Lead Files').first().json;\nconst ai = $input.first().json || {};\nconst leads = [...(parsed.leads || [])];\nconst problems = [...(parsed.problems || [])];\nconst files = (parsed.files || []).map((f) => ({ ...f }));\nconst pending = parsed.pending || [];\nconst warnings = [...(parsed.warnings || [])];\n\nlet memory = {};\ntry { memory = $getWorkflowStaticData('global'); } catch (e) { memory = {}; }\nmemory.columnMaps = memory.columnMaps || {};\n\nconst norm = (h) =>\n  String(h ?? '').replace(/^\\uFEFF/, '').trim().toLowerCase()\n    .replace(/[^\\p{L}\\p{M}\\p{N}]+/gu, '_').replace(/^_+|_+$/g, '');\nconst sig = (row) => row.map(norm).filter(Boolean).join('|');\nconst htmlEsc = (s) => String(s ?? '').replace(/[&<>\"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\n\n// ---------- read the AI answer ----------\nlet answer = null;\nlet aiError = '';\ntry {\n  if (ai.error) throw new Error(typeof ai.error === 'string' ? ai.error : ai.error.message || JSON.stringify(ai.error));\n  let text = String(ai.text ?? ai.output ?? ai.response ?? '').trim();\n  const fence = /```(?:json)?\\s*([\\s\\S]*?)```/.exec(text);\n  if (fence) text = fence[1];\n  const a = text.indexOf('{'), b = text.lastIndexOf('}');\n  if (a === -1 || b <= a) throw new Error('the AI did not return JSON');\n  answer = JSON.parse(text.slice(a, b + 1));\n  if (!Array.isArray(answer.files)) throw new Error('the AI answer has no \"files\" list');\n} catch (err) {\n  aiError = err.message;\n}\n\n// ---------- helpers (same as Parse Lead Files) ----------\nconst cellAt = (r, i) => (i == null || i < 0 ? '' : String(r[i] ?? '').trim());\nfunction joinParts(parts, sep) {\n  const out = [];\n  for (const p of parts.filter(Boolean)) {\n    const lp = p.toLowerCase();\n    if (out.some((o) => o.toLowerCase().includes(lp))) continue; // city already inside the address\n    out.push(p);\n  }\n  return out.join(sep);\n}\nfunction rowsToLeads(rows, m, fileName, formFromFile) {\n  const list = [];\n  const L = (k) => (Array.isArray(m[k]) ? m[k] : m[k] == null ? [] : [m[k]]);\n  for (const r of rows.slice(m.header_row + 1)) {\n    if (!r.some((v) => String(v ?? '').trim() !== '')) continue; // blank row\n    const phones = [...new Set(L('phone').map((i) => cellAt(r, i)).filter(Boolean))];\n    const form = L('form').map((i) => cellAt(r, i)).find(Boolean);\n    const lead = {\n      lead_id: cellAt(r, m.lead_id).replace(/^l:/, ''),\n      created_time: cellAt(r, m.created),\n      form_name: form || formFromFile,\n      form_from_file: !form,\n      name: joinParts(L('name').map((i) => cellAt(r, i)), ' '),\n      address: joinParts(L('address').map((i) => cellAt(r, i)), ', '),\n      phone_number: phones[0] || '',\n      work_phone_number: phones[1] || '',\n      price: cellAt(r, m.price),\n      qty: cellAt(r, m.qty),\n      item_code: cellAt(r, m.item_code),\n      delivery: cellAt(r, m.delivery),\n      file: fileName,\n    };\n    if (!lead.name && !lead.address && !lead.phone_number) continue; // nothing to deliver to\n    list.push(lead);\n  }\n  return list;\n}\n\n// ---------- apply ----------\n// Nothing is required: whatever the AI (or the column names) found is used,\n// anything not found stays blank and is listed as a warning.\nconst FIELD_LABEL = { name: 'name', phone: 'phone', address: 'address', product: 'product / item code' };\nfor (const p of pending) {\n  const label = `<b>${htmlEsc(p.file)}</b>`;\n  const guess = p.guess || { header_row: 0, name: [], phone: [], address: [], form: [] };\n  const width = Math.max(0, ...p.rows.slice(0, 50).map((r) => r.length));\n  const col = (v) => (v !== '' && v !== null && v !== undefined && Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) < width ? Number(v) : null);\n  const cols = (v) => [...new Set((Array.isArray(v) ? v : v == null ? [] : [v]).map(col).filter((x) => x !== null))];\n\n  const a = answer && (answer.files.find((f) => f && f.file === p.file) || (pending.length === 1 && answer.files.length === 1 ? answer.files[0] : null));\n  let m;\n  let how;\n  if (a) {\n    let header_row = Number.isInteger(Number(a.header_row)) ? Number(a.header_row) : guess.header_row;\n    if (header_row < -1 || header_row >= Math.min(p.rows.length, 10)) header_row = guess.header_row;\n    // AI answer first; a field the AI left empty is taken from the column names (if it was found there)\n    const ai_m = {\n      name: cols(a.name), phone: cols(a.phone), address: cols(a.address), form: cols(a.form_name),\n      price: col(a.price), qty: col(a.qty), item_code: col(a.item_code), delivery: col(a.delivery),\n      lead_id: col(a.lead_id), created: col(a.created_time),\n    };\n    const usedByAi = new Set(Object.values(ai_m).flat().filter((x) => x !== null));\n    const fromGuess = (k, many) => {\n      const g = (Array.isArray(guess[k]) ? guess[k] : guess[k] == null ? [] : [guess[k]]).filter((c) => !usedByAi.has(c));\n      return many ? g : g[0] ?? null;\n    };\n    m = { header_row };\n    for (const k of ['name', 'phone', 'address', 'form']) m[k] = ai_m[k].length ? ai_m[k] : fromGuess(k, true);\n    for (const k of ['price', 'qty', 'item_code', 'delivery', 'lead_id', 'created']) m[k] = ai_m[k] !== null ? ai_m[k] : fromGuess(k, false);\n    how = 'AI';\n  } else {\n    m = { ...guess };\n    how = 'best guess';\n    warnings.push(`${label}: the AI column check didn't work (${htmlEsc(aiError || 'no answer for this file')}), so columns were read by their names only — please check this file's rows.`);\n  }\n\n  const list = rowsToLeads(p.rows, m, p.file, p.formFromFile);\n  if (list.length === 0) {\n    problems.push(`${label}: no name, phone or address could be found in this file${a && a.note ? ` (AI: ${htmlEsc(a.note)})` : ''}.`);\n    continue;\n  }\n  leads.push(...list);\n  const f = files.find((x) => x.file === p.file);\n  if (f) { f.leads = list.length; f.columns = how; }\n  const missing = [!m.name.length && 'name', !m.phone.length && 'phone', !m.address.length && 'address', !m.form.length && m.item_code == null && 'product'].filter(Boolean);\n  if (missing.length) warnings.push(`${label}: no ${missing.map((k) => FIELD_LABEL[k]).join(', ')} column — left blank${a && a.note ? ` (AI: ${htmlEsc(a.note)})` : ''}.`);\n\n  // remember this layout → next time no AI call is needed\n  if (how === 'AI' && m.header_row >= 0 && sig(p.rows[m.header_row] || [])) {\n    const { header_row: _h, ...keep } = m;\n    memory.columnMaps[sig(p.rows[m.header_row])] = keep;\n    const keys = Object.keys(memory.columnMaps);\n    if (keys.length > 200) delete memory.columnMaps[keys[0]];\n  }\n}\n\nreturn [{ json: { leads, files, problems, warnings } }];\n"
+      },
+      "id": "cc150c09-7a4d-4531-b997-5900c93866b5",
+      "name": "Apply AI column map",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3216,
+        1392
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1mdp_tNC0aHyNQiOCrdio9HdRKjg49V7EcAfydHRUYWM",
+          "mode": "list",
+          "cachedResultName": "#Feeder",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1mdp_tNC0aHyNQiOCrdio9HdRKjg49V7EcAfydHRUYWM/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1mdp_tNC0aHyNQiOCrdio9HdRKjg49V7EcAfydHRUYWM/edit#gid=0"
+        },
+        "options": {}
+      },
+      "id": "fc1c0950-ceca-4441-8629-1f36cd0c56fb",
+      "name": "Read Products Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        3440,
+        1616
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CCu67YXVBMK7wYjy",
+          "name": "RtexiaGsheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─────────────────────────────────────────────────────────────────────────────\n// BUILD COURIER CSV\n// Input  : every row of the \"Products\" Google Sheet (from \"Read Products Sheet\")\n// Leads  : from \"Apply AI column map\" (when the AI read the columns) or \"Parse Lead Files\"\n// Does   : the same word search the old Supabase ILIKE query did, then builds\n//          name,address,tp_1,tp_2,price,qty,item_code,delivery\n//          file name yyyy_MM_dd(<orders>).csv   e.g. 2026_10_20(56).csv\n// ─────────────────────────────────────────────────────────────────────────────\n\n// ---- settings ----\nconst TIMEZONE = 'Asia/Colombo';\nconst QTY = 1;                    // used when the lead file has no qty column\nconst MIN_FORM_COVERAGE = 0.5;    // at least half of the form name's words must be found in the product (name, id or aliases)\n                                  // the best-scoring product then wins; only a real tie is refused\nconst DEDUPE_BY_LEAD_ID = true;   // same lead in two uploaded files → keep once\nconst STOP_ON_UNKNOWN_PRODUCT = true; // a row names a product that is not in the Products sheet → stop and say which\n                                     // (false = build the file anyway with price / item_code / delivery blank)\n// ------------------\n\nconst parsed = $('Apply AI column map').isExecuted\n  ? $('Apply AI column map').first().json\n  : $('Parse Lead Files').first().json;\nconst leads = parsed.leads || [];\nconst problems = [...(parsed.problems || [])];\n\nconst htmlEsc = (s) => String(s ?? '').replace(/[&<>\"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\n\n// ---------- read the Products sheet ----------\n// Headers are matched loosely: \"product_ID_Feeder\", \"Product ID Feeder\", \"product id feeder\" all work.\nconst normKey = (h) => String(h ?? '').replace(/^\\uFEFF/, '').trim().toLowerCase().replace(/[\\s\\-]+/g, '_');\nconst cell = (row, ...names) => {\n  for (const n of names) {\n    const v = row[n];\n    if (v != null && String(v).trim() !== '') return String(v).trim();\n  }\n  return '';\n};\n// \"Rs. 1,990.00\" → \"1990\"   (keeps the text as-is if it isn't a number)\nconst money = (v) => {\n  const s = String(v ?? '').trim();\n  if (s === '') return '';\n  const n = Number(s.replace(/rs\\.?|lkr|,|\\s/gi, ''));\n  return Number.isFinite(n) ? String(n) : s;\n};\nconst isActive = (v) => !/^(false|no|n|0|inactive|off)$/i.test(String(v ?? '').trim()); // blank = active\n\n// same tokenising as the old SQL: \"Ayora Gastric Care 30Tablets\" → ayora, gastric, care, tablet\nconst STOP_FORM = new Set(['copy', 'the', 'and', 'for', 'with', 'new', 'form', 'lead', 'leads']);\nconst STOP_PRODUCT = new Set(['the', 'and', 'for', 'with']);\nfunction words(text, stop) {\n  const t = String(text ?? '')\n    .replace(/(?<=[0-9])(?=\\p{L})/gu, ' ')\n    .replace(/(?<=\\p{L})(?=[0-9])/gu, ' ')\n    .replace(/[^\\p{L}\\p{N}]+/gu, ' ')\n    .toLowerCase();\n  const out = new Set();\n  for (const w of t.split(/\\s+/)) {\n    if (w.length < 3 || /^[0-9]+$/.test(w) || stop.has(w)) continue;\n    out.add(w.length > 4 ? w.replace(/s$/, '') : w);\n  }\n  return [...out];\n}\nconst numbers = (text) => [...new Set((String(text ?? '').match(/[0-9]+/g) || []).map((n) => n.replace(/^0+/, '')))];\n\nconst products = [];\nlet rowNo = 1;\nfor (const { json: raw } of $input.all()) {\n  rowNo++;\n  if (!raw || typeof raw !== 'object') continue;\n  const r = {};\n  for (const [k, v] of Object.entries(raw)) r[normKey(k)] = v;\n  const product_name = cell(r, 'product_name', 'name', 'product');\n  const product_id = cell(r, 'product_id', 'id');\n  if (!product_name && !product_id) continue; // blank row\n  const aliasesRaw = cell(r, 'aliases', 'alias');\n  products.push({\n    row: r.row_number ?? rowNo,\n    product_id,\n    product_name,\n    price: money(cell(r, 'price')),\n    delivery_fee: money(cell(r, 'delivery_fee', 'delivery')),\n    item_code: cell(r, 'product_id_feeder', 'item_code', 'feeder_id').replace(/\\.0+$/, ''),\n    active: isActive(r.active),\n    aliases: aliasesRaw.toLowerCase(),\n    alias_list: aliasesRaw\n      .split(/[,;|\\n\\r]/)\n      .map((a) => a.replace(/^[\\s\"'\\[\\]]+|[\\s\"'\\[\\]]+$/g, '').toLowerCase())\n      .filter(Boolean),\n    // searched text = product name + product id + aliases\n    haystack: (product_name + ' ' + product_id.replace(/_/g, ' ') + ' ' + aliasesRaw).toLowerCase(),\n    // the product name and every alias are scored on their own; the best one counts\n    phrases: [product_name, ...aliasesRaw.split(/[,;|\\n\\r]/)]\n      .map((t) => words(t, STOP_PRODUCT))\n      .filter((w) => w.length),\n    nums: numbers(product_name),\n  });\n}\n\n// ---------- the search (same rules as the old ILIKE query) ----------\nconst round3 = (x) => Math.round(x * 1000) / 1000;\nfunction rankProducts(formName) {\n  const form = formName.toLowerCase();\n  const fWords = words(formName, STOP_FORM);\n  const fNums = new Set(numbers(formName));\n  const list = [];\n  for (const p of products) {\n    const aliasHit = p.alias_list.includes(form) || (form.length >= 12 && p.aliases.includes(form));\n    const wordHit = fWords.some((w) => p.haystack.includes(w));\n    if (!aliasHit && !wordHit) continue;\n    const exact = aliasHit || p.product_name.toLowerCase() === form;\n    const form_hits = fWords.filter((w) => p.haystack.includes(w)).length;\n    const fc = round3(form_hits / Math.max(fWords.length, 1));\n    // how much of the product name (or its best alias) appears in the form name\n    const pc = round3(Math.max(0, ...p.phrases.map((ws) => ws.filter((w) => form.includes(w)).length / ws.length)));\n    const nums = p.nums.reduce((s, n) => s + (fNums.has(n) ? 1 : -1), 0); // +1 shared pack size, -1 different\n    list.push({ ...p, exact, fc, pc, score: round3(fc + pc), nums, form_hits });\n  }\n  list.sort((a, b) =>\n    (b.exact - a.exact) ||\n    (b.score - a.score) ||\n    (b.nums - a.nums) ||\n    (b.form_hits - a.form_hits) ||\n    (b.active - a.active) ||\n    (a.product_name.length - b.product_name.length) ||\n    a.product_id.localeCompare(b.product_id));\n  return list;\n}\n\nconst accepted = (c) => c && (c.exact || c.fc >= MIN_FORM_COVERAGE);\n\nconst decisions = new Map();\nfunction decide(formKey) {\n  if (decisions.has(formKey)) return decisions.get(formKey);\n  const list = formKey ? rankProducts(formKey) : [];\n  const [top, second] = list;\n  // equally good = same exact flag, same score, same number match, same active flag\n  const sameAsTop = (c) => c.exact === top.exact && Math.abs(c.score - top.score) < 0.001 && c.nums === top.nums && c.active === top.active;\n  let d;\n  if (!top) d = { status: 'none' };\n  else if (!accepted(top)) d = { status: 'weak', closest: top };\n  else if (second && accepted(second) && sameAsTop(second)) d = { status: 'tie', options: list.filter(sameAsTop).slice(0, 5) };\n  else d = { status: 'ok', product: top };\n  decisions.set(formKey, d);\n  return d;\n}\n\n// ---------- phone → 07XXXXXXXX (landlines → 0XXXXXXXXX) ----------\nfunction toLocal(raw) {\n  const d = String(raw ?? '').replace(/\\D/g, '');   // drops \"+\", \"p:\", spaces, dashes\n  if (d.length < 9) return '';\n  const local = '0' + d.slice(-9);                    // last 9 digits = SL number without the 0\n  return /^0[1-9]\\d{8}$/.test(local) ? local : '';\n}\n\n// ---------- form name → search text ----------\n// \"Kinoki Detox Foot Pads - Copy 2\" → \"Kinoki Detox Foot Pads\"; drop control chars and \"$\"\nconst cleanForm = (s) =>\n  String(s ?? '')\n    .replace(/[\\u0000-\\u001f\\u007f$]/g, ' ')\n    .replace(/(\\s*[-–_]?\\s*\\bcopy\\b(\\s*\\d+)?)+\\s*$/i, '')\n    .replace(/\\s+/g, ' ')\n    .trim();\n\n// ---------- build rows ----------\n// Each column comes from the lead file when it has it, otherwise from the matched product.\n// Nothing is required: a value that can't be found is left blank and listed as a warning.\nconst byCode = new Map(products.filter((p) => p.item_code).map((p) => [p.item_code.toLowerCase(), p]));\nconst plainCode = (v) => String(v ?? '').trim().replace(/\\.0+$/, '');\nconst posInt = (v) => { const n = Number(String(v ?? '').replace(/[^\\d.]/g, '')); return Number.isInteger(n) && n > 0 ? n : null; };\n\nconst rows = [];\nconst failed = new Map();       // product text → { d, count }   (only stops when STOP_ON_UNKNOWN_PRODUCT)\nconst unmatched = new Map();    // product text → count          (left blank)\nconst noProduct = new Map();    // file → count of rows with no product column / item code\nconst incomplete = new Map();   // product_name → { row, missing }\nconst matchedCount = new Map(); // \"form → product\" → orders\nconst blanks = { tp_1: 0, name: 0, address: 0, price: 0, item_code: 0, delivery: 0 };\nconst seen = new Set();\nlet duplicates = 0;\nlet noProductsSheet = false;\n\nfor (const lead of leads) {\n  if (DEDUPE_BY_LEAD_ID && lead.lead_id) {\n    if (seen.has(lead.lead_id)) { duplicates++; continue; }\n    seen.add(lead.lead_id);\n  }\n\n  const own = { price: money(lead.price), item_code: plainCode(lead.item_code), delivery: money(lead.delivery) };\n  const key = cleanForm(lead.form_name);\n  let p = own.item_code ? byCode.get(own.item_code.toLowerCase()) || null : null;\n  let label = p ? `item ${own.item_code} → ${p.product_name}` : own.item_code ? `item ${own.item_code}` : '';\n\n  const needProduct = !p && (!own.item_code || !own.price || !own.delivery);\n  if (needProduct && key) {\n    if (!products.length) noProductsSheet = true;\n    const d = products.length ? decide(key) : { status: 'none' };\n    if (d.status === 'ok') {\n      p = d.product;\n      label = `${key} → ${p.product_name}`;\n    } else if (STOP_ON_UNKNOWN_PRODUCT && products.length && !lead.form_from_file && !own.item_code) {\n      const f = failed.get(key) || { d, count: 0 };\n      f.count++;\n      failed.set(key, f);\n      continue;\n    } else if (lead.form_from_file) {\n      noProduct.set(lead.file, (noProduct.get(lead.file) || 0) + 1);\n      label = label || '(no product)';\n    } else {\n      unmatched.set(key, (unmatched.get(key) || 0) + 1);\n      label = label || `${key} → (no product)`;\n    }\n  }\n  if (!label) label = '(no product column)';\n\n  const tp1 = toLocal(lead.phone_number) || toLocal(lead.work_phone_number) || String(lead.phone_number || '').replace(/\\D/g, '');\n  const tp2 = toLocal(lead.work_phone_number) || tp1;\n\n  const row = {\n    name: String(lead.name || '').trim(),\n    address: String(lead.address || '').replace(/\\s*[\\r\\n]+\\s*/g, ', ').trim(),\n    tp_1: tp1,\n    tp_2: tp2,\n    price: own.price || (p ? p.price : ''),\n    qty: posInt(lead.qty) || QTY,\n    item_code: own.item_code || (p ? p.item_code : ''),\n    delivery: own.delivery || (p ? p.delivery_fee : ''),\n  };\n  rows.push(row);\n\n  for (const k of Object.keys(blanks)) if (String(row[k] ?? '').trim() === '') blanks[k]++;\n  if (row.tp_1 && !/^0\\d{9}$/.test(row.tp_1)) blanks.tp_1++;\n  if (p) {\n    const miss = ['price', 'item_code', 'delivery_fee'].filter((k) => String(p[k] ?? '').trim() === '' && !own[k === 'delivery_fee' ? 'delivery' : k]);\n    if (miss.length) incomplete.set(p.product_name, { row: p.row, missing: miss });\n  }\n  matchedCount.set(label, (matchedCount.get(label) || 0) + 1);\n}\n\n// ---------- problems → show them on the form instead of a wrong file ----------\nconst aliasHint = (form) =>\n  `Fix: in the Products Google Sheet add <b>${htmlEsc(form)}</b> to the <code>aliases</code> column of the correct product (comma-separated), then upload again.`;\nfor (const [form, { d, count }] of failed) {\n  const head = `Product <b>\"${htmlEsc(form)}\"</b> (${count} order${count > 1 ? 's' : ''}): `;\n  if (d.status === 'none') problems.push(head + `not found in the Products sheet. ${aliasHint(form)}`);\n  if (d.status === 'weak') problems.push(head + `no confident match — closest is \"${htmlEsc(d.closest.product_name)}\" (sheet row ${d.closest.row}). ${aliasHint(form)}`);\n  if (d.status === 'tie') problems.push(head + `matches several products equally (${d.options.map((c) => `\"${htmlEsc(c.product_name)}\"`).join(', ')}). ${aliasHint(form)}`);\n}\nif (problems.length === 0 && rows.length === 0) problems.push('No leads were found in the uploaded file(s).');\n\nif (problems.length) {\n  const html = `<h2>Courier file was NOT created</h2><ul>${problems.map((p) => `<li style=\"margin-bottom:8px\">${p}</li>`).join('')}</ul>`;\n  return [{ json: { ok: false, html, problems } }];\n}\n\n// ---------- warnings (file is still created) ----------\nconst warnings = [...(parsed.warnings || [])];\nconst n = (c, what) => `${c} order${c > 1 ? 's' : ''} ${what}`;\nif (noProductsSheet) warnings.push('The Products Google Sheet is empty or could not be read, so price / item_code / delivery came only from the lead files.');\nfor (const [form, c] of unmatched) warnings.push(`${n(c, 'with')} product <b>\"${htmlEsc(form)}\"</b> not found in the Products sheet — price / item_code / delivery left blank. ${aliasHint(form)}`);\nfor (const [file, c] of noProduct) warnings.push(`${n(c, 'in')} <b>${htmlEsc(file)}</b> ${c > 1 ? 'have' : 'has'} no product name or item code — price / item_code / delivery left blank.`);\nfor (const [name, { row, missing }] of incomplete) {\n  warnings.push(`Product <b>\"${htmlEsc(name)}\"</b> (sheet row ${row}) has no ${missing.map((c) => `<code>${c === 'item_code' ? 'product_ID_Feeder' : c}</code>`).join(', ')} in the Products Google Sheet — left blank.`);\n}\nif (blanks.tp_1) warnings.push(n(blanks.tp_1, 'with no valid phone number'));\nfor (const k of ['name', 'address', 'price', 'item_code', 'delivery']) if (blanks[k]) warnings.push(n(blanks[k], `with a blank <code>${k}</code>`));\n\n// ---------- CSV (UTF-8 BOM + CRLF, same as the courier sample) ----------\nconst HEADER = ['name', 'address', 'tp_1', 'tp_2', 'price', 'qty', 'item_code', 'delivery'];\nconst esc = (v) => {\n  const s = v == null ? '' : String(v);\n  return /[\",\\r\\n]/.test(s) ? `\"${s.replace(/\"/g, '\"\"')}\"` : s;\n};\nconst csv = '\\uFEFF' + [HEADER, ...rows.map((r) => HEADER.map((h) => r[h]))]\n  .map((r) => r.map(esc).join(','))\n  .join('\\r\\n');\n\nconst fileName = `${$now.setZone(TIMEZONE).toFormat('yyyy_MM_dd')}(${rows.length}).csv`;\nconst fileCount = (parsed.files || []).length;\nconst aiFiles = (parsed.files || []).filter((f) => ['AI', 'saved AI map', 'best guess'].includes(f.columns));\nconst summary =\n  `${rows.length} orders from ${fileCount} file${fileCount === 1 ? '' : 's'}` +\n  (duplicates ? ` · ${duplicates} duplicate lead${duplicates > 1 ? 's' : ''} skipped` : '') +\n  warnings.map((w) => `<br>⚠ ${w}`).join('') +\n  (aiFiles.length ? `<br>Columns read by AI: ${aiFiles.map((f) => htmlEsc(f.file)).join(', ')}` : '') +\n  `<br>` +\n  [...matchedCount].map(([label, n]) => `${htmlEsc(label)} (${n})`).join('<br>');\n\nreturn [{\n  json: { ok: true, fileName, orders: rows.length, duplicates, warnings, matches: Object.fromEntries(matchedCount), summary },\n  binary: {\n    data: {\n      data: Buffer.from(csv, 'utf8').toString('base64'),\n      mimeType: 'text/csv',\n      fileName,\n      fileExtension: 'csv',\n    },\n  },\n}];\n"
+      },
+      "id": "0f8c3e07-8dff-48fa-a3c5-103049cb5b18",
+      "name": "Build Courier CSV",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3664,
+        1616
       ]
     },
     {
@@ -222,13 +320,13 @@
         },
         "options": {}
       },
-      "id": "c4a5f6e7-8d9b-4cad-8e1f-4a5b6c7d8e9f",
+      "id": "85782d14-71ca-44cc-a4bc-2b140dbf5764",
       "name": "From the panel?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1440,
-        640
+        3888,
+        1616
       ]
     },
     {
@@ -256,20 +354,19 @@
         },
         "options": {}
       },
-      "id": "e6c7b8a9-0f1d-4ecf-a03b-6c7d8e9f0a1b",
+      "id": "0aaa776d-c07a-45f2-a282-dbf8fe3f4374",
       "name": "Panel: file ready?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1664,
-        640
+        4112,
+        1440
       ]
     },
     {
       "parameters": {
         "respondWith": "binary",
         "responseDataSource": "set",
-        "inputFieldName": "data",
         "options": {
           "responseHeaders": {
             "entries": [
@@ -293,13 +390,13 @@
           }
         }
       },
-      "id": "f7d8c9b0-1a2e-4fd0-b14c-7d8e9f0a1b2c",
+      "id": "ba46cdca-0a14-4f17-bfe5-f1981ba5bd40",
       "name": "Respond: courier CSV",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        1888,
-        560
+        4336,
+        1360
       ]
     },
     {
@@ -308,74 +405,138 @@
         "responseBody": "={{ JSON.stringify({ ok: false, problems: $json.problems || [] }) }}",
         "options": {}
       },
-      "id": "a8e9d0c1-2b3f-4ae1-8c5d-8e9f0a1b2c3d",
+      "id": "557d0ce9-4484-41ae-bdd6-591a48f9a250",
       "name": "Respond: problems",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        1888,
-        740
+        4336,
+        1536
       ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c734620f-9f00-47e8-b230-cdc14a43baed",
+              "leftValue": "={{ $('Run CRM import').isExecuted }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bbd80b2f-5907-454a-b3b7-6689d934c8a2",
+      "name": "From the CRM?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        4112,
+        1792
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Manual CRM run ends here.\n// Click this node → Output → Binary → Download to save yyyy_MM_dd(orders).csv\nconst r = $input.first();\nconst strip = (s) => String(s ?? '')\n  .replace(/<br\\s*\\/?>/gi, '\\n').replace(/<[^>]+>/g, '')\n  .replace(/&amp;/g, '&').replace(/&quot;/g, '\"').replace(/&#39;/g, \"'\").replace(/&lt;/g, '<').replace(/&gt;/g, '>');\nif (!r.json.ok) {\n  throw new Error('Courier CSV was NOT created:\\n' + (r.json.problems || []).map((p) => '• ' + strip(p)).join('\\n'));\n}\nreturn [{ json: { fileName: r.json.fileName, orders: r.json.orders, summary: strip(r.json.summary) }, binary: r.binary }];\n"
+      },
+      "id": "fb9e9a47-90ec-4344-90af-dbe0053508a1",
+      "name": "CRM: courier CSV",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4336,
+        1712
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "d0779f02-7a44-476a-9be7-b13909f51b17",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b876acad-b3b8-4bca-b281-2ea141002112",
+      "name": "File ready?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        4336,
+        1888
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "returnBinary",
+        "completionTitle": "Your courier CSV is ready",
+        "completionMessage": "={{ $json.summary }}",
+        "options": {}
+      },
+      "id": "e06959ba-d737-4ebc-8d5e-af1740d773f2",
+      "name": "Download Courier CSV",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "position": [
+        4560,
+        1808
+      ],
+      "webhookId": "d482db13-c6eb-4029-a8fd-5c2d09868cc4"
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "showText",
+        "responseText": "={{ $json.html }}"
+      },
+      "id": "daada36b-c764-44f9-b9af-5a808281038b",
+      "name": "Show Problems",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "position": [
+        4560,
+        1984
+      ],
+      "webhookId": "d0c6cf38-55b7-4e2f-b14b-00a8521a6ab6"
     }
   ],
   "pinData": {},
   "connections": {
-    "Upload FB Leads": {
+    "Upload Lead Files": {
       "main": [
         [
           {
             "node": "Parse Lead Files",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse Lead Files": {
-      "main": [
-        [
-          {
-            "node": "Read Products Sheet",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build Courier CSV": {
-      "main": [
-        [
-          {
-            "node": "From the panel?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "File ready?": {
-      "main": [
-        [
-          {
-            "node": "Download Courier CSV",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Show Problems",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Read Products Sheet": {
-      "main": [
-        [
-          {
-            "node": "Build Courier CSV",
             "type": "main",
             "index": 0
           }
@@ -404,6 +565,123 @@
         ]
       ]
     },
+    "Run CRM import": {
+      "main": [
+        [
+          {
+            "node": "CRM: sheet link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM: sheet link": {
+      "main": [
+        [
+          {
+            "node": "CRM: download sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM: download sheet": {
+      "main": [
+        [
+          {
+            "node": "Parse Lead Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Lead Files": {
+      "main": [
+        [
+          {
+            "node": "Needs AI mapping?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs AI mapping?": {
+      "main": [
+        [
+          {
+            "node": "AI: map columns",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read Products Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: map columns": {
+      "main": [
+        [
+          {
+            "node": "Apply AI column map",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI: map columns",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply AI column map": {
+      "main": [
+        [
+          {
+            "node": "Read Products Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Products Sheet": {
+      "main": [
+        [
+          {
+            "node": "Build Courier CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Courier CSV": {
+      "main": [
+        [
+          {
+            "node": "From the panel?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "From the panel?": {
       "main": [
         [
@@ -415,7 +693,7 @@
         ],
         [
           {
-            "node": "File ready?",
+            "node": "From the CRM?",
             "type": "main",
             "index": 0
           }
@@ -439,6 +717,42 @@
           }
         ]
       ]
+    },
+    "From the CRM?": {
+      "main": [
+        [
+          {
+            "node": "CRM: courier CSV",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "File ready?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "File ready?": {
+      "main": [
+        [
+          {
+            "node": "Download Courier CSV",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Show Problems",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -447,9 +761,12 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
+  "versionId": "8ad1de3b-d25a-4d72-9174-cef215809ec5",
   "meta": {
+    "templateCredsSetupCompleted": true,
     "instanceId": "de6eda717186e702616e1da1fc41332fb22fd532667d0c54056d17627731f41c"
   },
   "nodeGroups": [],
+  "id": "iHno781uPMPMUGW6",
   "tags": []
 }

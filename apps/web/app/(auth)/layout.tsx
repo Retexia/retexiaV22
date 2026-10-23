@@ -28,7 +28,6 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
             labels={{
               light: t("theme.light", "Light theme"),
               dark: t("theme.dark", "Dark theme"),
-              system: t("theme.system", "System theme"),
               switchTo: t("theme.switch", "Switch theme"),
             }}
           />

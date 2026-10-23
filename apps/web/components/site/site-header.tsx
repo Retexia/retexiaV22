@@ -65,7 +65,6 @@ export async function SiteHeader() {
             labels={{
               light: t("theme.light", "Light theme"),
               dark: t("theme.dark", "Dark theme"),
-              system: t("theme.system", "System theme"),
               switchTo: t("theme.switch", "Switch theme"),
             }}
           />
@@ -82,7 +81,6 @@ export async function SiteHeader() {
               labels={{
                 light: t("theme.light", "Light theme"),
                 dark: t("theme.dark", "Dark theme"),
-                system: t("theme.system", "System theme"),
                 switchTo: t("theme.switch", "Switch theme"),
               }}
             />

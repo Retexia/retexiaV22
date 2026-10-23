@@ -16,7 +16,7 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 const page = (title: string, body: string, status = 200, csp = "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'") =>
   new NextResponse(
     `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)}</title>
-<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;background:#f4f7fc;color:#16264a;padding:16px;text-align:center}@media(prefers-color-scheme:dark){body{background:#0c1322;color:#e7ecf5}}main{max-width:440px}a,button{display:inline-block;font:inherit;padding:12px 24px;border-radius:999px;border:0;background:#2a68d9;color:#fff;cursor:pointer;text-decoration:none}p{line-height:1.6}</style></head><body><main>${body}</main></body></html>`,
+<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;background:#f4f7fc;color:#16264a;padding:16px;text-align:center}main{max-width:440px}a,button{display:inline-block;font:inherit;padding:12px 24px;border-radius:999px;border:0;background:#2a68d9;color:#fff;cursor:pointer;text-decoration:none}p{line-height:1.6}</style></head><body><main>${body}</main></body></html>`,
     { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, max-age=0", "referrer-policy": "no-referrer", "content-security-policy": csp } },
   );
 

@@ -3,12 +3,12 @@
 import { createBrowserClient } from "@retexia/supabase/browser";
 import { DropdownMenu, ThemeToggle } from "@retexia/ui";
 import { PanelShell, type PanelNavGroup } from "@retexia/ui/admin";
-import { FileSpreadsheet, LayoutDashboard, LogOut, Package, UserRound } from "lucide-react";
+import { FileSpreadsheet, FileStack, LayoutDashboard, LogOut, Package, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { toolFor } from "@/lib/feeder/tools";
 
 const icon = (C: typeof LayoutDashboard) => <C aria-hidden size={18} strokeWidth={1.5} />;
-const TOOL_ICON = { "bulk-import": FileSpreadsheet } as const;
+const TOOL_ICON = { "bulk-import": FileSpreadsheet, "bulk-import-v2": FileStack } as const;
 
 /** Every Feeder package in the menu; packages not bought are greyed out with a lock. */
 export function FeederShell({ children, packages, webUrl, email }: { children: ReactNode; packages: { slug: string; name: string; owned: boolean }[]; webUrl: string; email: string }) {

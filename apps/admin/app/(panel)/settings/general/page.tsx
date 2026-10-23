@@ -37,7 +37,7 @@ export default async function GeneralSettingsPage() {
             announcement_href: str(s.announcement_href),
             maintenance_mode: s.maintenance_mode,
             maintenance_message: str(s.maintenance_message),
-            default_theme: (["light", "dark", "system"].includes(s.default_theme) ? s.default_theme : "system") as "light" | "dark" | "system",
+            default_theme: s.default_theme === "dark" ? "dark" : "light",
             currency_code: s.currency_code,
             currency_locale: s.currency_locale,
             auth_google_enabled: s.auth_google_enabled,

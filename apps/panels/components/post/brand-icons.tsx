@@ -16,3 +16,11 @@ export function InstagramIcon({ size = 16, className }: { size?: number; classNa
     </svg>
   );
 }
+
+export function TikTokIcon({ size = 16, className }: { size?: number; className?: string }) {
+  return (
+    <svg aria-hidden width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M16.6 3c.3 2.2 1.7 3.7 3.9 3.9v3a7.3 7.3 0 0 1-3.9-1.3v6.3A5.9 5.9 0 1 1 10.7 9v3.1a2.8 2.8 0 1 0 2.8 2.8V3h3.1Z" />
+    </svg>
+  );
+}

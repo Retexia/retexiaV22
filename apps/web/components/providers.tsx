@@ -15,7 +15,7 @@ export function Providers({
   strings: Record<string, string>;
 }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme={defaultTheme} enableSystem disableTransitionOnChange>
+    <ThemeProvider attribute="class" defaultTheme={defaultTheme === "dark" ? "dark" : "light"} enableSystem={false} themes={["light", "dark"]} disableTransitionOnChange>
       <StringsProvider strings={strings}>
         {children}
         <Toaster />

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Monitor, Moon, Sun, X } from "lucide-react";
+import { ChevronDown, Moon, Sun, X } from "lucide-react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import { Toaster as SonnerToaster } from "sonner";
@@ -394,21 +394,22 @@ export function Accordion({
 
 /* ------------------------------------------------------------- ThemeToggle */
 
-const themeOrder = ["light", "dark", "system"] as const;
-
-/** Cycles light → dark → system. */
+/**
+ * Light ⇄ dark. Everything starts light; dark only when the person picks it
+ * (the device's setting is not followed; an old saved "system" counts as light).
+ */
 export function ThemeToggle({
-  labels = { light: "Light theme", dark: "Dark theme", system: "System theme", switchTo: "Switch theme" },
+  labels = { light: "Light theme", dark: "Dark theme", switchTo: "Switch theme" },
   className,
 }: {
-  labels?: { light: string; dark: string; system: string; switchTo: string };
+  labels?: { light: string; dark: string; switchTo: string };
   className?: string;
 }) {
   const { theme, setTheme } = useTheme();
   const mounted = useMounted();
-  const current = (mounted && themeOrder.includes(theme as never) ? theme : "system") as (typeof themeOrder)[number];
-  const next = themeOrder[(themeOrder.indexOf(current) + 1) % themeOrder.length] ?? "light";
-  const Icon = current === "light" ? Sun : current === "dark" ? Moon : Monitor;
+  const current = mounted && theme === "dark" ? "dark" : "light";
+  const next = current === "dark" ? "light" : "dark";
+  const Icon = current === "light" ? Sun : Moon;
   return (
     <button
       type="button"

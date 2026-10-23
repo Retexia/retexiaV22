@@ -73,7 +73,7 @@ export const FALLBACK_SETTINGS: SiteSettings = {
   announcement_text: null,
   announcement_href: null,
   theme: {},
-  default_theme: "system",
+  default_theme: "light",
   currency_code: "LKR",
   currency_locale: "en-LK",
   auth_google_enabled: false,

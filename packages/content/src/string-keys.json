@@ -1745,11 +1745,6 @@
     "file": "apps/web/app/(auth)/layout.tsx"
   },
   {
-    "key": "theme.system",
-    "fallback": "System theme",
-    "file": "apps/web/app/(auth)/layout.tsx"
-  },
-  {
     "key": "waitlist.already",
     "fallback": "You're already on the list. We will email you when it opens.",
     "file": "apps/web/app/(site)/actions.ts"
