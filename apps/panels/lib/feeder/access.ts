@@ -47,9 +47,9 @@ export const getFeeder = cache(async () => {
       const o = bought.get(p.id);
       return { id: p.id, slug: p.slug, name: p.name, tagline: p.tagline, owned: Boolean(o), orderRef: o?.ref ?? null, orderStatus: o?.status ?? null };
     });
-  // Bulk import v2 does everything v1 does: owners of v2 don't see v1 offered to them.
-  const hasV2 = list.some((p) => p.owned && toolFor(p.slug) === "bulk-import-v2");
-  const shown = hasV2 ? list.filter((p) => p.owned || toolFor(p.slug) !== "bulk-import") : list;
+  // Bulk create v2 does everything the older Bulk import did: owners of either don't see the other offered.
+  const hasBulk = list.some((p) => p.owned && toolFor(p.slug));
+  const shown = hasBulk ? list.filter((p) => p.owned || !toolFor(p.slug)) : list;
   return {
     user: { id: auth.user.id, email: profile?.email ?? auth.user.email ?? "", name: profile?.full_name ?? "" },
     productName: product?.name ?? "Retexia Feeder",

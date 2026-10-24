@@ -41,8 +41,7 @@ const sheetLink = (link: string) => /^https:\/\/docs\.google\.com\/spreadsheets\
 export async function POST(request: NextRequest) {
   const feeder = await getFeeder();
   if (!feeder) return fail(401, "Please sign in again.");
-  const owns = (tool: string) => feeder.packages.some((p) => p.owned && toolFor(p.slug) === tool);
-  const hasV2 = owns("bulk-import-v2");
+  if (!feeder.packages.some((p) => p.owned && toolFor(p.slug) === "bulk-import-v2")) return fail(403, "Bulk create isn't part of your packages.");
 
   const url = process.env.FEEDER_N8N_URL?.trim();
   if (!url) return fail(503, "Bulk import is being set up. Please try again later.");
@@ -53,10 +52,6 @@ export async function POST(request: NextRequest) {
   const facebook = files("facebook");
   const tiktok = files("tiktok");
   const links = [...new Set((form?.getAll("crm") ?? []).map((l) => String(l).trim()).filter(Boolean))];
-
-  // TikTok files and CRM sheets are Bulk import v2.
-  const v2Request = facebook.length > 0 || tiktok.length > 0 || links.length > 0;
-  if (v2Request ? !hasV2 : !(owns("bulk-import") || hasV2)) return fail(403, v2Request ? "TikTok files and CRM sheets are part of Bulk import v2." : "Bulk import isn't part of your packages.");
 
   const fb = [...v1, ...facebook];
   const all = [...fb, ...tiktok];

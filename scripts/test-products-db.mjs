@@ -388,4 +388,25 @@ ok(co.product_ids.length === 1 && co.product_ids[0] === 433 && co.crm_links.leng
 await db.exec(readFileSync(new URL("../supabase/migrations/0027_feeder_products_customers.sql", import.meta.url), "utf8"));
 ok((await q(`select count(*)::int n from feeder.customer_products`))[0].n === 2, "running 0027 again keeps customers' products and form names");
 
+console.log("Feeder: form names become aliases, one package (0028)");
+const aliases = async (id) => (await q(`select aliases from feeder.products where product_id = $1`, [id]))[0].aliases;
+let a433 = await aliases(433);
+ok(a433.includes("Diabetic 1340") && a433.includes("Diabetes tablets") && a433.includes("Sugar Tablet"), "customers' form names are added to the product's aliases (the built-in ones stay)");
+await as("authenticated", amaya, `update feeder.customer_products set form_names = array['Sugar care form', 'diabetic 1340'] where user_id = $1 and product_id = 433`, [amaya]);
+ok((await aliases(433)).filter((x) => x.toLowerCase() === "diabetic 1340").length === 1, "the same name in other capitals isn't added twice");
+await as("authenticated", amaya, `update feeder.customer_products set form_names = array['Sugar care form'] where user_id = $1 and product_id = 433`, [amaya]);
+a433 = await aliases(433);
+ok(!a433.some((x) => x.toLowerCase() === "diabetic 1340") && a433.includes("Sugar care form"), "a removed form name leaves the aliases");
+await as("authenticated", kasun, `insert into feeder.customer_products (user_id, product_id, form_names) values ($1, 436, array['Sugar care form'])`, [kasun]);
+await as("authenticated", amaya, `delete from feeder.customer_products where user_id = $1 and product_id = 433`, [amaya]);
+ok(!(await aliases(433)).includes("Sugar care form") && (await aliases(433)).includes("Diabetes tablets"), "deleting a product takes its form names out; other customers' names stay");
+ok((await aliases(436)).includes("Sugar care form"), "the same name on another product is kept there");
+await q(`insert into public.products (slug, code, name, short_name, status) values ('feeder', 'FDR', 'Retexia Feeder', 'Feeder', 'live') on conflict (slug) do nothing`);
+await q(`insert into public.packages (product_id, slug, name, price_monthly) select id, 'bulk-import', 'Bulk import', 1500 from public.products where slug = 'feeder'`);
+await db.exec(readFileSync(new URL("../supabase/migrations/0026_feeder_bulk_import_v2.sql", import.meta.url), "utf8"));
+await db.exec(readFileSync(new URL("../supabase/migrations/0028_feeder_form_aliases_one_package.sql", import.meta.url), "utf8"));
+const fp = (await q(`select k.slug, k.name, k.price_monthly::int price, k.is_active, k.is_visible from public.packages k join public.products p on p.id = k.product_id where p.slug = 'feeder' order by k.slug`));
+ok(fp.length === 2 && fp.find((x) => x.slug === "bulk-import-v2").name === "Bulk create v2" && fp.find((x) => x.slug === "bulk-import-v2").price === 1900, "Feeder is one package: Bulk create v2, LKR 1,900");
+ok(fp.find((x) => x.slug === "bulk-import").is_visible === false && fp.find((x) => x.slug === "bulk-import").is_active === false, "the old Bulk import package is hidden and closed to new orders");
+
 summary();

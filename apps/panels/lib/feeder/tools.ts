@@ -3,10 +3,9 @@
  * without one still shows in the menu; once bought it says it's being set up.
  * Add a new tool here and a component in components/feeder.
  */
-export type FeederTool = "bulk-import" | "bulk-import-v2";
+export type FeederTool = "bulk-import-v2";
 
+/** Feeder is one package now (Bulk create v2); customers with the older Bulk import get it too. */
 export function toolFor(packageSlug: string): FeederTool | null {
-  if (/bulk/.test(packageSlug) && /v2/.test(packageSlug)) return "bulk-import-v2";
-  if (/bulk/.test(packageSlug)) return "bulk-import";
-  return null;
+  return /bulk/.test(packageSlug) ? "bulk-import-v2" : null;
 }

@@ -2,7 +2,6 @@ import { Alert, Button, Card } from "@retexia/ui";
 import { PageHeader } from "@retexia/ui/admin";
 import { Lock } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
-import { BulkImport } from "@/components/feeder/bulk-import";
 import { BulkImportV2 } from "@/components/feeder/bulk-import-v2";
 import { requireFeederPage } from "@/lib/feeder/access";
 import { mySetup } from "@/lib/feeder/data";
@@ -46,8 +45,6 @@ export default async function FeederPackagePage({ params }: { params: Promise<{ 
       <PageHeader title={p.name} description={p.tagline ?? undefined} />
       {tool === "bulk-import-v2" ? (
         <BulkImportV2 productCount={count} crmLinks={setup?.customer?.crm_links ?? []} />
-      ) : tool === "bulk-import" ? (
-        <BulkImport productCount={count} />
       ) : (
         <Alert tone="info" title="We're setting this up">
           {p.name} is on your account{p.orderRef ? ` (request ${p.orderRef})` : ""}. It opens here as soon as it&apos;s ready; we&apos;ll message you.

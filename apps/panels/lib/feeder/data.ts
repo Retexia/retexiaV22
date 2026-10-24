@@ -56,7 +56,9 @@ export async function productsForWorker(userId: string) {
       product_name: p.product_name as string,
       price: String(m?.price ?? p.price),
       delivery_fee: String(p.delivery_fee),
-      aliases: [...(m?.form_names ?? []), ...((p.aliases as string[]) ?? [])].join(", "),
+      // Their own form names (these win) and the product's shared aliases (everyone's form names, spellings).
+      form_names: (m?.form_names ?? []).join(" | "),
+      aliases: ((p.aliases as string[]) ?? []).join(" | "),
       active: "TRUE",
     };
   });
