@@ -1,9 +1,8 @@
 "use client";
 
 import { Alert, Button, Card } from "@retexia/ui";
-import { ExternalLink, FileSpreadsheet, Upload, X } from "lucide-react";
+import { Boxes, FileSpreadsheet, Upload, X } from "lucide-react";
 import { useRef, useState } from "react";
-import { PRODUCTS_SHEET_URL } from "@/lib/feeder/tools";
 
 const MAX_TOTAL = 4 * 1024 * 1024; // what one upload can carry (hosting limit)
 const OK_TYPE = /\.(xls|csv)$/i;
@@ -14,7 +13,7 @@ type Result = { kind: "done"; fileName: string; orders: string | null; summary: 
  * Bulk import: Facebook lead files (.xls / .csv) → one courier CSV, built by the
  * Feeder n8n worker and downloaded straight to this computer (nothing is stored).
  */
-export function BulkImport() {
+export function BulkImport({ productCount }: { productCount: number }) {
   const input = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
@@ -55,7 +54,7 @@ export function BulkImport() {
 
   return (
     <div className="flex flex-col gap-6">
-      <ProductsSheetCard />
+      <ProductsCard count={productCount} />
       <Card className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <h2 className="type-h3 text-ink">Facebook leads → courier CSV</h2>
@@ -131,8 +130,8 @@ export function BulkImport() {
           tone="danger"
           title="The courier file was not created"
           action={
-            <Button href={PRODUCTS_SHEET_URL} size="sm" variant="secondary" target="_blank" rel="noopener noreferrer" iconAfter={<ExternalLink aria-hidden size={14} strokeWidth={1.5} />}>
-              Open products sheet
+            <Button href="/products" size="sm" variant="secondary">
+              My products
             </Button>
           }
         >
@@ -147,18 +146,20 @@ export function BulkImport() {
   );
 }
 
-/** Where prices, item codes and delivery fees come from (the customer's Products Google Sheet). */
-export function ProductsSheetCard() {
+/** Where prices, item codes and delivery fees come from: the customer's products and form names. */
+export function ProductsCard({ count }: { count: number }) {
   return (
     <Card className="flex flex-wrap items-center justify-between gap-4">
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <h2 className="type-h3 text-ink">Your products</h2>
         <p className="type-body text-ink-muted">
-          Prices, item codes and delivery fees in the courier file come from your products sheet. Add a new product, change a price, or add a form name to a product&apos;s aliases there; the next file you build uses it.
+          {count
+            ? `${count} product${count === 1 ? "" : "s"} with your form names. Each lead from those forms gets that product's item code, your price and the delivery fee. A new form? Add its name there first.`
+            : "Add the products you sell and your form names for each, so every lead lands on the right product, item code and price."}
         </p>
       </div>
-      <Button href={PRODUCTS_SHEET_URL} variant="secondary" target="_blank" rel="noopener noreferrer" iconAfter={<ExternalLink aria-hidden size={14} strokeWidth={1.5} />}>
-        Add or edit products
+      <Button href="/products" variant={count ? "secondary" : "primary"} icon={<Boxes aria-hidden size={16} strokeWidth={1.5} />}>
+        {count ? "My products" : "Add my products"}
       </Button>
     </Card>
   );

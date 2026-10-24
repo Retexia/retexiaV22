@@ -1,12 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getFeeder } from "@/lib/feeder/access";
+import { productsForWorker } from "@/lib/feeder/data";
 import { toolFor } from "@/lib/feeder/tools";
 
 /**
  * Feeder → Bulk import (v1 and v2). The signed-in customer's lead files and, for
  * v2, their CRM Google Sheet links go to the n8n worker (FEEDER_N8N_URL, header
  * X-Retexia-Key = FEEDER_N8N_KEY) in one request: fields "facebook", "tiktok"
- * (files) and "crm_links" (JSON list). Its "Collect sources" step reads the
+ * (files), "crm_links" (JSON list) and "products" (JSON: the Feeder products
+ * with this customer's form names and prices, from Supabase). Its "Collect sources" step reads the
  * sheets, the same as the n8n form, and the single courier CSV comes straight
  * back as a download. Nothing is stored: files only pass through.
  *
@@ -72,6 +74,13 @@ export async function POST(request: NextRequest) {
   for (const f of fb) out.append("facebook", f, f.name);
   for (const f of tiktok) out.append("tiktok", f, f.name);
   if (links.length) out.append("crm_links", JSON.stringify(links));
+  // The customer's products (Supabase "feeder"): every Feeder product with their form names and prices.
+  // Without it (schema not exposed yet) the worker falls back to its Products Google Sheet.
+  const products = await productsForWorker(feeder.user.id).catch((e) => {
+    console.error("[feeder] products", e);
+    return null;
+  });
+  if (products?.length) out.append("products", JSON.stringify(products));
 
   let res: Response;
   try {

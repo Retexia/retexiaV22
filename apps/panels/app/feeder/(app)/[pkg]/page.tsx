@@ -1,10 +1,11 @@
 import { Alert, Button, Card } from "@retexia/ui";
 import { PageHeader } from "@retexia/ui/admin";
 import { Lock } from "lucide-react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { BulkImport } from "@/components/feeder/bulk-import";
 import { BulkImportV2 } from "@/components/feeder/bulk-import-v2";
 import { requireFeederPage } from "@/lib/feeder/access";
+import { mySetup } from "@/lib/feeder/data";
 import { toolFor } from "@/lib/feeder/tools";
 
 export async function generateMetadata({ params }: { params: Promise<{ pkg: string }> }) {
@@ -14,7 +15,7 @@ export async function generateMetadata({ params }: { params: Promise<{ pkg: stri
 /** One package: its tool when bought, otherwise locked. */
 export default async function FeederPackagePage({ params }: { params: Promise<{ pkg: string }> }) {
   const { pkg } = await params;
-  const { packages, buyUrl } = await requireFeederPage(`/${pkg}`);
+  const { packages, buyUrl, user } = await requireFeederPage(`/${pkg}`);
   const p = packages.find((x) => x.slug === pkg);
   if (!p) notFound();
 
@@ -37,13 +38,16 @@ export default async function FeederPackagePage({ params }: { params: Promise<{ 
   }
 
   const tool = toolFor(p.slug);
+  const setup = tool ? await mySetup(user.id) : null;
+  if (tool && !setup?.customer) redirect("/setup");
+  const count = setup?.products.length ?? 0;
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={p.name} description={p.tagline ?? undefined} />
       {tool === "bulk-import-v2" ? (
-        <BulkImportV2 />
+        <BulkImportV2 productCount={count} crmLinks={setup?.customer?.crm_links ?? []} />
       ) : tool === "bulk-import" ? (
-        <BulkImport />
+        <BulkImport productCount={count} />
       ) : (
         <Alert tone="info" title="We're setting this up">
           {p.name} is on your account{p.orderRef ? ` (request ${p.orderRef})` : ""}. It opens here as soon as it&apos;s ready; we&apos;ll message you.

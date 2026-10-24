@@ -366,4 +366,26 @@ ok((await q(`select count(*)::int n from public.payments where order_id = $1 and
 await q(`select public.svc_payhere_subscription($1::jsonb)`, [JSON.stringify({ subscription_id: "420075000001", status: "canceled" })]);
 ok((await q(`select status from public.orders where id = $1`, [phOrder.id]))[0].status === "cancelled", "a stopped PayHere subscription cancels the request");
 
+console.log("Feeder: products, customers, form names (0027)");
+ok((await as("authenticated", amaya, `select count(*)::int n from feeder.products`)).rows[0].n === 169, "customers can read the 169 Feeder products");
+ok((await q(`select product_name, price::int p from feeder.products where product_id = 433`))[0].p === 1340, "Feeder product IDs are the primary key (433 = Ayora Diabetic Care)");
+await as("authenticated", amaya, `insert into feeder.customers (user_id, name, crm_links) values ($1, 'Amaya', array['https://docs.google.com/spreadsheets/d/abcdefghijklmnopqrstuvwxyz/edit#gid=0'])`, [amaya]);
+await as("authenticated", amaya, `insert into feeder.customer_products (user_id, product_id, form_names, price) values ($1, 433, array['Diabetic 1340', 'Sugar care form'], 1490)`, [amaya]);
+await as("authenticated", kasun, `insert into feeder.customers (user_id, name) values ($1, 'Kasun')`, [kasun]);
+await as("authenticated", kasun, `insert into feeder.customer_products (user_id, product_id, form_names) values ($1, 433, array['Diabetes tablets'])`, [kasun]);
+ok((await as("authenticated", kasun, `select user_id from feeder.customers`)).rows.length === 1, "customers only see their own Feeder row");
+ok((await as("authenticated", kasun, `select product_id from feeder.customer_products`)).rows.length === 1, "and only their own products and form names");
+await expectError(
+  () => as("authenticated", kasun, `insert into feeder.customer_products (user_id, product_id, form_names) values ($1, 436, array['x'])`, [amaya]),
+  "nobody can add products or form names for another customer",
+  /row-level security/,
+);
+await expectError(() => as("authenticated", amaya, `update feeder.products set price = 1 where product_id = 433`), "customers can't change Feeder prices", /permission denied/);
+const ov = (await q(`select form_names from feeder.products_overview where product_id = 433`))[0].form_names;
+ok(ov.length === 3 && ov.includes("Diabetic 1340 (Amaya)") && ov.includes("Diabetes tablets (Kasun)"), "products_overview lists every customer's form names with who they belong to");
+const co = (await q(`select name, crm_links, product_ids from feeder.customers_overview where user_id = $1`, [amaya]))[0];
+ok(co.product_ids.length === 1 && co.product_ids[0] === 433 && co.crm_links.length === 1, "customers_overview: name | CRM links | product IDs");
+await db.exec(readFileSync(new URL("../supabase/migrations/0027_feeder_products_customers.sql", import.meta.url), "utf8"));
+ok((await q(`select count(*)::int n from feeder.customer_products`))[0].n === 2, "running 0027 again keeps customers' products and form names");
+
 summary();

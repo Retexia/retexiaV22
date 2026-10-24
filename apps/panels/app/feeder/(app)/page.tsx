@@ -1,12 +1,15 @@
 import { Badge, Button, Card } from "@retexia/ui";
 import { PageHeader } from "@retexia/ui/admin";
 import { Lock } from "lucide-react";
+import { redirect } from "next/navigation";
 import { requireFeederPage } from "@/lib/feeder/access";
+import { isSetUp } from "@/lib/feeder/data";
 
 export const metadata = { title: "Feeder" };
 
 export default async function FeederHome() {
-  const { productName, packages, buyUrl } = await requireFeederPage("/");
+  const { productName, packages, buyUrl, user } = await requireFeederPage("/");
+  if (!(await isSetUp(user.id))) redirect("/setup");
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={productName} description="Your packages are open. The others are locked until you add them to your account." />

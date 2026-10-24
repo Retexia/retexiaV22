@@ -1,15 +1,13 @@
 "use client";
 
-import { Alert, Button, Card, Input, Switch, useMounted } from "@retexia/ui";
-import { FileSpreadsheet, Link2, Plus, Sheet, Upload, X } from "lucide-react";
+import { Alert, Button, Card, Switch } from "@retexia/ui";
+import { FileSpreadsheet, Sheet, Upload, X } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 import { FacebookIcon, TikTokIcon } from "@/components/post/brand-icons";
-import { PRODUCTS_SHEET_URL } from "@/lib/feeder/tools";
-import { ProductsSheetCard, downloadCsv } from "./bulk-import";
+import { ProductsCard, downloadCsv } from "./bulk-import";
+import { CrmLinks } from "./crm-links";
 
 const MAX_TOTAL = 4 * 1024 * 1024; // what one upload can carry (hosting limit)
-const SHEET = /^https:\/\/docs\.google\.com\/spreadsheets\/d\/(e\/)?[\w-]{20,}/;
-const LINKS_KEY = "rx-feeder-crm-links";
 
 type Source = "facebook" | "tiktok";
 const SOURCES: Record<Source, { label: string; accept: string; ok: RegExp; hint: string; icon: ReactNode; steps: ReactNode[] }> = {
@@ -43,7 +41,7 @@ const CRM_STEPS: ReactNode[] = [
   <>Open your CRM / orders Google Sheet and click <strong>Share</strong>.</>,
   <>Under <strong>General access</strong> choose <strong>Anyone with the link</strong> → <strong>Viewer</strong>, then <strong>Done</strong>. (Retexia only reads it.)</>,
   <>Open the tab that has the orders, then copy the link from the browser&apos;s address bar (it ends with <code className="type-code">#gid=…</code>, which picks that tab).</>,
-  <>Paste it below. Add another for each sheet or tab. The links are remembered on this computer for next time.</>,
+  <>Press <strong>Add CRM link</strong> and paste it. Add one for each sheet or tab. Links are saved to your account; tick the ones to read each time.</>,
 ];
 
 type Result = { kind: "done"; fileName: string; orders: string | null; summary: string[] } | { kind: "problems"; problems: string[] } | null;
@@ -125,59 +123,33 @@ function DropZone({ source, files, onAdd, onRemove, disabled }: { source: Source
  * must be on and have something in it. Nothing is stored: files pass through
  * to the Feeder worker and the CSV downloads to this computer.
  */
-export function BulkImportV2() {
-  // The form reads links saved in this browser, so it is drawn in the browser only.
-  return useMounted() ? <BulkImportV2Form /> : <Card className="h-64 animate-pulse" aria-busy="true" />;
-}
-
-/** CRM links saved in this browser (a convenience; nothing is stored by Retexia). */
-function savedLinks(): string[] {
-  try {
-    const saved = JSON.parse(window.localStorage.getItem(LINKS_KEY) ?? "[]") as unknown;
-    return Array.isArray(saved) ? saved.filter((l): l is string => typeof l === "string" && l.trim() !== "").slice(0, 20) : [];
-  } catch {
-    return []; // private window or blocked storage
-  }
-}
-
-function BulkImportV2Form() {
-  const [initial] = useState(savedLinks);
+export function BulkImportV2({ productCount, crmLinks }: { productCount: number; crmLinks: string[] }) {
   const [useImport, setUseImport] = useState(true);
-  const [useCrm, setUseCrm] = useState(initial.length > 0);
+  const [useCrm, setUseCrm] = useState(crmLinks.length > 0);
   const [files, setFiles] = useState<Record<Source, File[]>>({ facebook: [], tiktok: [] });
-  const [links, setLinks] = useState<string[]>(initial.length ? initial : [""]);
+  const [chosen, setChosen] = useState<string[]>(crmLinks);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Result>(null);
   const [error, setError] = useState<string | null>(null);
-  const saveLinks = (next: string[]) => {
-    setLinks(next);
-    try {
-      window.localStorage.setItem(LINKS_KEY, JSON.stringify(next.map((l) => l.trim()).filter(Boolean)));
-    } catch {
-      // ignore
-    }
-  };
 
   const fileCount = files.facebook.length + files.tiktok.length;
   const total = [...files.facebook, ...files.tiktok].reduce((s, f) => s + f.size, 0);
-  const filled = links.map((l) => l.trim()).filter(Boolean);
-  const badLinks = filled.filter((l) => !SHEET.test(l));
+  // Saved links ticked for this build (a removed link drops out).
+  const filled = chosen.filter((l) => crmLinks.includes(l));
 
   const problem = !useImport && !useCrm
     ? "Turn on at least one method: Import lead files or CRM sheets."
     : useImport && !useCrm && !fileCount
       ? "Add at least one Facebook or TikTok lead file."
       : useCrm && !useImport && !filled.length
-        ? "Paste at least one CRM Google Sheet link."
+        ? "Tick or add at least one CRM sheet link."
         : useImport && useCrm && !fileCount && !filled.length
           ? "Add lead files, CRM sheet links, or both."
           : useImport && useCrm && (!fileCount || !filled.length)
             ? `Add ${!fileCount ? "at least one lead file" : "at least one CRM sheet link"}, or switch that method off.`
-            : useCrm && badLinks.length
-              ? "One of the CRM links isn't a Google Sheet link (docs.google.com/spreadsheets/…)."
-              : useImport && total > MAX_TOTAL
+            : useImport && total > MAX_TOTAL
                 ? "The lead files are over 4 MB together. Build in two goes (a few files each time)."
-                : null;
+              : null;
 
   const add = (source: Source, picked: File[]) => {
     const s = SOURCES[source];
@@ -215,7 +187,7 @@ function BulkImportV2Form() {
 
   return (
     <div className="flex flex-col gap-6">
-      <ProductsSheetCard />
+      <ProductsCard count={productCount} />
 
       <Card className="flex flex-col gap-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -250,50 +222,13 @@ function BulkImportV2Form() {
               <Sheet aria-hidden size={18} strokeWidth={1.5} />
               2. CRM sheets
             </h2>
-            <p className="type-body text-ink-muted">Orders from your CRM or order Google Sheets, read straight from their view links every time you build. Any column names.</p>
+            <p className="type-body text-ink-muted">Orders from your CRM or order Google Sheets, read straight from their view links every time you build. Your links are saved to your account; tick the ones to use. Any column names.</p>
           </div>
           <Switch checked={useCrm} onCheckedChange={setUseCrm} label={useCrm ? "On" : "Off"} />
         </div>
         {useCrm ? (
           <div className="flex flex-col gap-3">
-            {links.map((l, i) => {
-              const bad = l.trim() !== "" && !SHEET.test(l.trim());
-              return (
-                <div key={i} className="flex flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <Link2 aria-hidden size={16} strokeWidth={1.5} className="shrink-0 text-ink-muted" />
-                    <Input
-                      aria-label={`CRM sheet link ${i + 1}`}
-                      placeholder="https://docs.google.com/spreadsheets/d/…/edit#gid=0"
-                      value={l}
-                      disabled={busy}
-                      onChange={(e) => saveLinks(links.map((x, j) => (j === i ? e.target.value : x)))}
-                      className="min-w-0 flex-1"
-                    />
-                    <button
-                      type="button"
-                      disabled={busy || (links.length === 1 && !l)}
-                      onClick={() => saveLinks(links.length === 1 ? [""] : links.filter((_, j) => j !== i))}
-                      className="rounded-full p-2 text-ink-muted hover:text-ink focus-visible:focus-ring disabled:opacity-40"
-                    >
-                      <X aria-hidden size={16} strokeWidth={1.5} />
-                      <span className="sr-only">Remove link {i + 1}</span>
-                    </button>
-                  </div>
-                  {bad ? <p className="pl-6 type-small text-danger">This isn&apos;t a Google Sheet link.</p> : null}
-                </div>
-              );
-            })}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="self-start"
-              disabled={busy || links.length >= 20}
-              icon={<Plus aria-hidden size={14} strokeWidth={1.5} />}
-              onClick={() => setLinks([...links, ""])}
-            >
-              Add another sheet
-            </Button>
+            <CrmLinks links={crmLinks} selected={filled} onSelectedChange={setChosen} />
             <Steps title="How to get a CRM sheet link" steps={CRM_STEPS} />
           </div>
         ) : (
@@ -327,8 +262,8 @@ function BulkImportV2Form() {
           tone="danger"
           title="The courier file was not created"
           action={
-            <Button href={PRODUCTS_SHEET_URL} size="sm" variant="secondary" target="_blank" rel="noopener noreferrer">
-              Open products sheet
+            <Button href="/products" size="sm" variant="secondary">
+              My products
             </Button>
           }
         >

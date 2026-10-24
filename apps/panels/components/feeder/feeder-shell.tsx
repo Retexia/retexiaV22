@@ -3,7 +3,7 @@
 import { createBrowserClient } from "@retexia/supabase/browser";
 import { DropdownMenu, ThemeToggle } from "@retexia/ui";
 import { PanelShell, type PanelNavGroup } from "@retexia/ui/admin";
-import { FileSpreadsheet, FileStack, LayoutDashboard, LogOut, Package, UserRound } from "lucide-react";
+import { Boxes, FileSpreadsheet, FileStack, LayoutDashboard, LogOut, Package, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { toolFor } from "@/lib/feeder/tools";
 
@@ -13,7 +13,12 @@ const TOOL_ICON = { "bulk-import": FileSpreadsheet, "bulk-import-v2": FileStack 
 /** Every Feeder package in the menu; packages not bought are greyed out with a lock. */
 export function FeederShell({ children, packages, webUrl, email }: { children: ReactNode; packages: { slug: string; name: string; owned: boolean }[]; webUrl: string; email: string }) {
   const groups: PanelNavGroup[] = [
-    { items: [{ href: "/", label: "Overview", icon: icon(LayoutDashboard), exact: true }] },
+    {
+      items: [
+        { href: "/", label: "Overview", icon: icon(LayoutDashboard), exact: true },
+        { href: "/products", label: "My products", icon: icon(Boxes) },
+      ],
+    },
     {
       label: "Packages",
       items: packages.map((p) => {
