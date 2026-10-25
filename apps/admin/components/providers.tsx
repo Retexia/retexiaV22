@@ -1,6 +1,6 @@
 "use client";
 
-import { Toaster } from "@retexia/ui";
+import { ProgressLine, Toaster } from "@retexia/ui";
 import { ThemeProvider } from "next-themes";
 import type { ReactNode } from "react";
 
@@ -9,6 +9,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} themes={["light", "dark"]} disableTransitionOnChange>
       {children}
       <Toaster />
+      <ProgressLine />
     </ThemeProvider>
   );
 }

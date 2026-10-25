@@ -1,5 +1,6 @@
 // Retexia design system. Icon lives in "@retexia/ui/icon" (Server Components only).
 export { cn } from "./cn";
+export { ProgressLine, RetexiaLoader } from "./components/loading";
 export { Container, Highlight, Section, SectionHeader, type SectionHeaderProps } from "./components/layout";
 export { Button, buttonClasses, isExternalHref, type ButtonProps, type ButtonSize, type ButtonVariant } from "./components/button";
 export {

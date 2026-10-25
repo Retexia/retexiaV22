@@ -1,6 +1,6 @@
 "use client";
 
-import { Toaster } from "@retexia/ui";
+import { ProgressLine, Toaster } from "@retexia/ui";
 import { ThemeProvider } from "next-themes";
 import type { ReactNode } from "react";
 import { StringsProvider } from "@/lib/strings-context";
@@ -19,6 +19,7 @@ export function Providers({
       <StringsProvider strings={strings}>
         {children}
         <Toaster />
+        <ProgressLine />
       </StringsProvider>
     </ThemeProvider>
   );

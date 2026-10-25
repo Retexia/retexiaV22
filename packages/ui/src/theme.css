@@ -359,3 +359,73 @@
     opacity: 0.55;
   }
 }
+
+/* ---------------------------------------------- Retexia line (loading) --- */
+/* Two brand strokes gliding along a thin track: at the top of the page while
+   anything is waiting on the server (ProgressLine), and centred while a page
+   loads (RetexiaLoader). Reduced motion: a still line instead. */
+.rx-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 9999;
+  height: 3px;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+.rx-progress::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--rx-brand-soft);
+  opacity: 0.7;
+}
+.rx-progress-on {
+  opacity: 1;
+}
+.rx-progress:not(.rx-progress-on) .rx-line-seg {
+  animation-play-state: paused;
+}
+.rx-line-track {
+  position: relative;
+  display: block;
+  width: 160px;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--rx-brand-soft);
+}
+.rx-line-seg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -40%;
+  width: 40%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--rx-brand) 35%, var(--rx-brand-hover) 75%, transparent);
+  animation: rx-line 1.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+.rx-line-seg-2 {
+  width: 18%;
+  opacity: 0.7;
+  animation-delay: 0.5s;
+}
+@keyframes rx-line {
+  from {
+    left: -40%;
+  }
+  to {
+    left: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rx-line-seg {
+    left: 0;
+    width: 100%;
+    animation: none !important;
+  }
+  .rx-line-seg-2 {
+    display: none;
+  }
+}
