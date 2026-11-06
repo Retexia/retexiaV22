@@ -482,4 +482,66 @@ console.log("Delete a customer completely");
   ok((await q(`select count(*)::int n from public.audit_logs where record_id = $1 and action = 'customer.purge'`, [carol]))[0].n === 1, "the audit log keeps a record");
 }
 
+console.log("Free trials (0029)");
+{
+  await q(`update public.packages set trial_days = 14 where id = $1`, [ids.core]);
+  const dina = await user("dina@example.com", "customer", { full_name: "Dina" });
+  const eve = await user("eve@example.com", "customer", { full_name: "Eve" });
+  const fay = await user("fay@example.com", "customer", { full_name: "Fay" });
+  const place = async (who, phone) =>
+    (await as("authenticated", who, `insert into public.orders (product_id, package_id, billing_cycle, answers) values ($1, $2, 'monthly', $3::jsonb) returning id, ref, status`, [ids.lingo, ids.core, JSON.stringify([{ key: "whatsapp", label: "WhatsApp", value: phone }])])).rows[0];
+  const t1 = await place(dina, "+94 77 123 4567");
+  const row = (await q(`select status, starts_at, trial_ends_at, status_note from public.orders where id = $1`, [t1.id]))[0];
+  ok(row.status === "trial" && row.starts_at, "a package with a free trial starts straight away: no payment, no approval");
+  const days = (new Date(row.trial_ends_at) - Date.now()) / 864e5;
+  ok(days > 13.9 && days <= 14, "the trial ends in 14 days");
+  ok(/^Free trial until /.test(row.status_note), "the customer sees until when");
+  ok((await q(`select subject from public.notifications_outbox where order_id = $1 and event = 'order.created' and channel = 'email'`, [t1.id]))[0]?.subject.startsWith("Your free trial"), "the welcome email says the trial has started");
+  ok((await as("authenticated", dina, `select trial_ends_at from public.orders where id = $1`, [t1.id])).rows[0].trial_ends_at, "customers can read their trial end date");
+
+  ok((await place(dina, "+94 77 123 4567")).status !== "trial", "one trial per customer: a second request is the normal paid one");
+  ok((await place(eve, "0771234567")).status !== "trial", "and one per phone number: a new account with the same number gets no second trial");
+  const t3 = await place(fay, "0719876543");
+  ok(t3.status === "trial", "another customer with another number gets a trial");
+
+  // Reminders and the end of the trial.
+  await q(`update public.orders set trial_ends_at = now() + interval '3 days' where id = $1`, [t1.id]);
+  await q(`select public.run_trials()`);
+  await q(`select public.run_trials()`);
+  const reminders = async () => (await q(`select subject from public.notifications_outbox where order_id = $1 and event = 'order.trial_ending' and channel = 'email' order by created_at`, [t1.id])).map((r) => r.subject);
+  ok((await reminders()).length === 1 && (await reminders())[0].startsWith("4 days left"), "4 days before the end: one reminder (not repeated)");
+  await q(`update public.orders set trial_ends_at = now() + interval '12 hours' where id = $1`, [t1.id]);
+  await q(`select public.run_trials()`);
+  ok((await reminders()).length === 2 && (await reminders())[1].includes("tomorrow"), "the day before: \"ends tomorrow\"");
+  await q(`update public.orders set trial_ends_at = now() - interval '1 minute' where id = $1`, [t1.id]);
+  const res = (await q(`select public.run_trials() r`))[0].r;
+  ok(res.ended >= 1 && (await q(`select status from public.orders where id = $1`, [t1.id]))[0].status === "trial_ended", "when it ends the request becomes \"Free trial ended\" (panel locked)");
+  ok((await q(`select count(*)::int n from public.notifications_outbox where order_id = $1 and event = 'order.status_changed'`, [t1.id]))[0].n >= 1, "and the customer is told how to continue");
+  await expectError(() => as("authenticated", alice, `select public.run_trials()`), "customers can't run the trial job", /permission denied/);
+
+  // Paying after the trial.
+  await as("authenticated", dina, `select public.customer_set_payment_method($1, 'bank_transfer')`, [t1.id]);
+  ok(true, "after the trial the customer can choose how to pay");
+  await expectError(() => as("authenticated", fay, `select public.customer_set_payment_method($1, 'bank_transfer')`, [t3.id]), "during the trial there is nothing to pay", /not waiting for a payment/);
+  // A product that still needs setup fields for "Active": the payment goes through and the team finishes the setup.
+  const t4 = await place(await user("gil@example.com"), "0701112223");
+  await q(`update public.orders set status = 'trial_ended' where id = $1`, [t4.id]);
+  await as("authenticated", support, `insert into public.payments (order_id, kind, amount, status) values ($1, 'subscription', 1900, 'confirmed')`, [t4.id]);
+  ok((await q(`select status from public.orders where id = $1`, [t4.id]))[0].status === "setting_up", "a payment is never refused: missing setup fields → Setting up");
+  // Self-serve (no setup fields needed): straight to Active.
+  await q(`update public.product_service_fields set required_for_status = null where product_id = $1`, [ids.lingo]);
+  await as("authenticated", support, `insert into public.payments (order_id, kind, amount, status) values ($1, 'subscription', 1900, 'confirmed')`, [t1.id]);
+  const paid = (await q(`select status, starts_at, renews_at from public.orders where id = $1`, [t1.id]))[0];
+  ok(paid.status === "active", "the confirmed payment makes it Active");
+  const month = (new Date(paid.renews_at) - new Date(paid.starts_at)) / 864e5;
+  ok(month >= 28 && month <= 31 && Math.abs(new Date(paid.starts_at) - Date.now()) < 60_000, "the paid month starts now (after the trial)");
+
+  // Extending a trial.
+  const before = (await q(`select trial_ends_at from public.orders where id = $1`, [t3.id]))[0].trial_ends_at;
+  await as("authenticated", support, `select public.admin_extend_trial($1, 7)`, [t3.id]);
+  const after = (await q(`select trial_ends_at from public.orders where id = $1`, [t3.id]))[0].trial_ends_at;
+  ok(Math.round((new Date(after) - new Date(before)) / 864e5) === 7, "the team can extend a trial by some days");
+  await expectError(() => as("authenticated", fay, `select public.admin_extend_trial($1, 30)`, [t3.id]), "customers can't extend their own trial", /Only the Retexia team/);
+}
+
 summary();

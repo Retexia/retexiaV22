@@ -32,7 +32,7 @@ export async function startPayhere(input: { ref: string }): Promise<Result<Payhe
     supabase.from("profiles").select("full_name, email, phone, whatsapp, business_name").eq("id", auth.user.id).maybeSingle(),
   ]);
   if (!order) return { ok: false, message: unavailable };
-  if (!["submitted", "reviewing", "awaiting_payment"].includes(order.status)) return { ok: false, message: t("order.pay.already_paid", "This request is already paid.") };
+  if (!["submitted", "reviewing", "awaiting_payment", "trial_ended"].includes(order.status)) return { ok: false, message: t("order.pay.already_paid", "This request is already paid.") };
   const { data: product } = await supabase.from("products").select("name, pay_online").eq("id", order.product_id).maybeSingle();
   if (!product?.pay_online) return { ok: false, message: unavailable };
   const currency = (order.currency ?? "LKR").toUpperCase();

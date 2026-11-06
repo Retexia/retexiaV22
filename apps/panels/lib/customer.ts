@@ -5,8 +5,12 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 
-/** Order statuses that unlock a product panel (paid and being set up, live, or paused). */
-export const ACCESS_STATUSES = ["setting_up", "active", "paused"];
+/** Order statuses that unlock a product panel (paid and being set up, live, or paused; and a free trial while it runs). */
+export const ACCESS_STATUSES = ["setting_up", "active", "paused", "trial"];
+
+/** A request that opens the panel now: a "trial" only until trial_ends_at. */
+export const opensPanel = (o: { status: string; trial_ends_at?: string | null }) =>
+  o.status !== "trial" || (Boolean(o.trial_ends_at) && new Date(o.trial_ends_at!).getTime() > Date.now());
 
 export type Customer = {
   id: string;
@@ -34,12 +38,12 @@ export const getCustomer = cache(async (productSlug: string): Promise<Customer |
     // RLS: customers only see their own orders.
     const { data: orders } = await supabase
       .from("orders")
-      .select("id, ref, status, package_name, created_at")
+      .select("id, ref, status, package_name, created_at, trial_ends_at")
       .eq("product_id", product.id)
       .in("status", ACCESS_STATUSES)
       .order("created_at", { ascending: false })
-      .limit(1);
-    const o = orders?.[0];
+      .limit(5);
+    const o = (orders ?? []).find(opensPanel);
     if (o) order = { id: o.id, ref: o.ref ?? "", status: o.status, package_name: o.package_name };
   }
   return {

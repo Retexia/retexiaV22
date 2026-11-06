@@ -7,6 +7,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AuditList, type AuditEntry } from "@/components/common/audit-list";
 import { AdminRequestTools } from "@/components/requests/admin-request-tools";
+import { ExtendTrial } from "@/components/requests/extend-trial";
 import { OrderStatus, label } from "@/components/common/status";
 import { ChangePricingButton, EditAnswersButton } from "@/components/requests/overview-editors";
 import { PayhereAwaiting, PayhereSubscription } from "@/components/requests/payhere-controls";
@@ -52,7 +53,7 @@ export default async function RequestPage({ params, searchParams }: { params: Pa
     supabase.from("order_statuses").select("key, label, description").order("sort_order"),
     supabase.from("order_status_transitions").select("*").eq("from_status", order.status ?? "").order("sort_order"),
     supabase.from("payments").select("*").eq("order_id", orderId).order("created_at", { ascending: false }),
-    supabase.from("orders").select("payment_method, payhere_subscription_id").eq("id", orderId).maybeSingle(),
+    supabase.from("orders").select("payment_method, payhere_subscription_id, trial_ends_at").eq("id", orderId).maybeSingle(),
     supabase.from("profiles").select("id, full_name, email, role").in("role", ["support", "editor", "admin", "owner"]),
     supabase.from("products").select("id, panel_url, panel_live, onboarding_form_id").eq("id", order.product_id ?? "").maybeSingle(),
     supabase.from("packages").select("id, name, price_monthly, price_yearly, setup_fee").eq("product_id", order.product_id ?? "").order("sort_order"),
@@ -187,6 +188,9 @@ export default async function RequestPage({ params, searchParams }: { params: Pa
               team={(team.data ?? []).filter((m) => m.role !== "editor").map((m) => ({ id: m.id, name: m.full_name || m.email || "Team member" }))}
               links={links}
             />
+            {canOperate && ["trial", "trial_ended"].includes(order.status ?? "") ? (
+              <ExtendTrial orderId={orderId} orderRef={ref} endsAt={billing.data?.trial_ends_at ?? null} />
+            ) : null}
             {canAdmin ? (
               <AdminRequestTools
                 orderId={orderId}
@@ -327,7 +331,7 @@ export default async function RequestPage({ params, searchParams }: { params: Pa
         ? await Promise.all((productExtension(order.product_slug).requestPanels ?? []).map(async (panel) => <div key={panel.key}>{await panel.render({ staff, orderId, productSlug: order.product_slug ?? "" })}</div>))
         : null}
 
-      {tab === "payments" && ["submitted", "reviewing", "awaiting_payment"].includes(order.status ?? "") && canOperate ? (
+      {tab === "payments" && ["submitted", "reviewing", "awaiting_payment", "trial_ended"].includes(order.status ?? "") && canOperate ? (
         billing.data?.payment_method === "card" ? (
           <PayhereAwaiting orderId={orderId} payUrl={`${webUrl()}/account/products/${encodeURIComponent(ref)}?pay=1`} />
         ) : (

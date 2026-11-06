@@ -11,7 +11,20 @@ const icon = (C: typeof LayoutDashboard) => <C aria-hidden size={18} strokeWidth
 const TOOL_ICON = { "bulk-import": FileSpreadsheet, "bulk-import-v2": FileStack } as const;
 
 /** Every Feeder package in the menu; packages not bought are greyed out with a lock. */
-export function FeederShell({ children, packages, webUrl, email }: { children: ReactNode; packages: { slug: string; name: string; owned: boolean }[]; webUrl: string; email: string }) {
+export function FeederShell({
+  children,
+  packages,
+  webUrl,
+  email,
+  trial,
+}: {
+  children: ReactNode;
+  packages: { slug: string; name: string; owned: boolean }[];
+  webUrl: string;
+  email: string;
+  trial: { daysLeft: number; payUrl: string } | null;
+}) {
+  const daysLeft = trial?.daysLeft ?? 0;
   const groups: PanelNavGroup[] = [
     {
       items: [
@@ -40,6 +53,17 @@ export function FeederShell({ children, packages, webUrl, email }: { children: R
       groups={groups}
       topbar={
         <>
+          {trial ? (
+            <a
+              href={trial.payUrl}
+              className="hidden items-center gap-2 rounded-full bg-success/10 px-3 py-1 type-small text-success hover:bg-success/15 focus-visible:focus-ring sm:inline-flex"
+            >
+              <span className="type-label">Free trial</span>
+              <span>
+                {daysLeft} day{daysLeft === 1 ? "" : "s"} left
+              </span>
+            </a>
+          ) : null}
           <span className="ml-auto" />
           <ThemeToggle />
           <DropdownMenu

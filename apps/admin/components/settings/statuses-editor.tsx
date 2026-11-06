@@ -34,7 +34,7 @@ const ROLES = [
   { value: "admin", label: "Admin" },
   { value: "owner", label: "Owner" },
 ];
-const CORE = ["submitted", "reviewing", "awaiting_payment", "setting_up", "active", "paused", "cancelled", "rejected"];
+const CORE = ["submitted", "reviewing", "awaiting_payment", "setting_up", "active", "paused", "cancelled", "rejected", "trial", "trial_ended"];
 
 export function StatusesEditor({ statuses, transitions }: { statuses: StatusRow[]; transitions: (TransitionRow & { id: string })[] }) {
   const router = useRouter();

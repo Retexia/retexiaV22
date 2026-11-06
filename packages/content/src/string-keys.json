@@ -1085,6 +1085,11 @@
     "file": "apps/web/components/onboarding/onboarding-flow.tsx"
   },
   {
+    "key": "onboarding.start_trial",
+    "fallback": "Start free trial",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
     "key": "onboarding.step_of",
     "fallback": "Step {n} of {total}",
     "file": "apps/web/components/onboarding/onboarding-flow.tsx"
@@ -1097,6 +1102,16 @@
   {
     "key": "onboarding.summary",
     "fallback": "Your package",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.trial_badge",
+    "fallback": "{days} days free: no payment now",
+    "file": "apps/web/components/onboarding/onboarding-flow.tsx"
+  },
+  {
+    "key": "onboarding.trial_then",
+    "fallback": "Free for {days} days, then",
     "file": "apps/web/components/onboarding/onboarding-flow.tsx"
   },
   {
@@ -1207,6 +1222,11 @@
   {
     "key": "order.panel_pending",
     "fallback": "Your panel opens when setup is finished.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.panel_trial_ended",
+    "fallback": "Your panel opens again as soon as your payment is confirmed. Your setup is kept.",
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
   },
   {
@@ -1322,6 +1342,11 @@
   {
     "key": "order.pay.title",
     "fallback": "Pay to start",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.pay.title_trial",
+    "fallback": "Your free trial has ended: pay to continue",
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
   },
   {
@@ -1527,6 +1552,21 @@
   {
     "key": "order.timeline",
     "fallback": "Timeline",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.trial.body",
+    "fallback": "Nothing to pay now. Use everything until {date}. After that it is {price} {cycle}, paid from this page; your setup is kept.",
+    "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
+  },
+  {
+    "key": "order.trial.price",
+    "fallback": "Free for {days} more days, then {price} {per}",
+    "file": "apps/web/components/account/order-card.tsx"
+  },
+  {
+    "key": "order.trial.title",
+    "fallback": "Free trial: {days} days left",
     "file": "apps/web/app/(site)/account/products/[ref]/page.tsx"
   },
   {

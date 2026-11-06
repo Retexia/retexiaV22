@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CancelOrderButton } from "@/components/account/cancel-order";
-import { canOpenPanel } from "@/components/account/order-card";
+import { canOpenPanel, needsPayment, onTrial, trialDaysLeft } from "@/components/account/order-card";
 import { CancelSubscriptionButton } from "@/components/account/cancel-subscription";
 import { PaymentMethodPicker } from "@/components/account/payment-method-picker";
 import { PaymentProofForm } from "@/components/account/payment-proof-form";
@@ -42,7 +42,10 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
     getVisibleServiceFields(supabase, order.id),
     getPaymentMethods(supabase),
   ]);
-  const awaitingPayment = order.status === "awaiting_payment";
+  // Pay now: a new request waiting for payment, or a free trial that has ended (never during a running trial).
+  const awaitingPayment = needsPayment(order);
+  const trial = onTrial(order);
+  const trialEnded = order.status === "trial_ended" || (order.status === "trial" && !trial);
 
   const product = products.find((p) => p.id === order.product_id);
   // How this request is paid: the method the customer picked, else the default (bank transfer or card).
@@ -97,11 +100,26 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
         ) : null}
       </header>
 
+      {trial ? (
+        <Card as="section" aria-labelledby="trial-title" className="flex flex-col gap-3 border-success/40!">
+          <h2 id="trial-title" className="type-h2 text-ink">
+            {t("order.trial.title", "Free trial: {days} days left", { days: String(trialDaysLeft(order)) })}
+          </h2>
+          <p className="type-body text-ink-muted">
+            {t("order.trial.body", "Nothing to pay now. Use everything until {date}. After that it is {price} {cycle}, paid from this page; your setup is kept.", {
+              date: formatDate(order.trial_ends_at, settings.currency_locale),
+              price: fmt(order.price_amount),
+              cycle: order.billing_cycle === "yearly" ? t("order.pay.yearly", "a year") : t("order.pay.monthly", "a month"),
+            })}
+          </p>
+        </Card>
+      ) : null}
+
       {awaitingPayment ? (
         <Card as="section" aria-labelledby="pay-title" className="flex flex-col gap-5 border-warning/40!">
           <div className="flex flex-col gap-1">
             <h2 id="pay-title" className="type-h2 text-ink">
-              {t("order.pay.title", "Pay to start")}
+              {trialEnded ? t("order.pay.title_trial", "Your free trial has ended: pay to continue") : t("order.pay.title", "Pay to start")}
             </h2>
             <p className="type-body text-ink-muted">
               {t("order.pay.amount", "{plan}: {total} to start{setup}, then {price} {cycle}.", {
@@ -205,7 +223,11 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
           ) : (
             <div className="flex flex-col gap-1">
               <Button disabled>{t("order.open_panel", "Open {name} panel", { name: product.short_name })}</Button>
-              <p className="type-small text-ink-muted">{t("order.panel_pending", "Your panel opens when setup is finished.")}</p>
+              <p className="type-small text-ink-muted">
+                {trialEnded
+                  ? t("order.panel_trial_ended", "Your panel opens again as soon as your payment is confirmed. Your setup is kept.")
+                  : t("order.panel_pending", "Your panel opens when setup is finished.")}
+              </p>
             </div>
           )
         ) : null}

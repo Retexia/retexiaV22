@@ -26,7 +26,7 @@ ok((await count("public.form_fields")) === 35, "35 onboarding fields (Lingo 24, 
 ok((await count("public.form_steps")) === 5, "5 onboarding steps");
 ok((await count("public.services")) === 6, "6 services");
 ok((await count("public.pages")) === 8, "8 pages (with the refund policy)");
-ok((await count("public.order_statuses")) === 8, "8 order statuses");
+ok((await count("public.order_statuses")) === 10, "10 order statuses (with the free trial ones)");
 ok((await count("public.site_strings")) > 50, "site strings seeded");
 const formLink = await db.query(
   `select f.slug from public.products p join public.forms f on f.id = p.onboarding_form_id where p.slug = 'lingo'`,

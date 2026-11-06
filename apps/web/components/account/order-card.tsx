@@ -5,9 +5,26 @@ import { formatDate, formatPrice } from "@/lib/format";
 import type { CustomerOrder } from "@/lib/orders";
 import type { Translate } from "@/lib/strings";
 
-export function canOpenPanel(product: Product | undefined, order: Pick<CustomerOrder, "status">) {
-  // Same statuses the panels accept: paid and being set up, live, or paused.
-  return Boolean(product?.panel_live && product.panel_url && ["setting_up", "active", "paused"].includes(order.status));
+type TrialFields = Pick<CustomerOrder, "status" | "trial_ends_at">;
+
+/** A free trial that is still running (the hourly job may not have closed an ended one yet). */
+export function onTrial(order: TrialFields) {
+  return order.status === "trial" && Boolean(order.trial_ends_at) && new Date(order.trial_ends_at!).getTime() > Date.now();
+}
+
+/** Whole days left in the trial (at least 1 while it runs). */
+export function trialDaysLeft(order: TrialFields) {
+  return order.trial_ends_at ? Math.max(1, Math.ceil((new Date(order.trial_ends_at).getTime() - Date.now()) / 86_400_000)) : 0;
+}
+
+/** Waiting for the customer to pay: a new request, or a free trial that has ended. */
+export function needsPayment(order: TrialFields) {
+  return order.status === "awaiting_payment" || order.status === "trial_ended" || (order.status === "trial" && !onTrial(order));
+}
+
+export function canOpenPanel(product: Product | undefined, order: TrialFields) {
+  // Same statuses the panels accept: a running free trial, paid and being set up, live, or paused.
+  return Boolean(product?.panel_live && product.panel_url && (["setting_up", "active", "paused"].includes(order.status) || onTrial(order)));
 }
 
 export function OrderCard({
@@ -39,7 +56,9 @@ export function OrderCard({
       <div className="flex flex-col gap-1">
         <h3 className="type-h2 text-ink">{order.package_name}</h3>
         <p className="type-body text-ink-muted">
-          {price} {per}
+          {onTrial(order)
+            ? t("order.trial.price", "Free for {days} more days, then {price} {per}", { days: String(trialDaysLeft(order)), price, per })
+            : `${price} ${per}`}
         </p>
       </div>
       <dl className="flex flex-wrap gap-x-6 gap-y-1 type-small text-ink-muted">
@@ -56,7 +75,7 @@ export function OrderCard({
         <Button href={`/account/products/${encodeURIComponent(order.ref ?? "")}`} variant="secondary" size="sm">
           {t("order.view_details", "View details")}
         </Button>
-        {order.status === "awaiting_payment" ? (
+        {needsPayment(order) ? (
           <Button href={`/account/products/${encodeURIComponent(order.ref ?? "")}?pay=1`} size="sm">
             {t("order.pay.pay", "Pay now")}
           </Button>

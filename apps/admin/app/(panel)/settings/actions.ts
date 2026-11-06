@@ -134,7 +134,7 @@ export async function savePaymentSettings(input: unknown): Promise<ActionResult>
 // Statuses and transitions
 // ---------------------------------------------------------------------------
 
-const CORE_STATUSES = ["submitted", "reviewing", "awaiting_payment", "setting_up", "active", "paused", "cancelled", "rejected"];
+const CORE_STATUSES = ["submitted", "reviewing", "awaiting_payment", "setting_up", "active", "paused", "cancelled", "rejected", "trial", "trial_ended"];
 
 export async function saveStatus(input: unknown): Promise<ActionResult> {
   return run(async () => {

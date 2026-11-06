@@ -459,3 +459,15 @@ export async function deleteRequests(input: { ids: string[]; reason: string }): 
     return { ok: true, message: `${done} request${done === 1 ? "" : "s"} deleted` };
   });
 }
+
+/** Free trial: add days (also reopens a trial that has just ended). */
+export async function extendTrial(input: { orderId: string; ref: string; days: number }): Promise<ActionResult> {
+  return run(async () => {
+    const { supabase } = await requireRole("operate");
+    const d = z.object({ orderId: uuid, ref: z.string(), days: z.number().int().min(1).max(60) }).parse(input);
+    const { data, error } = await supabase.rpc("admin_extend_trial", { p_order_id: d.orderId, p_days: d.days });
+    if (error) return { ok: false, message: dbMessage(error) };
+    refresh(d.ref);
+    return { ok: true, message: `Free trial extended to ${new Date(String(data)).toLocaleDateString("en-LK", { day: "numeric", month: "short", year: "numeric" })}` };
+  });
+}

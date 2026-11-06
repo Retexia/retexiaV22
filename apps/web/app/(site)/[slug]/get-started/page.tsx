@@ -81,6 +81,8 @@ async function GetStarted({ params, searchParams }: PageProps<"/[slug]/get-start
     .eq("product_id", product.id)
     .order("created_at", { ascending: false });
   const existing = (openOrders ?? []).find((o) => o.order_statuses && !o.order_statuses.is_final);
+  // One free trial per customer per product (the database checks phone numbers too).
+  const { count: trialsUsed } = await supabase.from("orders").select("id", { count: "exact", head: true }).eq("product_id", product.id).not("trial_ends_at", "is", null);
 
   const fmt = (n: number | null, currency: string | null) =>
     n === null ? null : formatPrice(n, currency ?? settings.currency_code, settings.currency_locale);
@@ -91,6 +93,7 @@ async function GetStarted({ params, searchParams }: PageProps<"/[slug]/get-start
     monthly: fmt(p.price_monthly, p.currency)!,
     yearly: fmt(p.price_yearly, p.currency),
     setupFee: p.setup_fee > 0 ? fmt(p.setup_fee, p.currency) : null,
+    trialDays: p.trial_days > 0 && !trialsUsed ? p.trial_days : 0,
   }));
 
   return (

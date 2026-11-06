@@ -850,6 +850,9 @@ export type Database = {
           starts_at: string | null
           status: string
           status_note: string | null
+          trial_ends_at: string | null
+          trial_phone_keys: string[] | null
+          trial_reminders: number
           updated_at: string
           user_id: string | null
         }
@@ -882,6 +885,9 @@ export type Database = {
           starts_at?: string | null
           status?: string
           status_note?: string | null
+          trial_ends_at?: string | null
+          trial_phone_keys?: string[] | null
+          trial_reminders?: number
           updated_at?: string
           user_id?: string | null
         }
@@ -914,6 +920,9 @@ export type Database = {
           starts_at?: string | null
           status?: string
           status_note?: string | null
+          trial_ends_at?: string | null
+          trial_phone_keys?: string[] | null
+          trial_reminders?: number
           updated_at?: string
           user_id?: string | null
         }
@@ -1020,6 +1029,7 @@ export type Database = {
           slug: string
           sort_order: number
           tagline: string | null
+          trial_days: number
           updated_at: string
         }
         Insert: {
@@ -1042,6 +1052,7 @@ export type Database = {
           slug: string
           sort_order?: number
           tagline?: string | null
+          trial_days?: number
           updated_at?: string
         }
         Update: {
@@ -1064,6 +1075,7 @@ export type Database = {
           slug?: string
           sort_order?: number
           tagline?: string | null
+          trial_days?: number
           updated_at?: string
         }
         Relationships: [
@@ -2068,6 +2080,7 @@ export type Database = {
       admin_dashboard: { Args: { p_product_id?: string; p_from?: string; p_to?: string }; Returns: Json }
       admin_delete_order: { Args: { p_order_id: string; p_reason: string }; Returns: string }
       admin_duplicate_product: { Args: { p_product_id: string; p_new_slug: string; p_new_name: string; p_new_code?: string }; Returns: string }
+      admin_extend_trial: { Args: { p_order_id: string; p_days: number }; Returns: string }
       admin_form_locked_keys: { Args: { p_form_id: string }; Returns: string[] }
       admin_integration_status: { Args: never; Returns: Json }
       admin_order_secret_status: { Args: { p_order_id: string }; Returns: Json }
@@ -2091,6 +2104,7 @@ export type Database = {
       is_privileged: { Args: never; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
       request_role: { Args: never; Returns: string }
+      run_trials: { Args: never; Returns: Json }
       set_default_payment_method: { Args: { p_key: string }; Returns: undefined }
       staff_role: { Args: never; Returns: string }
       svc_apply_action_result: { Args: { p_run_id: string; p_status: string; p_service_data?: Json; p_order_status?: string; p_customer_note?: string; p_error?: string; p_response?: Json }; Returns: Json }

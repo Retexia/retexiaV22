@@ -86,7 +86,9 @@ insert into public.order_statuses (key, label, description, tone, is_final, cust
   ('active', 'Active', 'Live. Everything is running.', 'success', false, false, 5),
   ('paused', 'Paused', 'Paused for now. Message us when you want to start again.', 'warning', false, false, 6),
   ('cancelled', 'Cancelled', 'This request was cancelled.', 'neutral', true, false, 7),
-  ('rejected', 'Not accepted', 'We could not take this request. We have emailed you the reason.', 'danger', true, false, 8)
+  ('rejected', 'Not accepted', 'We could not take this request. We have emailed you the reason.', 'danger', true, false, 8),
+  ('trial', 'Free trial', 'Your free trial is running. Open your panel and use everything; nothing to pay until it ends.', 'success', false, true, 4),
+  ('trial_ended', 'Free trial ended', 'Your free trial has ended. Pay from here to keep using it; your setup is kept.', 'warning', false, true, 4)
 on conflict (key) do update set
   label = excluded.label,
   description = excluded.description,
@@ -121,7 +123,14 @@ from (values
   ('awaiting_payment', 'cancelled', 'Cancel', array['support', 'admin', 'owner'], false, false, true, null, 9),
   ('setting_up', 'cancelled', 'Cancel', array['support', 'admin', 'owner'], false, false, true, null, 9),
   ('active', 'cancelled', 'Cancel', array['support', 'admin', 'owner'], false, false, true, null, 9),
-  ('paused', 'cancelled', 'Cancel', array['support', 'admin', 'owner'], false, false, true, null, 9)
+  ('paused', 'cancelled', 'Cancel', array['support', 'admin', 'owner'], false, false, true, null, 9),
+  ('trial', 'trial_ended', 'End trial now', array['admin', 'owner'], false, false, true, null, 1),
+  ('trial', 'active', 'Activate (paid)', array['admin', 'owner'], true, false, true, 'Thank you. Your plan is active.', 2),
+  ('trial', 'cancelled', 'Cancel', array['support', 'admin', 'owner'], false, false, true, null, 9),
+  ('trial_ended', 'active', 'Activate (paid)', array['support', 'admin', 'owner'], true, false, true, 'Thank you. Your plan is active again.', 1),
+  ('trial_ended', 'cancelled', 'Cancel', array['support', 'admin', 'owner'], false, false, true, null, 9),
+  ('trial', 'setting_up', 'Start setup (paid)', array['admin', 'owner'], true, false, true, null, 3),
+  ('trial_ended', 'setting_up', 'Start setup (paid)', array['support', 'admin', 'owner'], true, false, true, null, 2)
 ) as v (from_status, to_status, label, roles, payment, reason, notify, template, sort_order)
 where exists (select 1 from public.order_statuses where key = v.from_status)
   and exists (select 1 from public.order_statuses where key = v.to_status)
@@ -884,9 +893,12 @@ insert into public.site_strings (key, value, description) values
   ('onboarding.review_title', 'Check your answers', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
   ('onboarding.selected_package', 'Selected package', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
   ('onboarding.start_over', 'Start over', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
+  ('onboarding.start_trial', 'Start free trial', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
   ('onboarding.step_of', 'Step {n} of {total}', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
   ('onboarding.submit', 'Submit request', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
   ('onboarding.summary', 'Your package', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
+  ('onboarding.trial_badge', '{days} days free: no payment now', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
+  ('onboarding.trial_then', 'Free for {days} days, then', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
   ('onboarding.use_package', 'Use this package', 'Used in apps/web/components/onboarding/onboarding-flow.tsx'),
   ('order.answers', 'Your answers', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.bank.reference', 'Use {ref} as the payment reference.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
@@ -909,6 +921,7 @@ insert into public.site_strings (key, value, description) values
   ('order.open_panel', 'Open {name} panel', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.package', 'Package', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.panel_pending', 'Your panel opens when setup is finished.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.panel_trial_ended', 'Your panel opens again as soon as your payment is confirmed. Your setup is kept.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.paused_note', 'Why it is paused', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.paused_since', 'Paused since', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.pay.add_phone', 'Add phone number', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
@@ -932,6 +945,7 @@ insert into public.site_strings (key, value, description) values
   ('order.pay.received', 'Payment received', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.pay.secure', 'Secure payment by PayHere', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.pay.title', 'Pay to start', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.pay.title_trial', 'Your free trial has ended: pay to continue', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.pay.unavailable', 'Online payment isn''t available right now. Please try again shortly or message us.', 'Used in apps/web/app/(site)/account/payhere-actions.ts'),
   ('order.pay.with_setup', ' (setup fee and first period)', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.pay.yearly', 'a year', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
@@ -973,6 +987,9 @@ insert into public.site_strings (key, value, description) values
   ('order.submitted', 'Submitted', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.summary', 'Summary', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.timeline', 'Timeline', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.trial.body', 'Nothing to pay now. Use everything until {date}. After that it is {price} {cycle}, paid from this page; your setup is kept.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
+  ('order.trial.price', 'Free for {days} more days, then {price} {per}', 'Used in apps/web/components/account/order-card.tsx'),
+  ('order.trial.title', 'Free trial: {days} days left', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.view_details', 'View details', 'Used in apps/web/components/account/order-card.tsx'),
   ('order.whatsapp', 'Message us on WhatsApp', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),
   ('order.whatsapp_message', 'Hi, I have a question about my request {ref}.', 'Used in apps/web/app/(site)/account/products/[ref]/page.tsx'),

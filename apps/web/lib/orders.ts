@@ -5,9 +5,9 @@ import type { Answer } from "@retexia/forms";
 
 /** Every orders column a customer may read (admin_note is not granted). */
 const ORDER_COLUMNS =
-  "id, ref, status, status_note, billing_cycle, package_name, price_amount, setup_fee, currency, answers, form_version, product_id, package_id, created_at, updated_at, starts_at, renews_at, cancelled_at, paused_at, payment_method, payhere_subscription_id";
+  "id, ref, status, status_note, billing_cycle, package_name, price_amount, setup_fee, currency, answers, form_version, product_id, package_id, created_at, updated_at, starts_at, renews_at, cancelled_at, paused_at, payment_method, payhere_subscription_id, trial_ends_at";
 
-export type CustomerOrder = Omit<Tables<"orders">, "admin_note" | "user_id" | "form_id" | "customer_note"> & {
+export type CustomerOrder = Omit<Tables<"orders">, "admin_note" | "user_id" | "form_id" | "customer_note" | "trial_phone_keys" | "trial_reminders"> & {
   answers: Answer[];
 };
 export type OrderEvent = Tables<"order_events">;

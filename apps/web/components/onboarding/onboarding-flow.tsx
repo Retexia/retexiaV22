@@ -26,6 +26,8 @@ export type OnboardingPackage = {
   monthly: string;
   yearly: string | null;
   setupFee: string | null;
+  /** Free trial days for this customer (0 = none): no payment now, the panel opens straight away. */
+  trialDays: number;
 };
 
 type Props = {
@@ -191,6 +193,11 @@ function OnboardingForm({ userId, product, packages, initialPackage, initialCycl
             <p className="type-h2 text-ink">{pkg?.name}</p>
             {pkg?.tagline ? <p className="type-body text-ink-muted">{pkg.tagline}</p> : null}
           </div>
+          {pkg?.trialDays ? (
+            <p className="self-start rounded-full bg-success/10 px-3 py-1 type-label text-success">
+              {t("onboarding.trial_badge", "{days} days free: no payment now", { days: String(pkg.trialDays) })}
+            </p>
+          ) : null}
           <p className="flex flex-wrap items-baseline gap-x-2">
             <span className="font-display text-[26px] leading-[34px] font-light text-ink">{price}</span>
             <span className="type-body text-ink-muted">{perLabel}</span>
@@ -293,6 +300,7 @@ function OnboardingForm({ userId, product, packages, initialPackage, initialCycl
                 <p className="type-small text-ink-muted">{t("onboarding.selected_package", "Selected package")}</p>
                 <p className="type-h2 text-ink">{pkg?.name}</p>
                 <p className="type-body text-ink-muted">
+                  {pkg?.trialDays ? `${t("onboarding.trial_then", "Free for {days} days, then", { days: String(pkg.trialDays) })} ` : ""}
                   {price} {perLabel}
                   {pkg?.setupFee ? ` · ${t("pricing.setup_fee", "+ {amount} one-time setup", { amount: pkg.setupFee })}` : ""}
                 </p>
@@ -335,7 +343,7 @@ function OnboardingForm({ userId, product, packages, initialPackage, initialCycl
                 {t("form.back", "Back")}
               </Button>
               <Button size="lg" onClick={onSubmit} loading={pending}>
-                {form.submit_label ?? t("onboarding.submit", "Submit request")}
+                {pkg?.trialDays ? t("onboarding.start_trial", "Start free trial") : (form.submit_label ?? t("onboarding.submit", "Submit request"))}
               </Button>
             </div>
           </section>

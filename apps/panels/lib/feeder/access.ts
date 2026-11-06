@@ -3,7 +3,7 @@ import "server-only";
 import { createServerClient } from "@retexia/supabase/server";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { ACCESS_STATUSES } from "../customer";
+import { ACCESS_STATUSES, opensPanel } from "../customer";
 import { webUrl } from "../env";
 import { toolFor } from "./tools";
 
@@ -18,6 +18,8 @@ export type FeederPackage = {
   owned: boolean;
   orderRef: string | null;
   orderStatus: string | null;
+  /** Free trial end (only while the package is on a trial). */
+  trialEndsAt: string | null;
 };
 
 /**
@@ -34,18 +36,20 @@ export const getFeeder = cache(async () => {
     supabase.from("profiles").select("full_name, email").eq("id", auth.user.id).maybeSingle(),
     product ? supabase.from("packages").select("id, slug, name, tagline, sort_order, is_active, is_visible").eq("product_id", product.id).order("sort_order") : { data: [] },
     product
-      ? supabase.from("orders").select("ref, status, package_id, package_name, created_at").eq("product_id", product.id).in("status", ACCESS_STATUSES).order("created_at", { ascending: false })
+      ? supabase.from("orders").select("ref, status, package_id, package_name, created_at, trial_ends_at").eq("product_id", product.id).in("status", ACCESS_STATUSES).order("created_at", { ascending: false })
       : { data: [] },
   ]);
-  const bought = new Map<string, { ref: string | null; status: string; name: string | null }>();
-  for (const o of orders ?? []) if (!bought.has(o.package_id)) bought.set(o.package_id, { ref: o.ref, status: o.status, name: o.package_name });
+  const bought = new Map<string, { ref: string | null; status: string; name: string | null; trialEndsAt: string | null }>();
+  for (const o of (orders ?? []).filter(opensPanel)) {
+    if (!bought.has(o.package_id)) bought.set(o.package_id, { ref: o.ref, status: o.status, name: o.package_name, trialEndsAt: o.status === "trial" ? o.trial_ends_at : null });
+  }
 
   // Every package on sale, plus any the customer owns that is no longer on sale.
   const list: FeederPackage[] = (packages ?? [])
     .filter((p) => (p.is_active && p.is_visible) || bought.has(p.id))
     .map((p) => {
       const o = bought.get(p.id);
-      return { id: p.id, slug: p.slug, name: p.name, tagline: p.tagline, owned: Boolean(o), orderRef: o?.ref ?? null, orderStatus: o?.status ?? null };
+      return { id: p.id, slug: p.slug, name: p.name, tagline: p.tagline, owned: Boolean(o), orderRef: o?.ref ?? null, orderStatus: o?.status ?? null, trialEndsAt: o?.trialEndsAt ?? null };
     });
   // Bulk create v2 does everything the older Bulk import did: owners of either don't see the other offered.
   const hasBulk = list.some((p) => p.owned && toolFor(p.slug));
