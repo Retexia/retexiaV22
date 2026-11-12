@@ -9,12 +9,10 @@ import { GoalPeople } from "@/components/plan/goal-people";
 import { GoalTasks } from "@/components/plan/goal-tasks";
 import { NewGoalButton } from "@/components/plan/new-goal-button";
 import { goalTaskRate, loadCharts, loadGoal } from "@/lib/plan/data";
-import { STATUS_TEXT, categoryOf, daysBetween, goalProgress, isDue, periodLabel, taskStreak, type Goal, type Period } from "@/lib/plan/logic";
+import { STATUS_TEXT, categoryOf, daysBetween, goalProgress, isDue, periodLabel, smallerOf, taskStreak, type Goal } from "@/lib/plan/logic";
 import { requirePlanPage } from "@/lib/plan/session";
 
 export const metadata = { title: "Goal" };
-
-const SMALLER: Record<Period, Period | null> = { year: "month", month: "week", week: null };
 
 export default async function PlanGoal({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -26,6 +24,7 @@ export default async function PlanGoal({ params }: { params: Promise<{ id: strin
   const progress = goalProgress(goal, charts, points, today, role === "owner" ? goalTaskRate(goal, tasks, done, today) : null);
   const left = daysBetween(today, goal.ends_on);
   const isOwner = role === "owner";
+  const smaller = smallerOf(goal);
   const { data: own } = isOwner ? await db.from("goals").select("id, title, period, starts_on, ends_on").eq("owner_id", user.id).eq("status", "active") : { data: [] };
   const parents = (own ?? []) as Pick<Goal, "id" | "title" | "period" | "starts_on" | "ends_on">[];
   const { charts: childCharts, points: childPoints } = await loadCharts(db, children.map((c) => c.id));
@@ -95,11 +94,11 @@ export default async function PlanGoal({ params }: { params: Promise<{ id: strin
             />
           ) : null}
 
-          {SMALLER[goal.period] && (isOwner || children.length) ? (
+          {smaller && (isOwner || children.length) ? (
             <Card className="flex flex-col gap-3">
               <div className="flex items-center justify-between gap-2">
-                <h2 className="type-h3 text-ink">{SMALLER[goal.period] === "month" ? "Monthly goals" : "Weekly goals"} inside this goal</h2>
-                {isOwner && goal.status === "active" ? <NewGoalButton parents={parents} today={today} defaults={{ period: SMALLER[goal.period]!, parent_id: goal.id }} label="Add" variant="secondary" /> : null}
+                <h2 className="type-h3 text-ink">{smaller === "month" ? "Monthly goals" : "Weekly goals"} inside this goal</h2>
+                {isOwner && goal.status === "active" ? <NewGoalButton parents={parents} today={today} defaults={{ period: smaller, parent_id: goal.id }} label="Add" variant="secondary" /> : null}
               </div>
               {children.length ? (
                 <ul className="flex flex-col divide-y divide-line">
@@ -117,7 +116,7 @@ export default async function PlanGoal({ params }: { params: Promise<{ id: strin
                   })}
                 </ul>
               ) : (
-                <p className="type-small text-ink-muted">Break it into smaller {SMALLER[goal.period] === "month" ? "monthly" : "weekly"} goals.</p>
+                <p className="type-small text-ink-muted">Break it into smaller {smaller === "month" ? "monthly" : "weekly"} goals.</p>
               )}
             </Card>
           ) : null}

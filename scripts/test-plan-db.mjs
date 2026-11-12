@@ -23,6 +23,12 @@ ok((await as("authenticated", nimal, `select id from plan.goals`)).rows.length =
 ok((await as("authenticated", sara, `select id from plan.goals`)).rows.length === 0, "nobody else does");
 await expectError(() => as("authenticated", sara, `insert into plan.goals (owner_id, title, period, starts_on, ends_on) values ($1, 'x', 'week', '2026-11-02', '2026-11-08')`, [nimal]), "nobody can make goals for someone else", /row-level security/);
 await expectError(() => as("authenticated", nimal, `insert into plan.goals (owner_id, title, period, starts_on, ends_on) values ($1, 'x', 'week', '2026-11-08', '2026-11-02')`, [nimal]), "a goal can't end before it starts", /check constraint/);
+// Goals with their own length (0032).
+ok((await as("authenticated", nimal, `insert into plan.goals (owner_id, title, period, length_n, length_unit, starts_on, ends_on) values ($1, '90-day sprint', 'custom', 90, 'day', '2026-11-12', '2027-02-09') returning id`, [nimal])).rows.length === 1, "a goal can run for a number of days");
+await expectError(() => as("authenticated", nimal, `insert into plan.goals (owner_id, title, period, starts_on, ends_on) values ($1, 'x', 'custom', '2026-11-12', '2026-12-12')`, [nimal]), "a custom goal needs its length", /check constraint/);
+await expectError(() => as("authenticated", nimal, `insert into plan.goals (owner_id, title, period, length_n, length_unit, starts_on, ends_on) values ($1, 'x', 'month', 1, 'month', '2026-11-01', '2026-11-30')`, [nimal]), "a calendar goal has no custom length", /check constraint/);
+await expectError(() => as("authenticated", nimal, `insert into plan.goals (owner_id, title, period, length_n, length_unit, starts_on, ends_on) values ($1, 'x', 'custom', 20, 'year', '2026-11-12', '2046-11-11')`, [nimal]), "goals last at most 10 years", /check constraint/);
+await q(`delete from plan.goals where title = '90-day sprint'`);
 
 // Sharing one goal.
 await as("authenticated", nimal, `insert into plan.members (goal_id, email, role, invited_by) values ($1, ' Sara@Example.com ', 'viewer', $2)`, [goal, nimal]);

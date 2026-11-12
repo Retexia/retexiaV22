@@ -11,6 +11,7 @@ export const metadata = { title: "Goals" };
 
 const GROUPS: { period: Period; title: string }[] = [
   { period: "year", title: "This year's goals" },
+  { period: "custom", title: "Goals with their own length" },
   { period: "month", title: "Monthly goals" },
   { period: "week", title: "Weekly goals" },
 ];
@@ -39,7 +40,7 @@ export default async function PlanGoals({ searchParams }: { searchParams: Promis
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Goals" description="Year, month and week goals. Each can have its own charts, tasks, people and coach." actions={<NewGoalButton parents={parents} today={today} />} />
+      <PageHeader title="Goals" description="Year, month and week goals, or any length you set (90 days, 6 months…). Each can have its own charts, tasks, people and coach." actions={<NewGoalButton parents={parents} today={today} />} />
       <LinkTabs
         label="Which goals"
         items={[

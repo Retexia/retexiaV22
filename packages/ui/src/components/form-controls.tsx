@@ -291,7 +291,7 @@ export function RadioCards({
   value: string;
   onChange: (value: string) => void;
   onBlur?: () => void;
-  columns?: 1 | 2 | 3;
+  columns?: 1 | 2 | 3 | 4;
   disabled?: boolean;
   /** Plain radio list (no card border) for simple choices. */
   compact?: boolean;
@@ -302,7 +302,7 @@ export function RadioCards({
       role="radiogroup"
       aria-describedby={field?.describedBy}
       aria-invalid={field?.invalid || undefined}
-      className={cn("grid gap-3", columns === 2 && "sm:grid-cols-2", columns === 3 && "sm:grid-cols-3")}
+      className={cn("grid gap-3", columns === 2 && "sm:grid-cols-2", columns === 3 && "sm:grid-cols-3", columns === 4 && "grid-cols-2 sm:grid-cols-4")}
     >
       {options.map((o, i) => {
         const checked = value === o.value;

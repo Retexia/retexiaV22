@@ -6,7 +6,7 @@ import { z } from "zod";
 import { dbMessage, run, type ActionResult } from "@/lib/action";
 import { coachReply } from "@/lib/plan/coach";
 import { people, type ChatMessage } from "@/lib/plan/data";
-import { goalStart, periodLabel, periodRange } from "@/lib/plan/logic";
+import { daysBetween, goalStart, grainFor, lengthRange, periodLabel, periodRange } from "@/lib/plan/logic";
 import { planWorker } from "@/lib/plan/n8n";
 import { goalAccess, requirePlan } from "@/lib/plan/session";
 
@@ -34,7 +34,10 @@ const goalInput = z.object({
   template: z.enum(["income", "savings", "habit", "custom"]).default("custom"),
   title: z.string().trim().min(1, "Name the goal").max(140),
   why: z.string().trim().max(1000).default(""),
-  period: z.enum(["year", "month", "week"]),
+  period: z.enum(["year", "month", "week", "custom"]),
+  /** Custom goals: how long, from `from` (default today). */
+  length_n: z.number().int().min(1, "At least 1").max(999).nullable().optional(),
+  length_unit: z.enum(["day", "week", "month", "year"]).nullable().optional(),
   on: day,
   /** Start counting from (inside the period). Empty: today for a running period, else its first day. */
   from: day.nullable().optional(),
@@ -50,13 +53,21 @@ export async function saveGoal(input: z.input<typeof goalInput>): Promise<Action
   return run(async () => {
     const { db, user, today } = await requirePlan();
     const d = goalInput.parse(input);
-    const period = periodRange(d.period, d.on);
-    const range = { starts_on: goalStart(period, today, d.from), ends_on: period.ends_on };
+    let range: { starts_on: string; ends_on: string };
+    if (d.period === "custom") {
+      if (!d.length_n || !d.length_unit) return { ok: false, message: "Set how long the goal runs.", fieldErrors: { length_n: "Required" } };
+      range = lengthRange(d.from || today, d.length_n, d.length_unit);
+      if (daysBetween(range.starts_on, range.ends_on) > 3660) return { ok: false, message: "A goal can run for up to 10 years.", fieldErrors: { length_n: "Too long" } };
+    } else {
+      const period = periodRange(d.period, d.on);
+      range = { starts_on: goalStart(period, today, d.from), ends_on: period.ends_on };
+    }
+    const length = d.period === "custom" ? { length_n: d.length_n!, length_unit: d.length_unit! } : { length_n: null, length_unit: null };
     if (d.parent_id) {
       const p = await goalAccess(db, d.parent_id, user.id);
       if (!p || p.role !== "owner") return { ok: false, message: "Pick one of your own goals as the bigger goal." };
     }
-    const row = { title: d.title, why: d.why || null, period: d.period, ...range, category: d.category, parent_id: d.parent_id, updated_at: new Date().toISOString() };
+    const row = { title: d.title, why: d.why || null, period: d.period, ...range, ...length, category: d.category, parent_id: d.parent_id, updated_at: new Date().toISOString() };
     if (d.id) {
       const a = await goalAccess(db, d.id, user.id);
       if (!a || a.role !== "owner") return { ok: false, message: "Only the goal's owner can change it." };
@@ -68,7 +79,7 @@ export async function saveGoal(input: z.input<typeof goalInput>): Promise<Action
     if (error || !goal) return { ok: false, message: dbMessage(error) };
     const t = TEMPLATES[d.template];
     const chart = t.chart ? { ...t.chart, unit: d.unit || t.chart.unit } : d.target != null ? { title: "Progress", unit: d.unit, mode: "total", kind: "line" } : null;
-    if (chart) await db.from("charts").insert({ goal_id: goal.id, ...chart, grain: d.period === "year" ? "month" : d.period === "month" ? "day" : "day", target: d.target });
+    if (chart) await db.from("charts").insert({ goal_id: goal.id, ...chart, grain: grainFor(range), target: d.target });
     const task = d.template === "habit" ? d.habit || d.title : t.task;
     if (task) await db.from("tasks").insert({ owner_id: user.id, goal_id: goal.id, title: task, repeat: "daily", starts_on: range.starts_on < today ? today : range.starts_on, ends_on: range.ends_on });
     return done("Goal created", { id: goal.id });

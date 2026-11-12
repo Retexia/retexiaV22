@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { saveGoal } from "@/app/plan/actions";
-import { CATEGORIES, fullPeriod, goalStart, periodLabel, periodRange, shortDate, type Category, type Goal, type Period } from "@/lib/plan/logic";
+import { CATEGORIES, LENGTH_UNITS, canContain, daysBetween, goalStart, lengthRange, lengthText, periodLabel, periodRange, shortDate, type Category, type Goal, type LengthUnit, type Period } from "@/lib/plan/logic";
 
 type Template = "income" | "savings" | "habit" | "custom";
 const TEMPLATES: { value: Template; label: string; description: string; category: Category }[] = [
@@ -14,7 +14,6 @@ const TEMPLATES: { value: Template; label: string; description: string; category
   { value: "habit", label: "Habit", description: "Something you do again and again, with a streak.", category: "habit" },
   { value: "custom", label: "Other", description: "Anything: start blank, add charts later.", category: "custom" },
 ];
-const BIGGER: Record<Period, Period[]> = { week: ["month", "year"], month: ["year"], year: [] };
 
 /** New goal (from a template) or edit one. */
 export function GoalDialog({
@@ -40,7 +39,10 @@ export function GoalDialog({
     period: (goal?.period ?? defaults?.period ?? "month") as Period,
     on: goal?.starts_on ?? today,
     // Start counting from: kept for an existing goal, else today (running period) or the first day (future one).
-    from: goal?.starts_on ?? goalStart(periodRange((goal?.period ?? defaults?.period ?? "month") as Period, today), today),
+    from: goal?.starts_on ?? (defaults?.period === "custom" ? today : goalStart(periodRange(defaults?.period ?? "month", today), today)),
+    // Custom length: n days/weeks/months/years from `from`.
+    len_n: String(goal?.length_n ?? 30),
+    len_unit: (goal?.length_unit ?? "day") as LengthUnit,
     category: (goal?.category ?? "custom") as Category,
     parent_id: goal?.parent_id ?? defaults?.parent_id ?? "",
     target: "",
@@ -49,18 +51,19 @@ export function GoalDialog({
   }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  const range = periodRange(v.period, v.on || today);
-  const from = goalStart(range, today, v.from);
-  // Moving to another period starts it again from today / its first day.
-  const move = (period: Period, on: string) => {
-    const r = periodRange(period, on || today);
-    return { period, on, from: goalStart(r, today) };
-  };
+  const custom = v.period === "custom";
+  const n = Number(v.len_n);
+  const lengthOk = Number.isInteger(n) && n >= 1 && n <= 999;
+  // Calendar goals: the year/month/week, counted from `from`. Custom goals: from `from` for n units.
+  const calendar = v.period === "custom" ? null : periodRange(v.period, v.on || today);
+  const from = calendar ? goalStart(calendar, today, v.from) : v.from || today;
+  const range = calendar ? { starts_on: from, ends_on: calendar.ends_on } : lengthOk ? lengthRange(from, n, v.len_unit) : { starts_on: from, ends_on: from };
+  const days = daysBetween(range.starts_on, range.ends_on) + 1;
+  // Switching period starts it again: today for a running calendar period (or its first day), today for a custom length.
+  const move = (period: Period, on: string) =>
+    period === "custom" ? { period, on, from: v.period === "custom" ? from : today } : { period, on, from: goalStart(periodRange(period, on || today), today) };
   const money = v.template === "income" || v.template === "savings";
-  const options = parents.filter((p) => {
-    const full = fullPeriod(p);
-    return p.id !== goal?.id && BIGGER[v.period].includes(p.period) && full.starts_on <= range.starts_on && full.ends_on >= range.ends_on;
-  });
+  const options = parents.filter((p) => p.id !== goal?.id && canContain(p, range));
 
   async function save() {
     setBusy(true);
@@ -69,7 +72,12 @@ export function GoalDialog({
       setBusy(false);
       return setErrors({ target: "Enter a number above 0, or leave it empty" });
     }
-    const r = await saveGoal({ ...v, from, id: goal?.id, parent_id: v.parent_id || null, target, unit: money ? v.unit || "LKR" : v.unit });
+    if (custom && !lengthOk) {
+      setBusy(false);
+      return setErrors({ length_n: "Enter 1 to 999" });
+    }
+    const { len_n: _n, len_unit: _u, ...rest } = v;
+    const r = await saveGoal({ ...rest, from, length_n: custom ? n : null, length_unit: custom ? v.len_unit : null, id: goal?.id, parent_id: v.parent_id || null, target, unit: money ? v.unit || "LKR" : v.unit });
     setBusy(false);
     if (!r.ok) {
       setErrors(r.fieldErrors ?? {});
@@ -122,35 +130,51 @@ export function GoalDialog({
             onChange={(e) => setV({ ...v, title: e.target.value })}
           />
         </Field>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="For a" labelAs="legend">
-            <RadioCards
-              name="period"
-              columns={3}
-              compact
-              value={v.period}
-              onChange={(p) => setV({ ...v, ...move(p as Period, v.on), parent_id: "" })}
-              options={[
-                { value: "year", label: "Year" },
-                { value: "month", label: "Month" },
-                { value: "week", label: "Week" },
-              ]}
-            />
-          </Field>
-          <Field label="Which one" hint={periodLabel({ period: v.period, ...range })}>
-            <Input type="date" value={v.on} onChange={(e) => setV({ ...v, ...move(v.period, e.target.value) })} />
-          </Field>
-        </div>
-        <Field
-          label="Start counting from"
-          hint={
-            from === range.starts_on
-              ? `From the first day. The pace line runs ${shortDate(from)} → ${shortDate(range.ends_on)}.`
-              : `The pace line runs ${shortDate(from)} → ${shortDate(range.ends_on)}, so the days before don't count against you.`
-          }
-        >
-          <Input type="date" value={from} min={range.starts_on} max={range.ends_on} onChange={(e) => setV({ ...v, from: e.target.value })} />
+        <Field label="How long" labelAs="legend">
+          <RadioCards
+            name="period"
+            columns={4}
+            compact
+            value={v.period}
+            onChange={(p) => setV({ ...v, ...move(p as Period, v.on), parent_id: "" })}
+            options={[
+              { value: "year", label: "A year" },
+              { value: "month", label: "A month" },
+              { value: "week", label: "A week" },
+              { value: "custom", label: "Set length" },
+            ]}
+          />
         </Field>
+        {calendar ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Which one" hint={periodLabel({ period: v.period, ...calendar })}>
+              <Input type="date" value={v.on} onChange={(e) => setV({ ...v, ...move(v.period, e.target.value) })} />
+            </Field>
+            <Field
+              label="Start counting from"
+              hint={from === calendar.starts_on ? "From the first day." : "The days before don't count against you."}
+            >
+              <Input type="date" value={from} min={calendar.starts_on} max={calendar.ends_on} onChange={(e) => setV({ ...v, from: e.target.value })} />
+            </Field>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-[110px_1fr_1fr]">
+            <Field label="Length" error={errors.length_n} required>
+              <Input inputMode="numeric" value={v.len_n} maxLength={3} onChange={(e) => setV({ ...v, len_n: e.target.value.replace(/\D/g, "") })} />
+            </Field>
+            <Field label="Of" required>
+              <Select value={v.len_unit} onChange={(e) => setV({ ...v, len_unit: e.target.value as LengthUnit })} options={LENGTH_UNITS} />
+            </Field>
+            <Field label="Starts on" required>
+              <Input type="date" value={from} onChange={(e) => setV({ ...v, from: e.target.value || today })} />
+            </Field>
+          </div>
+        )}
+        <p className="-mt-2 type-small text-ink-muted">
+          {custom && !lengthOk
+            ? "Enter how many days, weeks, months or years (1 to 999)."
+            : `Runs ${shortDate(range.starts_on)} ${range.starts_on.slice(0, 4)} → ${shortDate(range.ends_on)} ${range.ends_on.slice(0, 4)} · ${custom ? `${lengthText(n, v.len_unit)}, ` : ""}${days} day${days === 1 ? "" : "s"}. The pace line starts on day one.`}
+        </p>
         {!goal && v.template !== "habit" ? (
           <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
             <Field label="Target" hint={money ? "The amount you want to reach." : "A number to reach (leave empty if there isn't one)."} error={errors.target} optionalLabel="Optional">

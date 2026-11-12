@@ -4,7 +4,10 @@
  * "YYYY-MM-DD" in the person's own time zone.
  */
 
-export type Period = "year" | "month" | "week";
+/** A calendar year, month or week, or "custom": a number of days/weeks/months/years from its start. */
+export type Period = "year" | "month" | "week" | "custom";
+export type CalendarPeriod = Exclude<Period, "custom">;
+export type LengthUnit = "day" | "week" | "month" | "year";
 export type Category = "income" | "savings" | "business" | "health" | "learning" | "habit" | "custom";
 export type Role = "owner" | "editor" | "viewer";
 
@@ -17,6 +20,8 @@ export type Goal = {
   period: Period;
   starts_on: string;
   ends_on: string;
+  length_n: number | null;
+  length_unit: LengthUnit | null;
   category: Category;
   status: "active" | "done" | "dropped";
   created_at: string;
@@ -69,7 +74,7 @@ const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "Ju
 export const shortDate = (d: string) => `${Number(d.slice(8, 10))} ${MONTHS[Number(d.slice(5, 7)) - 1]}`;
 
 /** The year / month / week (Monday to Sunday) that contains `day`. */
-export function periodRange(period: Period, day: string): { starts_on: string; ends_on: string } {
+export function periodRange(period: CalendarPeriod, day: string): { starts_on: string; ends_on: string } {
   if (period === "year") return { starts_on: `${day.slice(0, 4)}-01-01`, ends_on: `${day.slice(0, 4)}-12-31` };
   if (period === "month") {
     const start = `${day.slice(0, 7)}-01`;
@@ -81,7 +86,12 @@ export function periodRange(period: Period, day: string): { starts_on: string; e
   return { starts_on: start, ends_on: shift(start, 6) };
 }
 
-export function periodLabel(g: Pick<Goal, "period" | "starts_on" | "ends_on">) {
+export function periodLabel(g: Pick<Goal, "period" | "starts_on" | "ends_on"> & Partial<Pick<Goal, "length_n" | "length_unit">>) {
+  if (g.period === "custom") {
+    const sameYear = g.starts_on.slice(0, 4) === g.ends_on.slice(0, 4);
+    const range = sameYear ? `${shortDate(g.starts_on)} → ${shortDate(g.ends_on)} ${g.ends_on.slice(0, 4)}` : `${shortDate(g.starts_on)} ${g.starts_on.slice(0, 4)} → ${shortDate(g.ends_on)} ${g.ends_on.slice(0, 4)}`;
+    return g.length_n && g.length_unit ? `${lengthText(g.length_n, g.length_unit)} · ${range}` : range;
+  }
   if (g.period === "year") return g.starts_on.slice(0, 4);
   if (g.period === "month") return `${MONTHS_LONG[Number(g.starts_on.slice(5, 7)) - 1]} ${g.starts_on.slice(0, 4)}`;
   return `Week of ${shortDate(periodRange("week", g.starts_on).starts_on)}`;
@@ -97,8 +107,54 @@ export function goalStart(range: { starts_on: string; ends_on: string }, today: 
   return pick < range.starts_on ? range.starts_on : pick > range.ends_on ? range.ends_on : pick;
 }
 
-/** The full year/month/week a goal belongs to, even when it starts later in it. */
-export const fullPeriod = (g: Pick<Goal, "period" | "starts_on">) => periodRange(g.period, g.starts_on);
+/** The whole time a goal covers: its calendar year/month/week (even when it starts later in it), or its own dates. */
+export const fullPeriod = (g: Pick<Goal, "period" | "starts_on" | "ends_on">) => (g.period === "custom" ? { starts_on: g.starts_on, ends_on: g.ends_on } : periodRange(g.period, g.starts_on));
+
+export const LENGTH_UNITS: { value: LengthUnit; label: string }[] = [
+  { value: "day", label: "days" },
+  { value: "week", label: "weeks" },
+  { value: "month", label: "months" },
+  { value: "year", label: "years" },
+];
+export const lengthText = (n: number, unit: LengthUnit) => `${n} ${unit}${n === 1 ? "" : "s"}`;
+
+/** day + n months, staying on the last day when the month is shorter (31 Jan + 1 month = 28/29 Feb). */
+function addMonths(day: string, n: number) {
+  const y = Number(day.slice(0, 4));
+  const m = Number(day.slice(5, 7)) - 1 + n;
+  const ty = y + Math.floor(m / 12);
+  const tm = ((m % 12) + 12) % 12;
+  const last = new Date(Date.UTC(ty, tm + 1, 0)).getUTCDate();
+  const d = Math.min(Number(day.slice(8, 10)), last);
+  return `${ty}-${String(tm + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+/** A goal of n days/weeks/months/years from start: "30 days from 12 Nov" ends on 11 Dec. */
+export function lengthRange(start: string, n: number, unit: LengthUnit): { starts_on: string; ends_on: string } {
+  const next = unit === "day" ? shift(start, n) : unit === "week" ? shift(start, 7 * n) : addMonths(start, unit === "month" ? n : 12 * n);
+  return { starts_on: start, ends_on: shift(next, -1) };
+}
+
+/** The chart step that suits a goal of this length: days up to 2 months, weeks up to ~7 months, then months. */
+export function grainFor(range: { starts_on: string; ends_on: string }): Chart["grain"] {
+  const days = daysBetween(range.starts_on, range.ends_on) + 1;
+  return days <= 62 ? "day" : days <= 214 ? "week" : "month";
+}
+
+/** Which smaller goals fit inside this one (null: too short to split). */
+export function smallerOf(g: Pick<Goal, "period" | "starts_on" | "ends_on">): CalendarPeriod | null {
+  if (g.period === "year") return "month";
+  if (g.period === "month") return "week";
+  if (g.period === "week") return null;
+  const days = daysBetween(g.starts_on, g.ends_on) + 1;
+  return days > 62 ? "month" : days > 13 ? "week" : null;
+}
+
+/** A goal can be part of a bigger one that covers all its days and is longer. */
+export function canContain(parent: Pick<Goal, "period" | "starts_on" | "ends_on">, child: { starts_on: string; ends_on: string }) {
+  const full = fullPeriod(parent);
+  return full.starts_on <= child.starts_on && full.ends_on >= child.ends_on && daysBetween(full.starts_on, full.ends_on) > daysBetween(child.starts_on, child.ends_on);
+}
 
 // ---------------------------------------------------------------- tasks and streaks
 
