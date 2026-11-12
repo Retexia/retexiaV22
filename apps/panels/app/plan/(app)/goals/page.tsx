@@ -18,7 +18,7 @@ const GROUPS: { period: Period; title: string }[] = [
 
 export default async function PlanGoals({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
   const { show = "now" } = await searchParams;
-  const { user, db, today } = await requirePlanPage("/goals");
+  const { user, db, today, settings } = await requirePlanPage("/goals");
   const [{ goals, charts, points }, { tasks, done }] = await Promise.all([loadGoals(db, user.id), loadTasks(db, user.id, today)]);
   const owners = await people(goals.map((g) => g.owner_id));
   const visible = goals.filter((g) =>
@@ -32,7 +32,7 @@ export default async function PlanGoals({ searchParams }: { searchParams: Promis
       goal={g}
       role={g.role}
       owner={owners.get(g.owner_id)?.name}
-      progress={goalProgress(g, charts, points, today, g.role === "owner" ? goalTaskRate(g, tasks, done, today) : null)}
+      progress={goalProgress(g, charts, points, today, g.role === "owner" ? goalTaskRate(g, tasks, done, today) : null, settings.timezone)}
       unit={charts.find((c) => c.goal_id === g.id && c.target != null)?.unit ?? ""}
     />
   );

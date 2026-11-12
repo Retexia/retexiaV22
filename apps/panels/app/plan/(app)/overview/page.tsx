@@ -14,7 +14,7 @@ export const metadata = { title: "Overview" };
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default async function PlanOverview() {
-  const { user, db, today } = await requirePlanPage("/overview");
+  const { user, db, today, settings } = await requirePlanPage("/overview");
   const [{ tasks, done }, { goals, charts, points }] = await Promise.all([loadTasks(db, user.id, today), loadGoals(db, user.id)]);
   const owners = await people(goals.map((g) => g.owner_id));
   const streak = overallStreak(tasks, done, today);
@@ -26,7 +26,7 @@ export default async function PlanOverview() {
   const tw = sum(thisWeek, today);
   const lw = sum(lastWeek);
   const running = goals.filter((g) => g.status === "active" && g.starts_on <= today && g.ends_on >= today);
-  const rows = running.map((g) => ({ g, p: goalProgress(g, charts, points, today, g.role === "owner" ? goalTaskRate(g, tasks, done, today) : null) }));
+  const rows = running.map((g) => ({ g, p: goalProgress(g, charts, points, today, g.role === "owner" ? goalTaskRate(g, tasks, done, today) : null, settings.timezone) }));
   const behind = rows.filter((r) => r.p?.status === "behind").length;
   const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : "–");
 

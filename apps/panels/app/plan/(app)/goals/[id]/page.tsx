@@ -21,7 +21,7 @@ export default async function PlanGoal({ params }: { params: Promise<{ id: strin
   if (!data) notFound();
   const { goal, role, charts, points, owner, members, messages, children, parent, tasks, done, names } = data;
   const cat = categoryOf(goal.category);
-  const progress = goalProgress(goal, charts, points, today, role === "owner" ? goalTaskRate(goal, tasks, done, today) : null);
+  const progress = goalProgress(goal, charts, points, today, role === "owner" ? goalTaskRate(goal, tasks, done, today) : null, settings.timezone);
   const left = daysBetween(today, goal.ends_on);
   const isOwner = role === "owner";
   const smaller = smallerOf(goal);
@@ -103,7 +103,7 @@ export default async function PlanGoal({ params }: { params: Promise<{ id: strin
               {children.length ? (
                 <ul className="flex flex-col divide-y divide-line">
                   {children.map((c: Goal) => {
-                    const p = goalProgress(c, childCharts, childPoints, today, null);
+                    const p = goalProgress(c, childCharts, childPoints, today, null, settings.timezone);
                     return (
                       <li key={c.id} className="flex items-center gap-3 py-2">
                         <Link href={`/goals/${c.id}`} className="min-w-0 flex-1 truncate type-body text-ink hover:text-brand">

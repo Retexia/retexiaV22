@@ -29,6 +29,12 @@ await expectError(() => as("authenticated", nimal, `insert into plan.goals (owne
 await expectError(() => as("authenticated", nimal, `insert into plan.goals (owner_id, title, period, length_n, length_unit, starts_on, ends_on) values ($1, 'x', 'month', 1, 'month', '2026-11-01', '2026-11-30')`, [nimal]), "a calendar goal has no custom length", /check constraint/);
 await expectError(() => as("authenticated", nimal, `insert into plan.goals (owner_id, title, period, length_n, length_unit, starts_on, ends_on) values ($1, 'x', 'custom', 20, 'year', '2026-11-12', '2046-11-11')`, [nimal]), "goals last at most 10 years", /check constraint/);
 await q(`delete from plan.goals where title = '90-day sprint'`);
+// Two kinds of target (0033): a total by the end, or a daily/weekly/monthly rate by the end.
+const rate = (await as("authenticated", nimal, `insert into plan.charts (goal_id, title, unit, mode, grain, kind, target, baseline) values ($1, 'Orders per day', 'orders', 'rate', 'day', 'bar', 100, 40) returning id`, [goal])).rows[0].id;
+ok(Boolean(rate), "a chart can aim for a daily rate (100 orders a day by the end)");
+await expectError(() => as("authenticated", nimal, `insert into plan.charts (goal_id, title, mode, x_mode, target) values ($1, 'x', 'rate', 'labels', 5)`, [goal]), "a rate is always over time", /check constraint/);
+await expectError(() => as("authenticated", nimal, `insert into plan.charts (goal_id, title, mode) values ($1, 'x', 'average')`, [goal]), "only known kinds of target", /check constraint/);
+await q(`delete from plan.charts where id = $1`, [rate]);
 
 // Sharing one goal.
 await as("authenticated", nimal, `insert into plan.members (goal_id, email, role, invited_by) values ($1, ' Sara@Example.com ', 'viewer', $2)`, [goal, nimal]);

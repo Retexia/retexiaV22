@@ -1,7 +1,7 @@
 import { Badge, Card } from "@retexia/ui";
 import { Users } from "lucide-react";
 import Link from "next/link";
-import { STATUS_TEXT, categoryOf, fmtValue, periodLabel, type Goal, type Progress, type Role } from "@/lib/plan/logic";
+import { STATUS_TEXT, categoryOf, periodLabel, progressText, type Goal, type Progress, type Role } from "@/lib/plan/logic";
 
 /** A goal at a glance: kind, period, progress against target and pace. */
 export function GoalCard({ goal, role, progress, unit, owner }: { goal: Goal; role: Role; progress: Progress | null; unit: string; owner?: string }) {
@@ -30,7 +30,7 @@ export function GoalCard({ goal, role, progress, unit, owner }: { goal: Goal; ro
             {expected != null && goal.status === "active" ? <span aria-hidden className="absolute inset-y-0 w-0.5 bg-ink/40" style={{ left: `${expected}%` }} title="Where you should be today" /> : null}
           </div>
           <span className="type-small text-ink-muted">
-            {progress?.target != null && progress.target !== 1 ? `${fmtValue(progress.current, unit)} of ${fmtValue(progress.target, unit)}` : `${pct}% of tasks done`}
+            {progress?.rate || (progress?.target != null && progress.target !== 1) ? progressText(progress!, unit) : `${pct}% of tasks done`}
             {pct != null ? ` · ${pct}%` : ""}
           </span>
         </div>

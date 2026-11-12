@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { saveGoal } from "@/app/plan/actions";
-import { CATEGORIES, LENGTH_UNITS, canContain, daysBetween, goalStart, lengthRange, lengthText, periodLabel, periodRange, shortDate, type Category, type Goal, type LengthUnit, type Period } from "@/lib/plan/logic";
+import { CATEGORIES, LENGTH_UNITS, PER, canContain, daysBetween, goalStart, lengthRange, lengthText, periodLabel, periodRange, shortDate, type Category, type Goal, type LengthUnit, type Period } from "@/lib/plan/logic";
 
 type Template = "income" | "savings" | "habit" | "custom";
 const TEMPLATES: { value: Template; label: string; description: string; category: Category }[] = [
@@ -48,6 +48,10 @@ export function GoalDialog({
     target: "",
     unit: "",
     habit: "",
+    // A total by the end (150 orders this month), or a rate to reach by the end (100 orders a day).
+    target_type: "total" as "total" | "rate",
+    per: "day" as "day" | "week" | "month",
+    baseline: "",
   }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -64,6 +68,11 @@ export function GoalDialog({
     period === "custom" ? { period, on, from: v.period === "custom" ? from : today } : { period, on, from: goalStart(periodRange(period, on || today), today) };
   const money = v.template === "income" || v.template === "savings";
   const options = parents.filter((p) => p.id !== goal?.id && canContain(p, range));
+  // Per week needs 2+ weeks to grow, per month 2+ months (same rule as the server).
+  const pers = (["day", "week", "month"] as const).filter((x) => x === "day" || (x === "week" ? days >= 14 : days >= 56));
+  const per = pers.includes(v.per) ? v.per : "day";
+  const isRate = v.target_type === "rate";
+  const unitWord = money ? v.unit || "LKR" : v.unit;
 
   async function save() {
     setBusy(true);
@@ -76,8 +85,17 @@ export function GoalDialog({
       setBusy(false);
       return setErrors({ length_n: "Enter 1 to 999" });
     }
-    const { len_n: _n, len_unit: _u, ...rest } = v;
-    const r = await saveGoal({ ...rest, from, length_n: custom ? n : null, length_unit: custom ? v.len_unit : null, id: goal?.id, parent_id: v.parent_id || null, target, unit: money ? v.unit || "LKR" : v.unit });
+    const baseline = !isRate || v.baseline.trim() === "" ? null : Number(v.baseline.replace(/,/g, ""));
+    if (baseline !== null && (!Number.isFinite(baseline) || baseline < 0)) {
+      setBusy(false);
+      return setErrors({ baseline: "Enter a number, or leave it empty" });
+    }
+    if (isRate && target === null) {
+      setBusy(false);
+      return setErrors({ target: `Enter the number you want to reach ${PER[per]}` });
+    }
+    const { len_n: _n, len_unit: _u, baseline: _b, ...rest } = v;
+    const r = await saveGoal({ ...rest, per, baseline, from, length_n: custom ? n : null, length_unit: custom ? v.len_unit : null, id: goal?.id, parent_id: v.parent_id || null, target, unit: money ? v.unit || "LKR" : v.unit });
     setBusy(false);
     if (!r.ok) {
       setErrors(r.fieldErrors ?? {});
@@ -126,7 +144,7 @@ export function GoalDialog({
             autoFocus
             value={v.title}
             maxLength={140}
-            placeholder={v.template === "income" ? "e.g. Earn LKR 300,000 this month" : v.template === "savings" ? "e.g. Save LKR 100,000" : v.template === "habit" ? "e.g. Read every day" : "e.g. Launch my online shop"}
+            placeholder={isRate ? (money ? "e.g. Earn LKR 20,000 a day by the end of the month" : "e.g. 100 orders a day by the end of the month") : v.template === "income" ? "e.g. Earn LKR 300,000 this month" : v.template === "savings" ? "e.g. Save LKR 100,000" : v.template === "habit" ? "e.g. Read every day" : "e.g. Launch my online shop"}
             onChange={(e) => setV({ ...v, title: e.target.value })}
           />
         </Field>
@@ -176,14 +194,57 @@ export function GoalDialog({
             : `Runs ${shortDate(range.starts_on)} ${range.starts_on.slice(0, 4)} → ${shortDate(range.ends_on)} ${range.ends_on.slice(0, 4)} · ${custom ? `${lengthText(n, v.len_unit)}, ` : ""}${days} day${days === 1 ? "" : "s"}. The pace line starts on day one.`}
         </p>
         {!goal && v.template !== "habit" ? (
-          <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
-            <Field label="Target" hint={money ? "The amount you want to reach." : "A number to reach (leave empty if there isn't one)."} error={errors.target} optionalLabel="Optional">
-              <Input inputMode="decimal" value={v.target} placeholder={money ? "300000" : "e.g. 20"} onChange={(e) => setV({ ...v, target: e.target.value })} />
+          <>
+            <Field label="What do you want to reach?" labelAs="legend">
+              <RadioCards
+                name="target_type"
+                columns={2}
+                value={v.target_type}
+                onChange={(t) => setV({ ...v, target_type: t as "total" | "rate" })}
+                options={[
+                  { value: "total", label: "A total by the end", description: money ? "e.g. LKR 300,000 this month. Every amount adds up." : "e.g. 150 orders this month. Every value adds up." },
+                  { value: "rate", label: "Every day, week or month", description: money ? "e.g. LKR 20,000 a day by the end. Grow it step by step." : "e.g. 100 orders a day by the end. Grow it step by step." },
+                ]}
+              />
             </Field>
-            <Field label="Unit">
-              <Input value={money ? v.unit || "LKR" : v.unit} maxLength={20} placeholder={money ? "LKR" : "e.g. books, kg, clients"} onChange={(e) => setV({ ...v, unit: e.target.value })} />
-            </Field>
-          </div>
+            {isRate ? (
+              <Field label="Per" labelAs="legend" error={errors.per}>
+                <RadioCards
+                  name="per"
+                  columns={3}
+                  compact
+                  value={per}
+                  onChange={(x) => setV({ ...v, per: x as "day" | "week" | "month" })}
+                  options={pers.map((x) => ({ value: x, label: x === "day" ? "Day" : x === "week" ? "Week" : "Month" }))}
+                />
+              </Field>
+            ) : null}
+            <div className={`grid gap-4 ${isRate ? "sm:grid-cols-[1fr_1fr_140px]" : "sm:grid-cols-[1fr_140px]"}`}>
+              <Field
+                label={isRate ? `Target ${PER[per]} by the end` : "Target"}
+                hint={isRate ? "The level to reach and keep." : money ? "The amount you want to reach." : "A number to reach (leave empty if there isn't one)."}
+                error={errors.target}
+                required={isRate}
+                optionalLabel={isRate ? undefined : "Optional"}
+              >
+                <Input inputMode="decimal" value={v.target} placeholder={isRate ? (money ? "20000" : "100") : money ? "300000" : "e.g. 20"} onChange={(e) => setV({ ...v, target: e.target.value })} />
+              </Field>
+              {isRate ? (
+                <Field label={`Now, ${PER[per]}`} hint="Where you start. Empty: your first day logged." error={errors.baseline} optionalLabel="Optional">
+                  <Input inputMode="decimal" value={v.baseline} placeholder={money ? "8000" : "40"} onChange={(e) => setV({ ...v, baseline: e.target.value })} />
+                </Field>
+              ) : null}
+              <Field label="Unit">
+                <Input value={unitWord} maxLength={20} placeholder={money ? "LKR" : "e.g. orders, clients"} onChange={(e) => setV({ ...v, unit: e.target.value })} />
+              </Field>
+            </div>
+            {isRate && v.target.trim() ? (
+              <p className="-mt-2 type-small text-ink-muted">
+                You log each {per}&apos;s count. The chart shows a bar per {per} and a ramp{v.baseline.trim() ? ` from ${v.baseline.trim()}` : ""} up to {v.target.trim()}
+                {unitWord ? ` ${unitWord}` : ""} {PER[per]} on {shortDate(range.ends_on)}, so you can see if each {per} is high enough.
+              </p>
+            ) : null}
+          </>
         ) : null}
         {!goal && v.template === "habit" ? (
           <Field label="The habit (a daily task)" hint="It goes on your Today list every day of this goal." optionalLabel="Optional">

@@ -33,9 +33,12 @@ export type Chart = {
   unit: string;
   x_mode: "time" | "labels";
   grain: "day" | "week" | "month";
-  mode: "total" | "value";
+  /** total: adds up to a total by the end · rate: adds up per day/week/month (grain), target = that level by the end · value: each value is the new level. */
+  mode: "total" | "value" | "rate";
   kind: "line" | "bar";
   target: number | null;
+  /** Rate charts: the level at the start; null = the first day/week/month logged. */
+  baseline?: number | null;
   sort: number;
 };
 export type Point = { id: string; chart_id: string; at: string; label: string | null; value: number; note: string | null; created_by: string | null };
@@ -245,13 +248,49 @@ export const fmtValue = (n: number, unit: string) => {
   return /^(lkr|rs\.?|usd|\$)$/i.test(u) ? `${u.toUpperCase() === "$" ? "$" : u.toUpperCase()} ${fmtNum(n)}` : `${fmtNum(n)} ${u}`;
 };
 
+export const DEFAULT_TZ = "Asia/Colombo";
+const pointDay = (iso: string, tz: string) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
 const bucketOf = (day: string, grain: Chart["grain"]) => (grain === "day" ? day : grain === "month" ? `${day.slice(0, 7)}-01` : periodRange("week", day).starts_on);
 const bucketLabel = (b: string, grain: Chart["grain"]) => (grain === "month" ? MONTHS[Number(b.slice(5, 7)) - 1]! : shortDate(b));
+const nextBucket = (b: string, grain: Chart["grain"]) => (grain === "day" ? shift(b, 1) : grain === "week" ? shift(b, 7) : bucketOf(shift(`${b.slice(0, 7)}-28`, 7), "month"));
+const prevBucket = (b: string, grain: Chart["grain"]) => (grain === "day" ? shift(b, -1) : grain === "week" ? shift(b, -7) : bucketOf(shift(b, -1), "month"));
 
-/** Points of a chart → rows for the chart: running total (or level) per day / week / month, with the target pace. */
+/** "a day" / "a week" / "a month": how a rate target reads ("100 orders a day"). */
+export const PER: Record<Chart["grain"], string> = { day: "a day", week: "a week", month: "a month" };
+/** A rate's "now" is the average of the last few logged days/weeks/months (one busy day is not the new normal). */
+export const RATE_WINDOW: Record<Chart["grain"], number> = { day: 3, week: 2, month: 1 };
+const WINDOW_TEXT: Record<Chart["grain"], (n: number) => string> = {
+  day: (n) => (n === 1 ? "last day logged" : `average of the last ${n} days logged`),
+  week: (n) => (n === 1 ? "last week logged" : `average of the last ${n} weeks logged`),
+  month: () => "last month logged",
+};
+
+/** Share of the goal's time gone by the end of `day` (0..1). */
+function elapsedBy(g: Pick<Goal, "starts_on" | "ends_on">, day: string) {
+  const span = Math.max(1, daysBetween(g.starts_on, g.ends_on) + 1);
+  return Math.max(0, Math.min(1, (daysBetween(g.starts_on, day) + 1) / span));
+}
+
+/** A rate chart's logged days/weeks/months: the values in each one added up, oldest first. */
+export function rateBuckets(c: Pick<Chart, "id" | "grain">, points: Point[], tz: string = DEFAULT_TZ) {
+  const by = new Map<string, number>();
+  for (const p of points) if (p.chart_id === c.id) {
+    const b = bucketOf(pointDay(p.at, tz), c.grain);
+    by.set(b, (by.get(b) ?? 0) + p.value);
+  }
+  return [...by].sort((a, b) => a[0].localeCompare(b[0])).map(([bucket, value]) => ({ bucket, value }));
+}
+
+/** Where a rate starts: the level set on the chart, else the first day/week/month logged, else 0. */
+const rateStart = (c: Pick<Chart, "baseline">, buckets: { value: number }[]) => (c.baseline != null ? Number(c.baseline) : (buckets[0]?.value ?? 0));
+
+/** Where a rate should be at the end of `day`: a straight ramp from where it started to the target on the last day. */
+const rampAt = (start: number, target: number, g: Pick<Goal, "starts_on" | "ends_on">, day: string) => start + (target - start) * elapsedBy(g, day);
+
+/** Points of a chart → rows for the chart: running total, level or rate per day / week / month, with where you should be. */
 export function chartRows(c: Chart, points: Point[], g: Pick<Goal, "starts_on" | "ends_on">, tz: string) {
   const own = points.filter((p) => p.chart_id === c.id);
-  if (c.x_mode === "labels") {
+  if (c.x_mode === "labels" && c.mode !== "rate") {
     const by = new Map<string, number>();
     for (const p of [...own].sort((a, b) => a.at.localeCompare(b.at))) {
       const k = p.label?.trim() || "—";
@@ -259,29 +298,18 @@ export function chartRows(c: Chart, points: Point[], g: Pick<Goal, "starts_on" |
     }
     return [...by].map(([x, value]) => ({ x, value, pace: null as number | null }));
   }
-  const day = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
-  const sorted = [...own].map((p) => ({ ...p, day: day(p.at) })).sort((a, b) => a.day.localeCompare(b.day) || a.at.localeCompare(b.at));
+  const sorted = [...own].map((p) => ({ ...p, day: pointDay(p.at, tz) })).sort((a, b) => a.day.localeCompare(b.day) || a.at.localeCompare(b.at));
   const first = sorted[0]?.day && sorted[0].day < g.starts_on ? sorted[0].day : g.starts_on;
   const lastPoint = sorted[sorted.length - 1]?.day ?? g.starts_on;
   const end = lastPoint > g.ends_on ? lastPoint : g.ends_on;
   const buckets: string[] = [];
-  for (let d = bucketOf(first, c.grain); d <= end; ) {
-    buckets.push(d);
-    if (c.grain === "day") d = shift(d, 1);
-    else if (c.grain === "week") d = shift(d, 7);
-    else {
-      const n = new Date(`${d}T00:00:00Z`);
-      n.setUTCMonth(n.getUTCMonth() + 1);
-      d = n.toISOString().slice(0, 10);
-    }
-    if (buckets.length > 400) break;
-  }
-  const span = Math.max(1, daysBetween(g.starts_on, g.ends_on) + 1);
+  for (let d = bucketOf(first, c.grain); d <= end && buckets.length <= 400; d = nextBucket(d, c.grain)) buckets.push(d);
+  const rateFrom = c.mode === "rate" ? rateStart(c, rateBuckets(c, own, tz)) : 0;
   let running = 0;
   let level: number | null = null;
   let i = 0;
   return buckets.map((b) => {
-    const next = c.grain === "day" ? shift(b, 1) : c.grain === "week" ? shift(b, 7) : bucketOf(shift(`${b.slice(0, 7)}-28`, 7), "month");
+    const next = nextBucket(b, c.grain);
     let inBucket = 0;
     let had = false;
     while (i < sorted.length && sorted[i]!.day < next) {
@@ -292,27 +320,90 @@ export function chartRows(c: Chart, points: Point[], g: Pick<Goal, "starts_on" |
     }
     running += inBucket;
     const bucketEnd = shift(next, -1) > g.ends_on ? g.ends_on : shift(next, -1);
-    const pace = c.target != null && c.mode === "total" ? Math.max(0, Math.min(1, (daysBetween(g.starts_on, bucketEnd) + 1) / span)) * c.target : null;
+    const x = bucketLabel(b, c.grain);
+    if (c.mode === "rate") {
+      // This day's (week's, month's) count; the ramp shows how high it should be by then.
+      return { x, value: had ? inBucket : null, pace: c.target != null ? rampAt(rateFrom, c.target, g, bucketEnd) : null };
+    }
+    const pace = c.target != null && c.mode === "total" ? elapsedBy(g, bucketEnd) * c.target : null;
     const value = c.mode === "total" ? (c.kind === "bar" ? inBucket : running) : level;
-    return { x: bucketLabel(b, c.grain), value: c.mode === "value" && !had && level === null ? null : value, pace: c.kind === "bar" ? null : pace };
+    return { x, value: c.mode === "value" && !had && level === null ? null : value, pace: c.kind === "bar" ? null : pace };
   });
 }
 
-export type Progress = { current: number; target: number | null; pct: number | null; expected: number | null; status: "done" | "ahead" | "on_track" | "behind" | "no_target" };
+/** A rate target's details: how "now" is measured and how consistent it has been. */
+export type RateInfo = {
+  per: Chart["grain"];
+  /** How "now" is measured, e.g. "average of the last 3 days logged". */
+  window: string;
+  start: number;
+  /** The level the ramp says you should be at today. */
+  should_be: number | null;
+  latest: number | null;
+  best: number | null;
+  /** Days (weeks, months) logged, and how many of them reached the target. */
+  logged: number;
+  hits: number;
+  /** Days (weeks, months) in a row at the target, up to the latest one. */
+  streak: number;
+};
+export type Progress = { current: number; target: number | null; pct: number | null; expected: number | null; status: "done" | "ahead" | "on_track" | "behind" | "no_target"; rate?: RateInfo };
 
-/** Where a chart stands: now vs target, and vs where it should be by today (straight-line pace). */
-export function chartProgress(c: Chart, points: Point[], g: Pick<Goal, "starts_on" | "ends_on">, today: string): Progress {
+const statusOf = (pct: number, expected: number | null): Progress["status"] =>
+  pct >= 1 ? "done" : expected == null ? "on_track" : pct >= expected * 1.1 ? "ahead" : pct >= expected * 0.9 ? "on_track" : "behind";
+
+/** Where a chart stands: now vs target, and vs where it should be by today (straight-line pace, or the ramp for a rate). */
+export function chartProgress(c: Chart, points: Point[], g: Pick<Goal, "starts_on" | "ends_on">, today: string, tz: string = DEFAULT_TZ): Progress {
   const own = points.filter((p) => p.chart_id === c.id).sort((a, b) => a.at.localeCompare(b.at));
+  if (c.mode === "rate") return rateProgress(c, own, g, today, tz);
   const current = c.mode === "total" ? own.reduce((s, p) => s + p.value, 0) : (own[own.length - 1]?.value ?? 0);
   if (c.target == null) return { current, target: null, pct: null, expected: null, status: "no_target" };
   // Totals: sum / target. Levels (weight 80 → 70, balance 20k → 100k): from the first value towards the target, either way.
   const start = own[0]?.value ?? current;
   const pct = c.mode === "total" ? current / Math.max(1e-9, c.target) : start === c.target ? 1 : (current - start) / (c.target - start);
-  const span = Math.max(1, daysBetween(g.starts_on, g.ends_on) + 1);
-  const elapsed = Math.max(0, Math.min(1, (daysBetween(g.starts_on, today) + 1) / span));
-  const expected = c.x_mode === "time" ? elapsed : null;
-  const status = pct >= 1 ? "done" : expected == null ? "on_track" : pct >= expected * 1.1 ? "ahead" : pct >= expected * 0.9 ? "on_track" : "behind";
-  return { current, target: c.target, pct: Math.max(0, pct), expected, status };
+  const expected = c.x_mode === "time" ? elapsedBy(g, today) : null;
+  return { current, target: c.target, pct: Math.max(0, pct), expected, status: statusOf(pct, expected) };
+}
+
+/** A rate ("100 orders a day by 30 Nov"): now = recent average; progress = how far from the start level to the target. */
+function rateProgress(c: Chart, own: Point[], g: Pick<Goal, "starts_on" | "ends_on">, today: string, tz: string): Progress {
+  const all = rateBuckets(c, own, tz).filter((b) => b.bucket <= today);
+  const n = Math.min(RATE_WINDOW[c.grain], all.length);
+  const recent = all.slice(-n);
+  const current = recent.length ? recent.reduce((s, b) => s + b.value, 0) / recent.length : 0;
+  const start = rateStart(c, all);
+  const target = c.target;
+  let streak = 0;
+  if (target != null && all.length) {
+    // Counts only when the latest logged one is this day/week/month or the one before (a gap ends the run).
+    let want = bucketOf(today, c.grain);
+    if (all[all.length - 1]!.bucket !== want) want = prevBucket(want, c.grain);
+    for (let k = all.length - 1; k >= 0 && all[k]!.bucket === want && all[k]!.value >= target; k--, want = prevBucket(want, c.grain)) streak++;
+  }
+  const rate: RateInfo = {
+    per: c.grain,
+    window: n ? WINDOW_TEXT[c.grain](n) : "nothing logged yet",
+    start,
+    should_be: target != null ? rampAt(start, target, g, today) : null,
+    latest: all[all.length - 1]?.value ?? null,
+    best: all.length ? Math.max(...all.map((b) => b.value)) : null,
+    logged: all.length,
+    hits: target != null ? all.filter((b) => b.value >= target).length : 0,
+    streak,
+  };
+  if (target == null) return { current, target: null, pct: null, expected: null, status: "no_target", rate };
+  const pct = target === start ? (current >= target ? 1 : 0) : (current - start) / (target - start);
+  const expected = elapsedBy(g, today);
+  return { current, target, pct: Math.max(0, pct), expected, status: all.length ? statusOf(pct, expected) : "behind", rate };
+}
+
+/** One line for a chart or goal: "62 orders a day now → 100 a day" or "LKR 40,000 of LKR 150,000". */
+export function progressText(p: Progress, unit: string) {
+  if (p.rate) {
+    const per = PER[p.rate.per];
+    return p.target != null ? `${fmtValue(p.current, unit)} ${per} now → ${fmtValue(p.target, unit)} ${per}` : `${fmtValue(p.current, unit)} ${per} now`;
+  }
+  return p.target != null ? `${fmtValue(p.current, unit)} of ${fmtValue(p.target, unit)}` : fmtValue(p.current, unit);
 }
 
 export const STATUS_TEXT: Record<Progress["status"], { label: string; tone: "success" | "brand" | "warning" | "neutral" }> = {
@@ -324,9 +415,9 @@ export const STATUS_TEXT: Record<Progress["status"], { label: string; tone: "suc
 };
 
 /** A goal's progress: its first chart with a target, else the share of its tasks done so far. */
-export function goalProgress(g: Goal, charts: Chart[], points: Point[], today: string, taskRate: number | null): Progress | null {
+export function goalProgress(g: Goal, charts: Chart[], points: Point[], today: string, taskRate: number | null, tz: string = DEFAULT_TZ): Progress | null {
   const main = charts.filter((c) => c.goal_id === g.id && c.target != null).sort((a, b) => a.sort - b.sort)[0];
-  if (main) return chartProgress(main, points, g, today);
+  if (main) return chartProgress(main, points, g, today, tz);
   if (taskRate == null) return null;
   return { current: taskRate, target: 1, pct: taskRate, expected: null, status: taskRate >= 0.999 ? "done" : taskRate >= 0.8 ? "on_track" : "behind" };
 }

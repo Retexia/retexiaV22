@@ -3,7 +3,7 @@ import "server-only";
 import { localDate, timeIn } from "../time";
 import { goalTaskRate, loadGoals, loadTasks, people } from "./data";
 import { planDb } from "./db";
-import { STATUS_TEXT, dayStats, goalProgress, isDue, overallStreak, periodLabel, shift } from "./logic";
+import { STATUS_TEXT, dayStats, goalProgress, isDue, overallStreak, periodLabel, progressText, shift } from "./logic";
 import { planWorker } from "./n8n";
 
 const LANG = { en: "English", si: "Sinhala (Sinhala script)", singlish: "Singlish (Sinhala in English letters)", ta: "Tamil (Tamil script)" } as const;
@@ -13,13 +13,15 @@ const minutes = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.sl
 type Row = { user_id: string; timezone: string; whatsapp: string | null; morning_time: string; coach_language: keyof typeof LANG; last_morning_on: string | null; last_weekly_on: string | null };
 
 /** Today's tasks, streak and goals for one person (what the morning message and the weekly email are built from). */
-async function snapshot(userId: string, today: string) {
+async function snapshot(userId: string, today: string, tz: string) {
   const db = planDb();
   const [{ tasks, done }, { goals, charts, points }] = await Promise.all([loadTasks(db, userId, today), loadGoals(db, userId)]);
   const active = goals.filter((g) => g.role === "owner" && g.status === "active" && g.starts_on <= today && g.ends_on >= today);
   const goalLines = active.map((g) => {
-    const p = goalProgress(g, charts, points, today, goalTaskRate(g, tasks, done, today));
-    return { title: g.title, period: periodLabel(g), progress_pct: p?.pct == null ? null : Math.round(p.pct * 100), status: p ? STATUS_TEXT[p.status].label : "No target" };
+    const p = goalProgress(g, charts, points, today, goalTaskRate(g, tasks, done, today), tz);
+    const unit = charts.find((c) => c.goal_id === g.id && c.target != null)?.unit ?? "";
+    const now = p && (p.rate || (p.target != null && p.target !== 1)) ? progressText(p, unit) : null;
+    return { title: g.title, period: periodLabel(g), progress_pct: p?.pct == null ? null : Math.round(p.pct * 100), status: p ? STATUS_TEXT[p.status].label : "No target", ...(now ? { now } : {}) };
   });
   return { tasks, done, goalLines, streak: overallStreak(tasks, done, today) };
 }
@@ -36,7 +38,7 @@ export async function runMorning(limit = 40) {
     const at = minutes(String(s.morning_time).slice(0, 5));
     if (s.last_morning_on === today || now < at || now > at + 180) continue;
     const name = (await people([s.user_id])).get(s.user_id)?.name ?? "";
-    const snap = await snapshot(s.user_id, today);
+    const snap = await snapshot(s.user_id, today, s.timezone);
     const todays = snap.tasks.filter((t) => isDue(t, today)).map((t) => t.title);
     const r = await planWorker("morning", {
       number: s.whatsapp,
@@ -62,7 +64,7 @@ export async function runWeekly(limit = 40) {
     if (!isSunday || s.last_weekly_on === today || minutes(timeIn(s.timezone, new Date().toISOString())) < 18 * 60) continue;
     const person = (await people([s.user_id])).get(s.user_id);
     if (!person?.email) continue;
-    const snap = await snapshot(s.user_id, today);
+    const snap = await snapshot(s.user_id, today, s.timezone);
     const week = dayStats(snap.tasks, snap.done, shift(today, -6), today);
     const prev = dayStats(snap.tasks, snap.done, shift(today, -13), shift(today, -7));
     const sum = (x: typeof week) => ({ due: x.reduce((a, d) => a + d.due, 0), done: x.reduce((a, d) => a + d.done, 0) });

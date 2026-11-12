@@ -4,10 +4,12 @@ import { Badge, Button, Card, Dialog, DropdownMenu, Field, Input, RadioCards } f
 import { MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, ComposedChart, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { addPoint, deleteChart, deletePoint, saveChart } from "@/app/plan/actions";
-import { STATUS_TEXT, chartProgress, chartRows, fmtNum, fmtValue, shortDate, type Chart, type Goal, type Point, type Role } from "@/lib/plan/logic";
+import { PER, STATUS_TEXT, chartProgress, chartRows, fmtNum, fmtValue, progressText, shortDate, type Chart, type Goal, type Point, type Role } from "@/lib/plan/logic";
+
+const UNIT_WORD = { day: "day", week: "week", month: "month" } as const;
 
 const tooltipStyle = { background: "var(--rx-surface-raised)", border: "1px solid var(--rx-line)", borderRadius: 12, color: "var(--rx-ink)", fontSize: 13 };
 
@@ -19,7 +21,8 @@ export function ChartCard({ chart, points, goal, role, today, tz, color, names }
   const [v, setV] = useState({ value: "", on: today, label: "", note: "" });
   const [busy, setBusy] = useState(false);
   const rows = chartRows(chart, points, goal, tz);
-  const p = chartProgress(chart, points, goal, today);
+  const p = chartProgress(chart, points, goal, today, tz);
+  const rate = chart.mode === "rate" ? p.rate : undefined;
   const own = points.filter((x) => x.chart_id === chart.id);
   const canAdd = role !== "viewer";
   const status = STATUS_TEXT[p.status];
@@ -45,10 +48,15 @@ export function ChartCard({ chart, points, goal, role, today, tz, color, names }
         <div className="flex min-w-0 flex-col gap-0.5">
           <h3 className="type-h3 text-ink">{chart.title}</h3>
           <span className="type-small text-ink-muted">
-            {fmtValue(p.current, chart.unit)}
-            {p.target != null ? ` of ${fmtValue(p.target, chart.unit)}` : ""}
+            {progressText(p, chart.unit)}
             {p.pct != null ? ` · ${Math.round(p.pct * 100)}%` : ""}
           </span>
+          {rate ? (
+            <span className="type-caption text-ink-muted">
+              Now = {rate.window}
+              {rate.should_be != null && goal.status === "active" && today <= goal.ends_on ? ` · should be ${fmtValue(rate.should_be, chart.unit)} ${PER[rate.per]} by today` : ""}
+            </span>
+          ) : null}
         </div>
         <span className="flex items-center gap-1">
           {p.target != null ? <Badge tone={status.tone}>{status.label}</Badge> : null}
@@ -78,10 +86,49 @@ export function ChartCard({ chart, points, goal, role, today, tz, color, names }
         </span>
       </div>
 
+      {rate && chart.target != null && rate.logged ? (
+        <dl className="grid grid-cols-3 gap-2 rounded-lg bg-surface-sunk p-3 text-center">
+          <div>
+            <dt className="type-caption text-ink-muted">At target</dt>
+            <dd className="type-label text-ink">
+              {rate.hits} of {rate.logged} {UNIT_WORD[rate.per]}
+              {rate.logged === 1 ? "" : "s"}
+            </dd>
+          </div>
+          <div>
+            <dt className="type-caption text-ink-muted">In a row</dt>
+            <dd className="type-label text-ink">{rate.streak ? `🔥 ${rate.streak}` : "0"}</dd>
+          </div>
+          <div>
+            <dt className="type-caption text-ink-muted">Best</dt>
+            <dd className="type-label text-ink">{rate.best == null ? "–" : fmtValue(rate.best, chart.unit)}</dd>
+          </div>
+        </dl>
+      ) : null}
+
       <div className="h-56 w-full">
         {own.length ? (
           <ResponsiveContainer width="100%" height="100%">
-            {chart.kind === "bar" || chart.x_mode === "labels" ? (
+            {chart.mode === "rate" ? (
+              // Each day's (week's, month's) count, the ramp to the target, and the target.
+              <ComposedChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                <CartesianGrid vertical={false} stroke="var(--rx-line)" />
+                <XAxis dataKey="x" {...axis} minTickGap={16} />
+                <YAxis {...axis} width={56} tickFormatter={valueFmt} />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  cursor={{ fill: "var(--rx-surface-sunk)" }}
+                  formatter={(n, name) => [n == null ? "–" : fmtValue(Number(n), chart.unit), name === "pace" ? "Where you should be" : chart.title]}
+                />
+                {chart.target != null ? <ReferenceLine y={chart.target} stroke="var(--rx-ink-muted)" strokeDasharray="4 4" label={{ value: "Target", position: "insideTopRight", fill: "var(--rx-ink-muted)", fontSize: 11 }} /> : null}
+                {chart.kind === "bar" ? (
+                  <Bar dataKey="value" fill={color} radius={[4, 4, 0, 0]} maxBarSize={22} />
+                ) : (
+                  <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2.5} dot={{ r: 2.5, fill: color }} connectNulls />
+                )}
+                <Line type="linear" dataKey="pace" stroke="var(--rx-ink-muted)" strokeDasharray="2 4" strokeWidth={1.5} dot={false} />
+              </ComposedChart>
+            ) : chart.kind === "bar" || chart.x_mode === "labels" ? (
               <BarChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
                 <CartesianGrid vertical={false} stroke="var(--rx-line)" />
                 <XAxis dataKey="x" {...axis} minTickGap={16} />
@@ -116,8 +163,11 @@ export function ChartCard({ chart, points, goal, role, today, tz, color, names }
         adding ? (
           <div className="flex flex-col gap-3 rounded-lg bg-surface-sunk p-3">
             <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-              <Field label={`${chart.mode === "total" ? "Add" : "New value"}${chart.unit ? ` (${chart.unit})` : ""}`}>
-                <Input autoFocus inputMode="decimal" value={v.value} placeholder={chart.mode === "total" ? "e.g. 15000" : "e.g. 72.5"} onChange={(e) => setV({ ...v, value: e.target.value })} onKeyDown={(e) => e.key === "Enter" && add()} />
+              <Field
+                label={`${chart.mode === "value" ? "New value" : "Add"}${chart.unit ? ` (${chart.unit})` : ""}`}
+                hint={chart.mode === "rate" ? `Values on the same ${UNIT_WORD[chart.grain]} add up to its count.` : undefined}
+              >
+                <Input autoFocus inputMode="decimal" value={v.value} placeholder={chart.mode === "value" ? "e.g. 72.5" : chart.mode === "rate" ? "e.g. 64" : "e.g. 15000"} onChange={(e) => setV({ ...v, value: e.target.value })} onKeyDown={(e) => e.key === "Enter" && add()} />
               </Field>
               {chart.x_mode === "time" ? (
                 <Field label="Day">
@@ -196,13 +246,17 @@ export function ChartDialog({ open, onClose, goalId, chart }: { open: boolean; o
     mode: chart?.mode ?? "total",
     kind: chart?.kind ?? "line",
     target: chart?.target == null ? "" : String(chart.target),
+    baseline: chart?.baseline == null ? "" : String(chart.baseline),
   });
+  const isRate = v.mode === "rate";
   const [busy, setBusy] = useState(false);
   async function save() {
     const target = v.target.trim() === "" ? null : Number(v.target.replace(/,/g, ""));
     if (target !== null && !Number.isFinite(target)) return toast.error("The target must be a number");
+    const baseline = !isRate || v.baseline.trim() === "" ? null : Number(v.baseline.replace(/,/g, ""));
+    if (baseline !== null && (!Number.isFinite(baseline) || baseline < 0)) return toast.error("Where you are now must be a number");
     setBusy(true);
-    const r = await saveChart({ id: chart?.id, goal_id: goalId, ...v, x_mode: v.x_mode as Chart["x_mode"], grain: v.grain as Chart["grain"], mode: v.mode as Chart["mode"], kind: v.kind as Chart["kind"], target });
+    const r = await saveChart({ id: chart?.id, goal_id: goalId, ...v, x_mode: isRate ? "time" : (v.x_mode as Chart["x_mode"]), grain: v.grain as Chart["grain"], mode: v.mode as Chart["mode"], kind: v.kind as Chart["kind"], target, baseline });
     setBusy(false);
     if (!r.ok) return toast.error(r.message);
     toast.success(r.message ?? "Saved");
@@ -234,22 +288,44 @@ export function ChartDialog({ open, onClose, goalId, chart }: { open: boolean; o
             <Input value={v.unit} maxLength={20} placeholder="LKR, kg, pages" onChange={(e) => setV({ ...v, unit: e.target.value })} />
           </Field>
         </div>
-        <Field label="Each value you add" labelAs="legend">
+        <Field label="The target" labelAs="legend">
           <RadioCards
             name="mode"
-            columns={2}
+            columns={3}
             value={v.mode}
-            onChange={(mode) => setV({ ...v, mode: mode as Chart["mode"] })}
+            onChange={(mode) => setV({ ...v, mode: mode as Chart["mode"], ...(mode === "rate" ? { x_mode: "time", kind: chart?.mode === "rate" ? v.kind : "bar" } : {}) })}
             options={[
-              { value: "total", label: "Adds up", description: "Income, sales, savings, pages: the chart shows the running total." },
-              { value: "value", label: "Is the new level", description: "Weight, bank balance, followers: the chart shows the latest value." },
+              { value: "total", label: "A total by the end", description: "Values add up: 150 orders this month, LKR 300,000 this year." },
+              { value: "rate", label: "Every day, week or month", description: "Reach a level by the end: 100 orders a day by 30 Nov." },
+              { value: "value", label: "A level", description: "Each value replaces the last: weight, bank balance, followers." },
             ]}
           />
         </Field>
-        <Field label="Target" hint="Where you want to get to (a dashed line)." optionalLabel="Optional" className="max-w-xs">
-          <Input inputMode="decimal" value={v.target} onChange={(e) => setV({ ...v, target: e.target.value })} />
-        </Field>
-        <Field label="X axis" labelAs="legend">
+        {isRate ? (
+          <Field label="Per" labelAs="legend" hint="Values on the same day (week, month) add up to its count.">
+            <RadioCards name="grain" columns={3} compact value={v.grain} onChange={(g) => setV({ ...v, grain: g as Chart["grain"] })} options={[{ value: "day", label: "Day" }, { value: "week", label: "Week" }, { value: "month", label: "Month" }]} />
+          </Field>
+        ) : null}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label={isRate ? `Target ${PER[v.grain as Chart["grain"]]} by the end` : "Target"}
+            hint={isRate ? "The level you want to reach and keep (a dashed line)." : "Where you want to get to (a dashed line)."}
+            optionalLabel="Optional"
+          >
+            <Input inputMode="decimal" value={v.target} placeholder={isRate ? "e.g. 100" : undefined} onChange={(e) => setV({ ...v, target: e.target.value })} />
+          </Field>
+          {isRate ? (
+            <Field label={`Where you are now (${PER[v.grain as Chart["grain"]]})`} hint="The ramp starts here. Empty: your first day logged." optionalLabel="Optional">
+              <Input inputMode="decimal" value={v.baseline} placeholder="e.g. 40" onChange={(e) => setV({ ...v, baseline: e.target.value })} />
+            </Field>
+          ) : null}
+        </div>
+        {isRate ? (
+          <Field label="Chart" labelAs="legend">
+            <RadioCards name="kind" columns={2} compact value={v.kind} onChange={(k) => setV({ ...v, kind: k as Chart["kind"] })} options={[{ value: "bar", label: "Bars" }, { value: "line", label: "Line" }]} />
+          </Field>
+        ) : null}
+        {!isRate ? <Field label="X axis" labelAs="legend">
           <RadioCards
             name="x_mode"
             columns={2}
@@ -261,8 +337,8 @@ export function ChartDialog({ open, onClose, goalId, chart }: { open: boolean; o
               { value: "labels", label: "My own labels (products, clients…)" },
             ]}
           />
-        </Field>
-        {v.x_mode === "time" ? (
+        </Field> : null}
+        {!isRate && v.x_mode === "time" ? (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Show per" labelAs="legend">
               <RadioCards name="grain" columns={3} compact value={v.grain} onChange={(g) => setV({ ...v, grain: g as Chart["grain"] })} options={[{ value: "day", label: "Day" }, { value: "week", label: "Week" }, { value: "month", label: "Month" }]} />

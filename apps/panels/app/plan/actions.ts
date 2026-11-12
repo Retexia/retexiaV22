@@ -46,7 +46,18 @@ const goalInput = z.object({
   target: z.number().positive().max(1e12).nullable().default(null),
   unit: z.string().trim().max(20).default(""),
   habit: z.string().trim().max(140).default(""),
+  /** total: reach the target by the end · rate: reach the target every day/week/month (per) by the end. */
+  target_type: z.enum(["total", "rate"]).default("total"),
+  per: z.enum(["day", "week", "month"]).default("day"),
+  /** Rate: where you are now (e.g. 40 a day). Empty = the first day logged. */
+  baseline: z.number().min(0).max(1e12).nullable().default(null),
 });
+
+/** A rate per week needs at least 2 weeks to grow; per month at least 2 months. */
+function perFits(per: "day" | "week" | "month", range: { starts_on: string; ends_on: string }) {
+  const days = daysBetween(range.starts_on, range.ends_on) + 1;
+  return per === "day" || (per === "week" ? days >= 14 : days >= 56);
+}
 
 /** New or changed goal. A new goal from a template gets its chart (with the target) and its daily task. */
 export async function saveGoal(input: z.input<typeof goalInput>): Promise<ActionResult<Record<string, unknown>>> {
@@ -62,6 +73,7 @@ export async function saveGoal(input: z.input<typeof goalInput>): Promise<Action
       const period = periodRange(d.period, d.on);
       range = { starts_on: goalStart(period, today, d.from), ends_on: period.ends_on };
     }
+    if (d.target_type === "rate" && d.target != null && !perFits(d.per, range)) return { ok: false, message: `This goal is too short for a target per ${d.per}. Use per day${d.per === "month" ? " or per week" : ""}.`, fieldErrors: { per: "Too long for this goal" } };
     const length = d.period === "custom" ? { length_n: d.length_n!, length_unit: d.length_unit! } : { length_n: null, length_unit: null };
     if (d.parent_id) {
       const p = await goalAccess(db, d.parent_id, user.id);
@@ -78,8 +90,17 @@ export async function saveGoal(input: z.input<typeof goalInput>): Promise<Action
     const { data: goal, error } = await db.from("goals").insert({ ...row, owner_id: user.id }).select("id").single();
     if (error || !goal) return { ok: false, message: dbMessage(error) };
     const t = TEMPLATES[d.template];
-    const chart = t.chart ? { ...t.chart, unit: d.unit || t.chart.unit } : d.target != null ? { title: "Progress", unit: d.unit, mode: "total", kind: "line" } : null;
-    if (chart) await db.from("charts").insert({ goal_id: goal.id, ...chart, grain: grainFor(range), target: d.target });
+    const rate = d.target_type === "rate" && d.target != null;
+    const unit = d.unit || t.chart?.unit || "";
+    const chart = rate
+      ? // "Orders per day": each day's count, aiming for the target every day by the end.
+        { title: `${t.chart?.title ?? (unit ? unit.charAt(0).toUpperCase() + unit.slice(1) : "Count")} per ${d.per}`, unit, mode: "rate", kind: "bar", grain: d.per, baseline: d.baseline }
+      : t.chart
+        ? { ...t.chart, unit, grain: grainFor(range) }
+        : d.target != null
+          ? { title: "Progress", unit, mode: "total", kind: "line", grain: grainFor(range) }
+          : null;
+    if (chart) await db.from("charts").insert({ goal_id: goal.id, ...chart, target: d.target });
     const task = d.template === "habit" ? d.habit || d.title : t.task;
     if (task) await db.from("tasks").insert({ owner_id: user.id, goal_id: goal.id, title: task, repeat: "daily", starts_on: range.starts_on < today ? today : range.starts_on, ends_on: range.ends_on });
     return done("Goal created", { id: goal.id });
@@ -121,17 +142,21 @@ const chartInput = z.object({
   unit: z.string().trim().max(20).default(""),
   x_mode: z.enum(["time", "labels"]),
   grain: z.enum(["day", "week", "month"]),
-  mode: z.enum(["total", "value"]),
+  mode: z.enum(["total", "value", "rate"]),
   kind: z.enum(["line", "bar"]),
   target: z.number().max(1e12).nullable(),
+  baseline: z.number().min(0).max(1e12).nullable().default(null),
 });
 
 export async function saveChart(input: z.input<typeof chartInput>): Promise<ActionResult> {
   return run(async () => {
     const { db, user } = await requirePlan();
-    const { id, ...d } = chartInput.parse(input);
-    const a = await goalAccess(db, d.goal_id, user.id);
+    const { id, ...parsed } = chartInput.parse(input);
+    const a = await goalAccess(db, parsed.goal_id, user.id);
     if (!a || a.role !== "owner") return { ok: false, message: "Only the goal's owner can change its charts." };
+    // A rate is per day/week/month over time; only a rate has a starting level.
+    const d: z.output<typeof chartInput> = parsed.mode === "rate" ? { ...parsed, x_mode: "time" } : { ...parsed, baseline: null };
+    if (d.mode === "rate" && !perFits(d.grain, a.goal)) return { ok: false, message: `This goal is too short for a target per ${d.grain}. Use per day${d.grain === "month" ? " or per week" : ""}.`, fieldErrors: { grain: "Too long for this goal" } };
     const { error } = id ? await db.from("charts").update(d).eq("id", id).eq("goal_id", d.goal_id) : await db.from("charts").insert(d);
     if (error) return { ok: false, message: dbMessage(error) };
     return done(id ? "Chart saved" : "Chart added");

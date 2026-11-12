@@ -2,7 +2,7 @@ import "server-only";
 
 import { loadCharts, loadTasks, people } from "./data";
 import type { PlanDb } from "./db";
-import { chartProgress, daysBetween, goalProgress, overallStreak, periodLabel, repeatLabel, shift, taskStreak, type Goal } from "./logic";
+import { PER, chartProgress, daysBetween, goalProgress, overallStreak, periodLabel, repeatLabel, shift, taskStreak, type Goal } from "./logic";
 import { planWorker } from "./n8n";
 
 const LANG = { en: "English", si: "Sinhala (Sinhala script)", singlish: "Singlish (Sinhala in English letters)", ta: "Tamil (Tamil script)" } as const;
@@ -40,9 +40,25 @@ export async function coachContext(db: PlanDb, goal: Goal, askerId: string, toda
       return {
         title: c.title,
         unit: c.unit,
-        how: c.mode === "total" ? "values add up" : "each value is the new level",
+        how:
+          c.mode === "rate"
+            ? `target is a rate: reach ${c.target ?? "?"} ${PER[c.grain]} by the end and keep it; values on the same ${c.grain} add up; "now" is the ${p.rate?.window}`
+            : c.mode === "total"
+              ? "target is a total by the end; values add up"
+              : "each value is the new level",
         target: c.target,
         now: p.current,
+        ...(p.rate
+          ? {
+              started_at: p.rate.start,
+              should_be_by_today: p.rate.should_be == null ? null : Math.round(p.rate.should_be * 100) / 100,
+              latest: p.rate.latest,
+              best: p.rate.best,
+              [`${c.grain}s_logged`]: p.rate.logged,
+              [`${c.grain}s_at_target`]: p.rate.hits,
+              [`${c.grain}s_in_a_row_at_target`]: p.rate.streak,
+            }
+          : {}),
         progress_pct: p.pct == null ? null : Math.round(p.pct * 100),
         should_be_pct_by_today: p.expected == null ? null : Math.round(p.expected * 100),
         status: p.status,
