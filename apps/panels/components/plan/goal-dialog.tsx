@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { saveGoal } from "@/app/plan/actions";
-import { CATEGORIES, periodLabel, periodRange, type Category, type Goal, type Period } from "@/lib/plan/logic";
+import { CATEGORIES, fullPeriod, goalStart, periodLabel, periodRange, shortDate, type Category, type Goal, type Period } from "@/lib/plan/logic";
 
 type Template = "income" | "savings" | "habit" | "custom";
 const TEMPLATES: { value: Template; label: string; description: string; category: Category }[] = [
@@ -39,6 +39,8 @@ export function GoalDialog({
     why: goal?.why ?? "",
     period: (goal?.period ?? defaults?.period ?? "month") as Period,
     on: goal?.starts_on ?? today,
+    // Start counting from: kept for an existing goal, else today (running period) or the first day (future one).
+    from: goal?.starts_on ?? goalStart(periodRange((goal?.period ?? defaults?.period ?? "month") as Period, today), today),
     category: (goal?.category ?? "custom") as Category,
     parent_id: goal?.parent_id ?? defaults?.parent_id ?? "",
     target: "",
@@ -48,8 +50,17 @@ export function GoalDialog({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const range = periodRange(v.period, v.on || today);
+  const from = goalStart(range, today, v.from);
+  // Moving to another period starts it again from today / its first day.
+  const move = (period: Period, on: string) => {
+    const r = periodRange(period, on || today);
+    return { period, on, from: goalStart(r, today) };
+  };
   const money = v.template === "income" || v.template === "savings";
-  const options = parents.filter((p) => p.id !== goal?.id && BIGGER[v.period].includes(p.period) && p.starts_on <= range.starts_on && p.ends_on >= range.ends_on);
+  const options = parents.filter((p) => {
+    const full = fullPeriod(p);
+    return p.id !== goal?.id && BIGGER[v.period].includes(p.period) && full.starts_on <= range.starts_on && full.ends_on >= range.ends_on;
+  });
 
   async function save() {
     setBusy(true);
@@ -58,7 +69,7 @@ export function GoalDialog({
       setBusy(false);
       return setErrors({ target: "Enter a number above 0, or leave it empty" });
     }
-    const r = await saveGoal({ ...v, id: goal?.id, parent_id: v.parent_id || null, target, unit: money ? v.unit || "LKR" : v.unit });
+    const r = await saveGoal({ ...v, from, id: goal?.id, parent_id: v.parent_id || null, target, unit: money ? v.unit || "LKR" : v.unit });
     setBusy(false);
     if (!r.ok) {
       setErrors(r.fieldErrors ?? {});
@@ -118,7 +129,7 @@ export function GoalDialog({
               columns={3}
               compact
               value={v.period}
-              onChange={(p) => setV({ ...v, period: p as Period, parent_id: "" })}
+              onChange={(p) => setV({ ...v, ...move(p as Period, v.on), parent_id: "" })}
               options={[
                 { value: "year", label: "Year" },
                 { value: "month", label: "Month" },
@@ -127,9 +138,19 @@ export function GoalDialog({
             />
           </Field>
           <Field label="Which one" hint={periodLabel({ period: v.period, ...range })}>
-            <Input type="date" value={v.on} onChange={(e) => setV({ ...v, on: e.target.value })} />
+            <Input type="date" value={v.on} onChange={(e) => setV({ ...v, ...move(v.period, e.target.value) })} />
           </Field>
         </div>
+        <Field
+          label="Start counting from"
+          hint={
+            from === range.starts_on
+              ? `From the first day. The pace line runs ${shortDate(from)} → ${shortDate(range.ends_on)}.`
+              : `The pace line runs ${shortDate(from)} → ${shortDate(range.ends_on)}, so the days before don't count against you.`
+          }
+        >
+          <Input type="date" value={from} min={range.starts_on} max={range.ends_on} onChange={(e) => setV({ ...v, from: e.target.value })} />
+        </Field>
         {!goal && v.template !== "habit" ? (
           <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
             <Field label="Target" hint={money ? "The amount you want to reach." : "A number to reach (leave empty if there isn't one)."} error={errors.target} optionalLabel="Optional">

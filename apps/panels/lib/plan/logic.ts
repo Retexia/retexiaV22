@@ -84,8 +84,21 @@ export function periodRange(period: Period, day: string): { starts_on: string; e
 export function periodLabel(g: Pick<Goal, "period" | "starts_on" | "ends_on">) {
   if (g.period === "year") return g.starts_on.slice(0, 4);
   if (g.period === "month") return `${MONTHS_LONG[Number(g.starts_on.slice(5, 7)) - 1]} ${g.starts_on.slice(0, 4)}`;
-  return `Week of ${shortDate(g.starts_on)}`;
+  return `Week of ${shortDate(periodRange("week", g.starts_on).starts_on)}`;
 }
+
+/**
+ * When a goal starts counting (its pace line starts here). A goal for the
+ * running week/month/year starts today, not on the 1st; a future one on its
+ * first day. Always inside the period.
+ */
+export function goalStart(range: { starts_on: string; ends_on: string }, today: string, wanted?: string | null) {
+  const pick = wanted || (today > range.starts_on && today <= range.ends_on ? today : range.starts_on);
+  return pick < range.starts_on ? range.starts_on : pick > range.ends_on ? range.ends_on : pick;
+}
+
+/** The full year/month/week a goal belongs to, even when it starts later in it. */
+export const fullPeriod = (g: Pick<Goal, "period" | "starts_on">) => periodRange(g.period, g.starts_on);
 
 // ---------------------------------------------------------------- tasks and streaks
 

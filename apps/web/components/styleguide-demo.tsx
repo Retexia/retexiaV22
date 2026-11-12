@@ -177,6 +177,7 @@ export function StyleguideDemo({ productSlugs }: { productSlugs: string[] }) {
           description="Request LNG-2026-0001 will be closed."
           footer={
             <>
+              <Button variant="ghost" onClick={() => toast.error("Toasts show above an open dialog.")}>Show a toast</Button>
               <Button variant="ghost" onClick={() => setDialog(false)}>Keep</Button>
               <Button variant="danger" onClick={() => setDialog(false)}>Yes, cancel it</Button>
             </>

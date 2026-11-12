@@ -15,7 +15,15 @@ export type PlanSettings = {
   morning_time: string;
   weekly_on: boolean;
   coach_language: "en" | "si" | "singlish" | "ta";
+  /** Set when Plan can't use its database (schema not exposed, migration not run). */
+  setupError?: string;
 };
+
+function setupMessage(error: { code?: string; message?: string }) {
+  if (error.code === "PGRST106") return 'Retexia Plan can\'t reach its database yet: add "plan" to Supabase → Project Settings → Data API → Exposed schemas.';
+  if (error.code === "42P01" || error.code === "PGRST205" || error.code === "3F000") return "Retexia Plan's database isn't set up yet: run the migration 0030_plan.sql in Supabase.";
+  return `Retexia Plan can't reach its database right now (${error.message ?? "unknown error"}). Please try again in a minute.`;
+}
 export type PlanUser = { id: string; email: string; name: string };
 
 /** Retexia Plan is free: any signed-in Retexia account can use it (no order). */
@@ -30,7 +38,11 @@ export const getPlanUser = cache(async (): Promise<PlanUser | null> => {
 /** The person's Plan settings (made on first visit, WhatsApp from their Retexia profile) and invites waiting for them. */
 const prepare = cache(async (user: PlanUser): Promise<PlanSettings> => {
   const db = planDb();
-  const { data } = await db.from("settings").select("timezone, whatsapp, morning_on, morning_time, weekly_on, coach_language").eq("user_id", user.id).maybeSingle();
+  const { data, error } = await db.from("settings").select("timezone, whatsapp, morning_on, morning_time, weekly_on, coach_language").eq("user_id", user.id).maybeSingle();
+  if (error) {
+    console.error("[plan] database", error);
+    return { timezone: "Asia/Colombo", whatsapp: null, morning_on: false, morning_time: "07:00", weekly_on: false, coach_language: "en", setupError: setupMessage(error) };
+  }
   if (user.email) await db.from("members").update({ user_id: user.id }).is("user_id", null).eq("email", user.email);
   if (data) return { ...data, morning_time: String(data.morning_time).slice(0, 5) } as PlanSettings;
   const { data: profile } = await publicDb().from("profiles").select("whatsapp, phone").eq("id", user.id).maybeSingle();
@@ -55,6 +67,7 @@ export async function requirePlan(): Promise<PlanContext> {
   const user = await getPlanUser();
   if (!user) throw new AccessError("Please sign in again.");
   const settings = await prepare(user);
+  if (settings.setupError) throw new AccessError(settings.setupError);
   return { user, settings, db: planDb(), today: localDate(settings.timezone) };
 }
 

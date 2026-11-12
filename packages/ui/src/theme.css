@@ -429,3 +429,9 @@
     display: none;
   }
 }
+
+/* Toasts while a modal dialog is open: the dialog (browser top layer) covers the page's
+   toaster, so the dialog shows its own (see Toaster in interactive.tsx). */
+body:has(dialog:modal) .rx-toaster-page {
+  display: none;
+}

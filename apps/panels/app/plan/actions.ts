@@ -6,7 +6,7 @@ import { z } from "zod";
 import { dbMessage, run, type ActionResult } from "@/lib/action";
 import { coachReply } from "@/lib/plan/coach";
 import { people, type ChatMessage } from "@/lib/plan/data";
-import { periodLabel, periodRange } from "@/lib/plan/logic";
+import { goalStart, periodLabel, periodRange } from "@/lib/plan/logic";
 import { planWorker } from "@/lib/plan/n8n";
 import { goalAccess, requirePlan } from "@/lib/plan/session";
 
@@ -36,6 +36,8 @@ const goalInput = z.object({
   why: z.string().trim().max(1000).default(""),
   period: z.enum(["year", "month", "week"]),
   on: day,
+  /** Start counting from (inside the period). Empty: today for a running period, else its first day. */
+  from: day.nullable().optional(),
   category: z.enum(["income", "savings", "business", "health", "learning", "habit", "custom"]),
   parent_id: uuid.nullable().default(null),
   target: z.number().positive().max(1e12).nullable().default(null),
@@ -46,9 +48,10 @@ const goalInput = z.object({
 /** New or changed goal. A new goal from a template gets its chart (with the target) and its daily task. */
 export async function saveGoal(input: z.input<typeof goalInput>): Promise<ActionResult<Record<string, unknown>>> {
   return run(async () => {
-    const { db, user } = await requirePlan();
+    const { db, user, today } = await requirePlan();
     const d = goalInput.parse(input);
-    const range = periodRange(d.period, d.on);
+    const period = periodRange(d.period, d.on);
+    const range = { starts_on: goalStart(period, today, d.from), ends_on: period.ends_on };
     if (d.parent_id) {
       const p = await goalAccess(db, d.parent_id, user.id);
       if (!p || p.role !== "owner") return { ok: false, message: "Pick one of your own goals as the bigger goal." };
@@ -67,7 +70,7 @@ export async function saveGoal(input: z.input<typeof goalInput>): Promise<Action
     const chart = t.chart ? { ...t.chart, unit: d.unit || t.chart.unit } : d.target != null ? { title: "Progress", unit: d.unit, mode: "total", kind: "line" } : null;
     if (chart) await db.from("charts").insert({ goal_id: goal.id, ...chart, grain: d.period === "year" ? "month" : d.period === "month" ? "day" : "day", target: d.target });
     const task = d.template === "habit" ? d.habit || d.title : t.task;
-    if (task) await db.from("tasks").insert({ owner_id: user.id, goal_id: goal.id, title: task, repeat: "daily", starts_on: range.starts_on < d.on ? d.on : range.starts_on, ends_on: range.ends_on });
+    if (task) await db.from("tasks").insert({ owner_id: user.id, goal_id: goal.id, title: task, repeat: "daily", starts_on: range.starts_on < today ? today : range.starts_on, ends_on: range.ends_on });
     return done("Goal created", { id: goal.id });
   });
 }
@@ -342,6 +345,12 @@ export async function savePlanSettings(input: z.input<typeof settingsInput>): Pr
     const d = settingsInput.parse(input);
     const whatsapp = d.whatsapp.replace(/[^\d+]/g, "");
     if (whatsapp && !/^\+?\d{9,15}$/.test(whatsapp)) return { ok: false, message: "Enter the WhatsApp number with the country code, e.g. +94771234567", fieldErrors: { whatsapp: "Check the number" } };
+    // Same normalising as the n8n worker: 07X…, 7X… and +94 7X… are Sri Lankan mobiles (94 + 7 + 8 digits).
+    let n = whatsapp.replace(/\D/g, "");
+    if (n.startsWith("00")) n = n.slice(2);
+    if (n.startsWith("0")) n = `94${n.slice(1)}`;
+    else if (n.length === 9) n = `94${n}`;
+    if (whatsapp && n.startsWith("94") && !/^947\d{8}$/.test(n)) return { ok: false, message: "Sri Lankan WhatsApp numbers look like +94 7X XXX XXXX (07X XXX XXXX). Check the number.", fieldErrors: { whatsapp: "Check the number" } };
     if (d.morning_on && !whatsapp) return { ok: false, message: "Add your WhatsApp number for the morning message.", fieldErrors: { whatsapp: "Required" } };
     try {
       new Intl.DateTimeFormat("en", { timeZone: d.timezone });

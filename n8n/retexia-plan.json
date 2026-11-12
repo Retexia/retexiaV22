@@ -312,7 +312,7 @@
       ],
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ok: false, error: String($json.notReady || ($json.error && ($json.error.message || $json.error.description)) || $json.message || 'Evolution did not accept the message.').slice(0, 400) }) }}",
+        "responseBody": "={{ (() => { const raw = String($json.notReady || ($json.error && ($json.error.message || $json.error.description)) || $json.message || \"Evolution did not accept the message.\"); const error = /\"exists\\\\?\"\\s*:\\s*false/.test(raw) ? \"This number is not on WhatsApp. Check it in Reminders & settings (Sri Lankan numbers: +94 7X XXX XXXX).\" : raw; return JSON.stringify({ ok: false, error: error.slice(0, 400) }); })() }}",
         "options": {}
       }
     },

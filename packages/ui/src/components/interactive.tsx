@@ -110,6 +110,7 @@ export function Dialog({
               {footer}
             </div>
           ) : null}
+          <Toaster inDialog />
         </div>
       ) : null}
     </dialog>
@@ -430,10 +431,14 @@ export function ThemeToggle({
 
 /* ----------------------------------------------------------------- Toaster */
 
-export function Toaster() {
+export function Toaster({ inDialog = false }: { inDialog?: boolean } = {}) {
   const { resolvedTheme } = useTheme();
   return (
     <SonnerToaster
+      // A modal <dialog> sits in the browser's top layer, above the page's toasts. While one is
+      // open its own toaster shows them and the page's one is hidden (theme.css), so a message
+      // from a dialog (a save error, say) is never hidden behind it.
+      className={inDialog ? "rx-toaster-dialog" : "rx-toaster-page"}
       position="bottom-center"
       theme={resolvedTheme === "dark" ? "dark" : "light"}
       toastOptions={{
