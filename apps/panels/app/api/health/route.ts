@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     body.signed_in = Boolean(data.user);
     if (data.user) {
       const slug =
-        panel === "lingo" ? process.env.LINGO_PRODUCT_SLUG || "lingo" : panel === "feeder" ? process.env.FEEDER_PRODUCT_SLUG || "feeder" : process.env.POST_PRODUCT_SLUG || "post";
+        panel === "lingo" ? process.env.LINGO_PRODUCT_SLUG || "lingo" : panel === "feeder" ? process.env.FEEDER_PRODUCT_SLUG || "feeder" : panel === "plan" ? "plan" : process.env.POST_PRODUCT_SLUG || "post";
       const customer = await getCustomer(slug);
       body.order = customer?.order ? { ref: customer.order.ref, status: customer.order.status } : "none with status setting_up / active / paused";
       if (panel === "lingo") {

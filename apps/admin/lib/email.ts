@@ -56,6 +56,10 @@ export async function sendEmail(input: { to: string; subject: string; html: stri
 
 /** Where the email's button points: the customer's order page, or the admin for team emails. */
 export function notificationLink(payload: Record<string, unknown>, audience: "customer" | "staff") {
+  // A Retexia page of its own (e.g. Retexia Plan's weekly email): payload.url + payload.button.
+  if (typeof payload.url === "string" && /^https:\/\/([a-z0-9-]+\.)*retexia\.com(\/|$)/i.test(payload.url)) {
+    return { label: typeof payload.button === "string" && payload.button ? payload.button.slice(0, 40) : "Open", href: payload.url };
+  }
   const ref = typeof payload.ref === "string" ? payload.ref : null;
   if (audience === "staff") return ref ? { label: "Open in admin", href: `${adminUrl()}/requests/${encodeURIComponent(ref)}` } : { label: "Open admin", href: adminUrl() };
   return ref ? { label: "View your request", href: `${webUrl()}/account/products/${encodeURIComponent(ref)}` } : { label: "Open my account", href: `${webUrl()}/account` };

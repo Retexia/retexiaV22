@@ -1,5 +1,5 @@
 /** Which product panel a host serves: post.retexia.com → "post", lingo.retexia.com → "lingo", feeder.retexia.com → "feeder". */
-export const PANELS = ["post", "lingo", "feeder"] as const;
+export const PANELS = ["post", "lingo", "feeder", "plan"] as const;
 export type Panel = (typeof PANELS)[number];
 
 export function panelForHost(host: string | null | undefined): Panel {
@@ -10,4 +10,4 @@ export function panelForHost(host: string | null | undefined): Panel {
   return fallback && (PANELS as readonly string[]).includes(fallback) ? (fallback as Panel) : "post";
 }
 
-export const PANEL_LABEL: Record<Panel, string> = { post: "Post", lingo: "Lingo", feeder: "Feeder" };
+export const PANEL_LABEL: Record<Panel, string> = { post: "Post", lingo: "Lingo", feeder: "Feeder", plan: "Plan" };

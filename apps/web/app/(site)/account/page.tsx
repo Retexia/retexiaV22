@@ -120,7 +120,26 @@ export default async function AccountOverview({ searchParams }: PageProps<"/acco
         </section>
       ) : null}
 
-      <Card as="section" aria-labelledby="help" className="flex flex-col gap-4 bg-surface-sunk! sm:flex-row sm:items-center sm:justify-between">
+      <Card as="section" aria-labelledby="plan" className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-4">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-soft text-brand">
+            <Icon name="target" size={20} />
+          </span>
+          <div className="flex flex-col gap-1">
+            <h2 id="plan" className="type-h2 text-ink">
+              {t("account.plan.title", "Retexia Plan")} <Badge tone="success">{t("account.plan.free", "Free")}</Badge>
+            </h2>
+            <p className="type-body text-ink-muted">
+              {t("account.plan.text", "Set income, savings and business goals, track them on charts, tick off your daily tasks and keep your streak going.")}
+            </p>
+          </div>
+        </div>
+        <Button href={process.env.PLAN_PANEL_URL?.trim() || "https://plan.retexia.com"} variant="secondary" size="sm" className="shrink-0">
+          {t("account.plan.open", "Open Retexia Plan")}
+        </Button>
+      </Card>
+
+      <Card as="section" aria-labelledby="help"className="flex flex-col gap-4 bg-surface-sunk! sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-1">
           <h2 id="help" className="type-h2 text-ink">
             {t("account.help.title", "Need a hand?")}

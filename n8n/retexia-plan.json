@@ -1,0 +1,555 @@
+{
+  "name": "Retexia — Plan",
+  "nodes": [
+    {
+      "id": "a8eb8a9f-de99-4826-b033-965c794f5010",
+      "name": "Webhook: Retexia Plan",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        400
+      ],
+      "webhookId": "f491cfa0-553c-4242-989d-422b7f898f2d",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "retexia-plan",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "e848fc80-0fdd-44c0-bfc3-95df921915c7",
+      "name": "Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {
+        "jsCode": "// Retexia — Plan (plan.retexia.com). EDIT only the values marked EDIT.\n// The OpenRouter key lives in the n8n credential of the three \"OpenRouter\" nodes.\nconst CONFIG = {\n  retexiaKey: 'EDIT: the same value as PLAN_N8N_KEY in the Retexia panels (Vercel)',\n  evolutionUrl: 'EDIT: https://your-evolution-server',\n  evolutionKey: 'EDIT: the Evolution API key',\n  evolutionInstance: 'EDIT: the instance name, e.g. retexia-plan',\n};\n\n// Only Retexia may call this webhook (header X-Retexia-Key).\nconst input = $input.first().json;\nconst given = String((input.headers || {})['x-retexia-key'] || '');\nif (CONFIG.retexiaKey.startsWith('EDIT') || given !== CONFIG.retexiaKey) throw new Error('Unauthorized: wrong or missing X-Retexia-Key (set retexiaKey in Config).');\nconst body = input.body || {};\nconst ACTIONS = ['coach', 'morning', 'weekly', 'whatsapp'];\nlet action = ACTIONS.includes(body.action) ? body.action : '';\nif (!action) throw new Error('Unknown action: ' + body.action);\n\n// WhatsApp jobs need the Evolution line.\nlet notReady = '';\nif (action === 'morning' || action === 'whatsapp') {\n  const missing = ['evolutionUrl', 'evolutionKey', 'evolutionInstance'].filter((k) => !CONFIG[k] || String(CONFIG[k]).startsWith('EDIT'));\n  if (missing.length) { notReady = 'Retexia Plan WhatsApp is not set up in n8n: fill in ' + missing.join(', ') + ' in Config.'; action = 'not_ready'; }\n  else if (String(body.number || '').replace(/\\D/g, '').length < 9) { notReady = 'No WhatsApp number.'; action = 'not_ready'; }\n}\nreturn [{ json: { ...CONFIG, action, notReady, context: body.context || {}, number: String(body.number || ''), text: String(body.text || '').slice(0, 4000) } }];\n"
+      }
+    },
+    {
+      "id": "a19232a6-15f8-4953-931d-9e815cf92f57",
+      "name": "Which job?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        440,
+        400
+      ],
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 5,
+        "output": "={{ ['coach', 'morning', 'weekly', 'whatsapp', 'not_ready'].indexOf($json.action) }}"
+      }
+    },
+    {
+      "id": "8805083e-37d9-400c-982a-c6cbece5e61b",
+      "name": "Coach prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        120
+      ],
+      "parameters": {
+        "jsCode": "// The coach's brief: who it is, the rules, and the goal's facts (sent by plan.retexia.com, no ids or emails).\nconst c = $input.first().json.context || {};\nconst prompt = [\n  'You are the Retexia coach inside Retexia Plan, a free app that helps people in Sri Lanka reach their goals (income, savings, business, health, learning, habits) by being consistent every day.',\n  'Answer the LAST message in the chat, written by ' + (c.asker || 'the user') + '. The goal belongs to ' + (c.owner || 'them') + '.',\n  '',\n  'Rules:',\n  '- Write in ' + (c.language || 'English') + '. Keep it short: 2-6 sentences, or a short list. Warm, direct and practical; no fluff, no headings.',\n  '- Use ONLY the facts below. Never invent numbers, dates or results. Do the maths when it helps (e.g. how much per day is needed in the days left to reach the target).',\n  '- Behind: say it kindly and give 1-3 concrete next steps for today or this week. On track or ahead: celebrate and say what keeps it going. Mention the streak when it matters.',\n  '- Questions outside goals, productivity, money or business: answer in one line and bring it back to the goal.',\n  '- No medical, legal or investment advice beyond general tips.',\n  '',\n  'Facts (today is ' + (c.today || '') + '):',\n  JSON.stringify({ goal: c.goal, charts: c.charts, daily_tasks: c.tasks, smaller_goals: c.smaller_goals, daily_streak_days: c.daily_streak }, null, 1),\n  '',\n  'Chat so far (oldest first):',\n  ...(c.chat || []).map((m) => m.from + ': ' + m.text),\n  '',\n  'Your reply (only the message):',\n].join('\\n');\nreturn [{ json: { prompt } }];\n"
+      }
+    },
+    {
+      "id": "9165b118-66eb-45c8-b98a-2e4f30ad9db2",
+      "name": "AI: coach",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [
+        900,
+        120
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "hasOutputParser": false
+      }
+    },
+    {
+      "id": "d27d66a7-063a-460d-a4cf-0e1ba16b43c1",
+      "name": "OpenRouter: coach",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ],
+      "parameters": {
+        "model": "openai/gpt-4o-mini",
+        "options": {
+          "temperature": 0.6,
+          "maxTokens": 700
+        }
+      }
+    },
+    {
+      "id": "a8280e04-860e-420b-baea-431ce225ad7b",
+      "name": "Coach reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1140,
+        120
+      ],
+      "parameters": {
+        "jsCode": "const r = $input.first().json || {};\nconst reply = String(r.text || r.output || r.response || '').trim();\nreturn [{ json: { ok: !!reply, reply: reply || '', error: reply ? undefined : String((r.error && (r.error.message || r.error)) || 'The AI did not answer.').slice(0, 200) } }];\n"
+      }
+    },
+    {
+      "id": "1a18ac78-64b6-41ef-90a6-ba5c81cd85d7",
+      "name": "Respond: coach",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1360,
+        120
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "401ef48d-596b-4de3-9a7b-1b5ccc18af3b",
+      "name": "Morning prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        460
+      ],
+      "parameters": {
+        "jsCode": "const c = $input.first().json.context || {};\nconst prompt = [\n  'Write a WhatsApp good-morning message for ' + (c.name || 'the user') + ' from Retexia Plan, in ' + (c.language || 'English') + '.',\n  'Max 600 characters. A one-line greeting; today\\'s tasks as a short list with \"•\"; the streak (celebrate it, or encourage starting one if it is 0); one line about the goal that needs the most attention (or the best one) with a tiny tip; end with: ' + (c.link || ''),\n  'Friendly and energetic, a few emoji. Use ONLY these facts, never invent numbers:',\n  JSON.stringify({ today: c.today, tasks_today: c.tasks_today, streak_days: c.streak_days, best_streak: c.best_streak, goals: c.goals }, null, 1),\n  'Reply with only the message.',\n].join('\\n');\nreturn [{ json: { prompt } }];\n"
+      }
+    },
+    {
+      "id": "2c295807-bc0c-484f-aeab-106a8ab98dc7",
+      "name": "AI: morning",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [
+        900,
+        460
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "hasOutputParser": false
+      }
+    },
+    {
+      "id": "4b899f59-03eb-4832-92ea-fafcbfcd6076",
+      "name": "OpenRouter: morning",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        900,
+        640
+      ],
+      "parameters": {
+        "model": "openai/gpt-4o-mini",
+        "options": {
+          "temperature": 0.8,
+          "maxTokens": 400
+        }
+      }
+    },
+    {
+      "id": "fa0dbc4c-a19a-426a-917f-e5d41f170535",
+      "name": "Morning text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1140,
+        460
+      ],
+      "parameters": {
+        "jsCode": "// The AI's message, or a plain one when the AI didn't answer.\nconst c = $('Config').first().json.context || {};\nconst ai = String(($input.first().json || {}).text || '').trim();\nconst tasks = (c.tasks_today || []).map((t) => '• ' + t).join('\\n');\nconst plain = [\n  'Good morning' + (c.name ? ' ' + c.name : '') + '! ☀️',\n  tasks ? 'Today:\\n' + tasks : 'Nothing planned today: add one small step for your goals.',\n  c.streak_days ? '🔥 ' + c.streak_days + '-day streak, keep it going!' : 'Finish today\\'s tasks to start a streak 🔥',\n  c.link || '',\n].filter(Boolean).join('\\n\\n');\nreturn [{ json: { number: $('Config').first().json.number, text: (ai || plain).slice(0, 1500) } }];\n"
+      }
+    },
+    {
+      "id": "c097aaa0-fd68-4e6d-882c-b497c59d4d9b",
+      "name": "Weekly prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        800
+      ],
+      "parameters": {
+        "jsCode": "const c = $input.first().json.context || {};\nconst prompt = [\n  'Write the opening of a weekly email from Retexia Plan to ' + (c.name || 'the user') + ', in ' + (c.language || 'English') + '.',\n  'Start with \"Hi ' + (c.name || 'there') + ',\" then 3-5 sentences: the week in one line (tasks done vs planned, compared with last week), the streak, which goal did best and which needs a push, and ONE clear focus for next week. Warm and motivating, plain text, no emoji overload, no list.',\n  'Use ONLY these facts, never invent numbers:',\n  JSON.stringify(c, null, 1),\n  'Reply with only the text.',\n].join('\\n');\nreturn [{ json: { prompt } }];\n"
+      }
+    },
+    {
+      "id": "130269f5-c264-47bd-a848-d21d34e8f3bf",
+      "name": "AI: weekly",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [
+        900,
+        800
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "hasOutputParser": false
+      }
+    },
+    {
+      "id": "8f11ce15-7b4d-487d-9bdb-c0fc2c338c7e",
+      "name": "OpenRouter: weekly",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        900,
+        980
+      ],
+      "parameters": {
+        "model": "openai/gpt-4o-mini",
+        "options": {
+          "temperature": 0.6,
+          "maxTokens": 450
+        }
+      }
+    },
+    {
+      "id": "b7b49171-20e5-4fed-9e6b-281e7fedad03",
+      "name": "Weekly text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1140,
+        800
+      ],
+      "parameters": {
+        "jsCode": "const t = String(($input.first().json || {}).text || '').trim();\nreturn [{ json: { ok: true, text: t.slice(0, 3000) } }];\n"
+      }
+    },
+    {
+      "id": "2e4af6d8-ed2a-467e-9f43-52e3e7809543",
+      "name": "Respond: weekly",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1360,
+        800
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "b31f4b85-27d1-4935-b2c8-007d5dc5f122",
+      "name": "WA · Send",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1360,
+        520
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.evolutionUrl }}/message/sendText/{{ $('Config').first().json.evolutionInstance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Config').first().json.evolutionKey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: (() => { let n = String($json.number || '').replace(/\\D/g, ''); if (n.startsWith('00')) n = n.slice(2); if (n.startsWith('0')) n = '94' + n.slice(1); else if (n.length === 9) n = '94' + n; return n; })(), text: $json.text, delay: 1200, linkPreview: false }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "05bdaea7-f301-4ae8-9775-10cdcd222bc4",
+      "name": "Respond: sent",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1580,
+        460
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"ok\": true}",
+        "options": {}
+      }
+    },
+    {
+      "id": "cfaaa5b0-0b39-4257-a2f1-8238baf9bc16",
+      "name": "Respond: not sent",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1580,
+        640
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: String($json.notReady || ($json.error && ($json.error.message || $json.error.description)) || $json.message || 'Evolution did not accept the message.').slice(0, 400) }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f79e9d0b-b2d9-467d-aadd-871f549649ec",
+      "name": "About",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -320
+      ],
+      "parameters": {
+        "width": 640,
+        "height": 380,
+        "color": 4,
+        "content": "## Retexia — Plan (worker)\n**plan.retexia.com decides what and when; this workflow does the job.** One webhook, header **X-Retexia-Key** = Config → `retexiaKey` = PLAN_N8N_KEY.\n- **coach** → a goal's facts + chat → OpenRouter → answers `{ok, reply}` (the panel posts it in the goal chat).\n- **morning** → today's tasks, streak, goals → OpenRouter writes the message → Evolution WhatsApp → `{ok}`.\n- **weekly** → the week's numbers → OpenRouter writes the email opening → `{ok, text}` (the panel emails it).\n- **whatsapp** → a plain message (the \"Send a test message\" button) → Evolution → `{ok}`.\n\n**Setup:** fill in Config; on the three **OpenRouter** nodes pick your OpenRouter credential (model: any cheap chat model, e.g. openai/gpt-4o-mini); Activate; copy the webhook's Production URL to PLAN_N8N_URL (Vercel, panels)."
+      }
+    }
+  ],
+  "connections": {
+    "Webhook: Retexia Plan": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Which job?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Which job?": {
+      "main": [
+        [
+          {
+            "node": "Coach prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Morning prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Weekly prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "WA · Send",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: not sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Coach prompt": {
+      "main": [
+        [
+          {
+            "node": "AI: coach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: coach": {
+      "main": [
+        [
+          {
+            "node": "Coach reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Coach reply": {
+      "main": [
+        [
+          {
+            "node": "Respond: coach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter: coach": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI: coach",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Morning prompt": {
+      "main": [
+        [
+          {
+            "node": "AI: morning",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: morning": {
+      "main": [
+        [
+          {
+            "node": "Morning text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Morning text": {
+      "main": [
+        [
+          {
+            "node": "WA · Send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter: morning": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI: morning",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weekly prompt": {
+      "main": [
+        [
+          {
+            "node": "AI: weekly",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: weekly": {
+      "main": [
+        [
+          {
+            "node": "Weekly text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weekly text": {
+      "main": [
+        [
+          {
+            "node": "Respond: weekly",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter: weekly": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI: weekly",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WA · Send": {
+      "main": [
+        [
+          {
+            "node": "Respond: sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: not sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": []
+}

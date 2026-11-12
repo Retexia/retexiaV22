@@ -1,0 +1,365 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { z } from "zod";
+import { dbMessage, run, type ActionResult } from "@/lib/action";
+import { coachReply } from "@/lib/plan/coach";
+import { people, type ChatMessage } from "@/lib/plan/data";
+import { periodLabel, periodRange } from "@/lib/plan/logic";
+import { planWorker } from "@/lib/plan/n8n";
+import { goalAccess, requirePlan } from "@/lib/plan/session";
+
+const uuid = z.uuid();
+const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date");
+function done(message: string): ActionResult;
+function done<T>(message: string, data: T): ActionResult<T>;
+function done<T>(message: string, data?: T): ActionResult<T> {
+  revalidatePath("/", "layout");
+  return { ok: true, message, data };
+}
+const planUrl = () => (process.env.PLAN_PANEL_URL || "https://plan.retexia.com").replace(/\/+$/, "");
+
+// ---------------------------------------------------------------- goals
+
+const TEMPLATES = {
+  income: { category: "income", chart: { title: "Income", unit: "LKR", mode: "total", kind: "line" }, task: "Write down today's income" },
+  savings: { category: "savings", chart: { title: "Saved", unit: "LKR", mode: "total", kind: "line" }, task: "Put money aside" },
+  habit: { category: "habit", chart: null, task: null },
+  custom: { category: "custom", chart: null, task: null },
+} as const;
+
+const goalInput = z.object({
+  id: uuid.optional(),
+  template: z.enum(["income", "savings", "habit", "custom"]).default("custom"),
+  title: z.string().trim().min(1, "Name the goal").max(140),
+  why: z.string().trim().max(1000).default(""),
+  period: z.enum(["year", "month", "week"]),
+  on: day,
+  category: z.enum(["income", "savings", "business", "health", "learning", "habit", "custom"]),
+  parent_id: uuid.nullable().default(null),
+  target: z.number().positive().max(1e12).nullable().default(null),
+  unit: z.string().trim().max(20).default(""),
+  habit: z.string().trim().max(140).default(""),
+});
+
+/** New or changed goal. A new goal from a template gets its chart (with the target) and its daily task. */
+export async function saveGoal(input: z.input<typeof goalInput>): Promise<ActionResult<Record<string, unknown>>> {
+  return run(async () => {
+    const { db, user } = await requirePlan();
+    const d = goalInput.parse(input);
+    const range = periodRange(d.period, d.on);
+    if (d.parent_id) {
+      const p = await goalAccess(db, d.parent_id, user.id);
+      if (!p || p.role !== "owner") return { ok: false, message: "Pick one of your own goals as the bigger goal." };
+    }
+    const row = { title: d.title, why: d.why || null, period: d.period, ...range, category: d.category, parent_id: d.parent_id, updated_at: new Date().toISOString() };
+    if (d.id) {
+      const a = await goalAccess(db, d.id, user.id);
+      if (!a || a.role !== "owner") return { ok: false, message: "Only the goal's owner can change it." };
+      const { error } = await db.from("goals").update(row).eq("id", d.id);
+      if (error) return { ok: false, message: dbMessage(error) };
+      return done("Goal saved", { id: d.id });
+    }
+    const { data: goal, error } = await db.from("goals").insert({ ...row, owner_id: user.id }).select("id").single();
+    if (error || !goal) return { ok: false, message: dbMessage(error) };
+    const t = TEMPLATES[d.template];
+    const chart = t.chart ? { ...t.chart, unit: d.unit || t.chart.unit } : d.target != null ? { title: "Progress", unit: d.unit, mode: "total", kind: "line" } : null;
+    if (chart) await db.from("charts").insert({ goal_id: goal.id, ...chart, grain: d.period === "year" ? "month" : d.period === "month" ? "day" : "day", target: d.target });
+    const task = d.template === "habit" ? d.habit || d.title : t.task;
+    if (task) await db.from("tasks").insert({ owner_id: user.id, goal_id: goal.id, title: task, repeat: "daily", starts_on: range.starts_on < d.on ? d.on : range.starts_on, ends_on: range.ends_on });
+    return done("Goal created", { id: goal.id });
+  });
+}
+
+export async function setGoalStatus(input: { id: string; status: "active" | "done" | "dropped" }): Promise<ActionResult> {
+  return run(async () => {
+    const { db, user } = await requirePlan();
+    const d = z.object({ id: uuid, status: z.enum(["active", "done", "dropped"]) }).parse(input);
+    const a = await goalAccess(db, d.id, user.id);
+    if (!a || a.role !== "owner") return { ok: false, message: "Only the goal's owner can change it." };
+    const { error } = await db.from("goals").update({ status: d.status, updated_at: new Date().toISOString() }).eq("id", d.id);
+    if (error) return { ok: false, message: dbMessage(error) };
+    revalidatePath("/", "layout");
+    return { ok: true, message: d.status === "done" ? "Well done! Goal marked as done." : d.status === "dropped" ? "Goal dropped" : "Goal active again" };
+  });
+}
+
+export async function deleteGoal(input: { id: string }): Promise<ActionResult> {
+  return run(async () => {
+    const { db, user } = await requirePlan();
+    const id = uuid.parse(input.id);
+    const a = await goalAccess(db, id, user.id);
+    if (!a || a.role !== "owner") return { ok: false, message: "Only the goal's owner can delete it." };
+    const { error } = await db.from("goals").delete().eq("id", id);
+    if (error) return { ok: false, message: dbMessage(error) };
+    revalidatePath("/", "layout");
+    return { ok: true, message: "Goal deleted" };
+  });
+}
+
+// ---------------------------------------------------------------- charts and values
+
+const chartInput = z.object({
+  id: uuid.optional(),
+  goal_id: uuid,
+  title: z.string().trim().min(1, "Name the chart").max(80),
+  unit: z.string().trim().max(20).default(""),
+  x_mode: z.enum(["time", "labels"]),
+  grain: z.enum(["day", "week", "month"]),
+  mode: z.enum(["total", "value"]),
+  kind: z.enum(["line", "bar"]),
+  target: z.number().max(1e12).nullable(),
+});
+
+export async function saveChart(input: z.input<typeof chartInput>): Promise<ActionResult> {
+  return run(async () => {
+    const { db, user } = await requirePlan();
+    const { id, ...d } = chartInput.parse(input);
+    const a = await goalAccess(db, d.goal_id, user.id);
+    if (!a || a.role !== "owner") return { ok: false, message: "Only the goal's owner can change its charts." };
+    const { error } = id ? await db.from("charts").update(d).eq("id", id).eq("goal_id", d.goal_id) : await db.from("charts").insert(d);
+    if (error) return { ok: false, message: dbMessage(error) };
+    return done(id ? "Chart saved" : "Chart added");
+  });
+}
+
+async function chartAccess(chartId: string) {
+  const ctx = await requirePlan();
+  const { data: chart } = await ctx.db.from("charts").select("id, goal_id, x_mode").eq("id", chartId).maybeSingle();
+  const a = chart ? await goalAccess(ctx.db, chart.goal_id, ctx.user.id) : null;
+  return { ...ctx, chart, access: a };
+}
+
+export async function deleteChart(input: { id: string }): Promise<ActionResult> {
+  return run(async () => {
+    const { db, chart, access } = await chartAccess(uuid.parse(input.id));
+    if (!chart || access?.role !== "owner") return { ok: false, message: "Only the goal's owner can delete its charts." };
+    const { error } = await db.from("charts").delete().eq("id", chart.id);
+    if (error) return { ok: false, message: dbMessage(error) };
+    return done("Chart deleted");
+  });
+}
+
+const pointInput = z.object({
+  chart_id: uuid,
+  value: z.number().min(-1e12).max(1e12),
+  on: day.optional(),
+  label: z.string().trim().max(60).default(""),
+  note: z.string().trim().max(280).default(""),
+});
+
+/** A value on a chart (any time: today, or an earlier day). Owner and editors. */
+export async function addPoint(input: z.input<typeof pointInput>): Promise<ActionResult> {
+  return run(async () => {
+    const d = pointInput.parse(input);
+    const { db, user, chart, access, settings, today } = await chartAccess(d.chart_id);
+    if (!chart || !access || access.role === "viewer") return { ok: false, message: "You can't add values to this chart." };
+    if (chart.x_mode === "labels" && !d.label) return { ok: false, message: "Enter what this value is for (the label).", fieldErrors: { label: "Required" } };
+    const on = d.on && d.on <= today ? d.on : today;
+    // The chosen day at the current time (in the person's time zone), so the order of entries stays natural.
+    const time = new Intl.DateTimeFormat("en-GB", { timeZone: settings.timezone, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
+    const at = on === today ? new Date().toISOString() : zoned(on, time === "24:00" ? "00:00" : time, settings.timezone);
+    const { error } = await db.from("points").insert({ chart_id: chart.id, value: d.value, at, label: d.label || null, note: d.note || null, created_by: user.id });
+    if (error) return { ok: false, message: dbMessage(error) };
+    return done("Added");
+  });
+}
+
+function zoned(date: string, time: string, tz: string) {
+  const guess = new Date(`${date}T${time}:00Z`);
+  const local = new Date(guess.toLocaleString("en-US", { timeZone: tz }));
+  return new Date(guess.getTime() - (local.getTime() - guess.getTime())).toISOString();
+}
+
+export async function deletePoint(input: { id: string }): Promise<ActionResult> {
+  return run(async () => {
+    const { db, user } = await requirePlan();
+    const id = uuid.parse(input.id);
+    const { data: p } = await db.from("points").select("id, chart_id, created_by").eq("id", id).maybeSingle();
+    if (!p) return { ok: false, message: "Not found." };
+    const { chart, access } = await chartAccess(p.chart_id);
+    if (!chart || !access || (access.role !== "owner" && p.created_by !== user.id)) return { ok: false, message: "You can't delete this value." };
+    const { error } = await db.from("points").delete().eq("id", id);
+    if (error) return { ok: false, message: dbMessage(error) };
+    return done("Deleted");
+  });
+}
+
+// ---------------------------------------------------------------- tasks (daily goals)
+
+const taskInput = z.object({
+  id: uuid.optional(),
+  title: z.string().trim().min(1, "Write the task").max(140),
+  goal_id: uuid.nullable().default(null),
+  repeat: z.enum(["none", "daily", "every", "weekdays"]),
+  every_n: z.number().int().min(1).max(30).default(1),
+  weekdays: z.array(z.number().int().min(0).max(6)).max(7).default([]),
+  starts_on: day,
+});
+
+export async function saveTask(input: z.input<typeof taskInput>): Promise<ActionResult> {
+  return run(async () => {
+    const { db, user } = await requirePlan();
+    const { id, ...d } = taskInput.parse(input);
+    if (d.repeat === "weekdays" && !d.weekdays.length) return { ok: false, message: "Pick at least one day", fieldErrors: { weekdays: "Pick at least one day" } };
+    if (d.goal_id) {
+      const a = await goalAccess(db, d.goal_id, user.id);
+      if (!a || a.role !== "owner") return { ok: false, message: "Link the task to one of your own goals." };
+    }
+    const row = { ...d, every_n: d.repeat === "every" ? d.every_n : 1, weekdays: d.repeat === "weekdays" ? [...new Set(d.weekdays)].sort() : [] };
+    const { error } = id ? await db.from("tasks").update(row).eq("id", id).eq("owner_id", user.id) : await db.from("tasks").insert({ ...row, owner_id: user.id });
+    if (error) return { ok: false, message: dbMessage(error) };
+    return done(id ? "Task saved" : "Task added");
+  });
+}
+
+/** Removes a task (its ticks and streak history stay for the charts of past days). */
+export async function archiveTask(input: { id: string }): Promise<ActionResult> {
+  return run(async () => {
+    const { db, user } = await requirePlan();
+    const { error } = await db.from("tasks").update({ archived: true }).eq("id", uuid.parse(input.id)).eq("owner_id", user.id);
+    if (error) return { ok: false, message: dbMessage(error) };
+    return done("Task removed");
+  });
+}
+
+export async function toggleTask(input: { id: string; day: string; done: boolean }): Promise<ActionResult> {
+  return run(async () => {
+    const { db, user, today } = await requirePlan();
+    const d = z.object({ id: uuid, day, done: z.boolean() }).parse(input);
+    if (d.day > today) return { ok: false, message: "You can tick a task on its day (or later), not before." };
+    const { data: t } = await db.from("tasks").select("id").eq("id", d.id).eq("owner_id", user.id).maybeSingle();
+    if (!t) return { ok: false, message: "Task not found." };
+    const { error } = d.done
+      ? await db.from("completions").upsert({ task_id: d.id, day: d.day }, { onConflict: "task_id,day" })
+      : await db.from("completions").delete().eq("task_id", d.id).eq("day", d.day);
+    if (error) return { ok: false, message: dbMessage(error) };
+    revalidatePath("/", "layout");
+    return { ok: true };
+  });
+}
+
+// ---------------------------------------------------------------- sharing
+
+export async function inviteMember(input: { goal_id: string; email: string; role: "viewer" | "editor" }): Promise<ActionResult> {
+  return run(async () => {
+    const { db, user } = await requirePlan();
+    const d = z.object({ goal_id: uuid, email: z.email("Enter an email address").trim().toLowerCase(), role: z.enum(["viewer", "editor"]) }).parse(input);
+    const a = await goalAccess(db, d.goal_id, user.id);
+    if (!a || a.role !== "owner") return { ok: false, message: "Only the goal's owner can invite people." };
+    if (d.email === user.email) return { ok: false, message: "That's you." };
+    const { count } = await db.from("members").select("id", { count: "exact", head: true }).eq("goal_id", d.goal_id);
+    if ((count ?? 0) >= 20) return { ok: false, message: "Up to 20 people per goal." };
+    const { error } = await db.from("members").insert({ goal_id: d.goal_id, email: d.email, role: d.role, invited_by: user.id });
+    if (error) return { ok: false, message: error.code === "23505" ? "Already invited." : dbMessage(error) };
+    const who = user.name || user.email;
+    await db.rpc("queue_email", {
+      p_event: "plan.invite",
+      p_recipient: d.email,
+      p_user: null,
+      p_subject: `${who} shared a goal with you on Retexia Plan`,
+      p_body: `${who} invited you to follow their goal "${a.goal.title}" (${periodLabel(a.goal)}) on Retexia Plan${d.role === "editor" ? " and add progress to it" : ""}. You can see its charts and chat about it, with the Retexia AI coach too.\n\nRetexia Plan is free: open it and sign in (or create your Retexia account) with this email.`,
+      p_payload: { url: `${planUrl()}/goals/${d.goal_id}`, button: "Open the goal" },
+    });
+    return done(`Invited ${d.email}`);
+  });
+}
+
+export async function removeMember(input: { id: string }): Promise<ActionResult> {
+  return run(async () => {
+    const { db, user } = await requirePlan();
+    const id = uuid.parse(input.id);
+    const { data: m } = await db.from("members").select("id, goal_id, user_id").eq("id", id).maybeSingle();
+    if (!m) return { ok: false, message: "Not found." };
+    const a = await goalAccess(db, m.goal_id, user.id);
+    if (!a || (a.role !== "owner" && m.user_id !== user.id)) return { ok: false, message: "You can't remove this person." };
+    const { error } = await db.from("members").delete().eq("id", id);
+    if (error) return { ok: false, message: dbMessage(error) };
+    return done(m.user_id === user.id ? "You left the goal" : "Removed");
+  });
+}
+
+export async function setMemberRole(input: { id: string; role: "viewer" | "editor" }): Promise<ActionResult> {
+  return run(async () => {
+    const { db, user } = await requirePlan();
+    const d = z.object({ id: uuid, role: z.enum(["viewer", "editor"]) }).parse(input);
+    const { data: m } = await db.from("members").select("goal_id").eq("id", d.id).maybeSingle();
+    const a = m ? await goalAccess(db, m.goal_id, user.id) : null;
+    if (!a || a.role !== "owner") return { ok: false, message: "Only the goal's owner can change this." };
+    const { error } = await db.from("members").update({ role: d.role }).eq("id", d.id);
+    if (error) return { ok: false, message: dbMessage(error) };
+    return done(d.role === "editor" ? "Can now add values" : "Can now only view");
+  });
+}
+
+// ---------------------------------------------------------------- chat
+
+/** A chat message; with askCoach the Retexia AI coach answers in the chat (a few seconds later). */
+export async function sendMessage(input: { goal_id: string; body: string; askCoach: boolean }): Promise<ActionResult<{ message: ChatMessage }>> {
+  return run(async () => {
+    const { db, user, today, settings } = await requirePlan();
+    const d = z.object({ goal_id: uuid, body: z.string().trim().min(1).max(4000), askCoach: z.boolean() }).parse(input);
+    const a = await goalAccess(db, d.goal_id, user.id);
+    if (!a) return { ok: false, message: "Goal not found." };
+    const { data: m, error } = await db.from("messages").insert({ goal_id: d.goal_id, author_id: user.id, kind: "user", body: d.body }).select("id, kind, body, created_at, author_id").single();
+    if (error || !m) return { ok: false, message: dbMessage(error) };
+    if (d.askCoach) after(() => coachReply(db, a.goal, user.id, today, settings.coach_language).catch((e) => console.error("[plan coach]", e)));
+    return { ok: true, data: { message: { ...(m as Omit<ChatMessage, "author">), author: user.name || "You" } } };
+  });
+}
+
+/** New messages since a time (the chat also listens live; this is the fallback). */
+export async function fetchMessages(input: { goal_id: string; after: string }): Promise<ActionResult<{ messages: ChatMessage[] }>> {
+  return run(async () => {
+    const { db, user } = await requirePlan();
+    const d = z.object({ goal_id: uuid, after: z.string().max(40) }).parse(input);
+    const a = await goalAccess(db, d.goal_id, user.id);
+    if (!a) return { ok: false, message: "Goal not found." };
+    const { data } = await db.from("messages").select("id, kind, body, created_at, author_id").eq("goal_id", d.goal_id).gt("created_at", d.after).order("created_at").limit(50);
+    const names = await people((data ?? []).map((m) => m.author_id));
+    return {
+      ok: true,
+      data: { messages: (data ?? []).map((m) => ({ ...(m as Omit<ChatMessage, "author">), author: m.kind === "coach" ? "Retexia coach" : (names.get(m.author_id ?? "")?.name ?? "Someone") })) },
+    };
+  });
+}
+
+// ---------------------------------------------------------------- settings
+
+const settingsInput = z.object({
+  timezone: z.string().min(3).max(60),
+  whatsapp: z.string().trim().max(20),
+  morning_on: z.boolean(),
+  morning_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM"),
+  weekly_on: z.boolean(),
+  coach_language: z.enum(["en", "si", "singlish", "ta"]),
+});
+
+export async function savePlanSettings(input: z.input<typeof settingsInput>): Promise<ActionResult> {
+  return run(async () => {
+    const { db, user } = await requirePlan();
+    const d = settingsInput.parse(input);
+    const whatsapp = d.whatsapp.replace(/[^\d+]/g, "");
+    if (whatsapp && !/^\+?\d{9,15}$/.test(whatsapp)) return { ok: false, message: "Enter the WhatsApp number with the country code, e.g. +94771234567", fieldErrors: { whatsapp: "Check the number" } };
+    if (d.morning_on && !whatsapp) return { ok: false, message: "Add your WhatsApp number for the morning message.", fieldErrors: { whatsapp: "Required" } };
+    try {
+      new Intl.DateTimeFormat("en", { timeZone: d.timezone });
+    } catch {
+      return { ok: false, message: "Unknown time zone." };
+    }
+    const { error } = await db.from("settings").update({ ...d, whatsapp: whatsapp || null, updated_at: new Date().toISOString() }).eq("user_id", user.id);
+    if (error) return { ok: false, message: dbMessage(error) };
+    revalidatePath("/", "layout");
+    return { ok: true, message: "Settings saved" };
+  });
+}
+
+export async function sendTestWhatsApp(): Promise<ActionResult> {
+  return run(async () => {
+    const { settings, user } = await requirePlan();
+    if (!settings.whatsapp) return { ok: false, message: "Save your WhatsApp number first." };
+    const r = await planWorker("whatsapp", { number: settings.whatsapp, text: `👋 Hi${user.name ? ` ${user.name.split(" ")[0]}` : ""}! This is Retexia Plan. Your morning plan will come here.` }, 45_000);
+    return r.ok ? { ok: true, message: "Sent. Check WhatsApp." } : { ok: false, message: r.error };
+  });
+}
