@@ -19,13 +19,13 @@ for (const round of [1, 2]) {
 }
 
 const count = async (table) => (await db.query(`select count(*)::int as n from ${table}`)).rows[0].n;
-ok((await count("public.products")) === 2, "2 products");
+ok((await count("public.products")) === 3, "3 products (Lingo, Post, Plan)");
 ok((await count("public.packages")) === 6, "6 packages (Lingo 3, Post 3)");
 ok((await count("public.package_features")) === 50, "50 package features");
 ok((await count("public.form_fields")) === 35, "35 onboarding fields (Lingo 24, Post 11)");
 ok((await count("public.form_steps")) === 5, "5 onboarding steps");
 ok((await count("public.services")) === 6, "6 services");
-ok((await count("public.pages")) === 8, "8 pages (with the refund policy)");
+ok((await count("public.pages")) === 9, "9 pages (with the refund policy and Plan)");
 ok((await count("public.order_statuses")) === 10, "10 order statuses (with the free trial ones)");
 ok((await count("public.site_strings")) > 50, "site strings seeded");
 const formLink = await db.query(
@@ -182,7 +182,7 @@ ok(adminSees.rows.length === 2, "admin sees all orders");
 // --- 4. Public content and forms ---------------------------------------------
 console.log("Content and public forms");
 const anonProducts = await as("anon", null, `select slug from public.products order by sort_order`);
-ok(anonProducts.rows.map((r) => r.slug).join(",") === "lingo,post", "anon reads live + coming soon products");
+ok(anonProducts.rows.map((r) => r.slug).sort().join(",") === "lingo,plan,post", "anon reads live + coming soon products");
 await db.query(`update public.packages set is_visible = false where slug = 'supreme'`);
 const anonPackages = await as("anon", null, `select slug from public.packages`);
 ok(anonPackages.rows.length === 5, "hidden package not readable");

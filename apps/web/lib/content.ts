@@ -144,6 +144,14 @@ export function productHref(product: Pick<Product, "slug" | "page_slug">) {
   return `/${product.page_slug ?? product.slug}`;
 }
 
+/**
+ * A free product (Retexia Plan): live, its panel is open, and nothing to buy
+ * (no active package). Its buttons open the panel directly instead of an order.
+ */
+export function freePanelUrl(product: Pick<Product, "status" | "panel_live" | "panel_url">, startingPrice: unknown): string | null {
+  return product.status === "live" && product.panel_live && product.panel_url && !startingPrice ? product.panel_url : null;
+}
+
 export async function getPage(slug: string): Promise<{ page: Page; sections: PageSection[] } | null> {
   "use cache";
   cache();

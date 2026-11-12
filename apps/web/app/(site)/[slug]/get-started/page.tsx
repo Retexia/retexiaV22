@@ -1,10 +1,10 @@
 import { Alert, Button, Container, Skeleton, productAccentVars } from "@retexia/ui";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { OnboardingFlow, type OnboardingPackage } from "@/components/onboarding/onboarding-flow";
 import { requireUser } from "@/lib/auth";
-import { getForm, getPackages, getProductByPageSlug, getSiteSettings } from "@/lib/content";
+import { freePanelUrl, getForm, getPackages, getProductByPageSlug, getSiteSettings, getStartingPrices } from "@/lib/content";
 import { initialValues } from "@retexia/forms";
 import { formatPrice } from "@/lib/format";
 import { getT } from "@/lib/strings.server";
@@ -46,6 +46,9 @@ async function GetStarted({ params, searchParams }: PageProps<"/[slug]/get-start
   const [{ slug }, sp] = await Promise.all([params, searchParams]);
   const product = await getProductByPageSlug(slug);
   if (!product || product.status !== "live") notFound();
+  // A free product (Retexia Plan) has nothing to order: open its panel.
+  const free = freePanelUrl(product, (await getStartingPrices())[product.id]);
+  if (free) redirect(free);
 
   const requestedPackage = typeof sp.package === "string" ? sp.package : null;
   const requestedCycle = sp.cycle === "yearly" ? "yearly" : "monthly";

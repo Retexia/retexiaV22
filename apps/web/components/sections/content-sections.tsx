@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ChatMock } from "@/components/chat-mock";
 import { Markdown } from "@/components/markdown";
 import {
+  freePanelUrl,
   getFaqs,
   getProductBySlug,
   getProductFeatures,
@@ -159,6 +160,9 @@ export async function ProductsSection({ section, content, ctx, isFirst }: Sectio
                 <h3 className="type-h2 text-ink">{p.name}</h3>
                 {p.tagline ? <p className="type-body-lg text-ink-muted">{p.tagline}</p> : null}
               </div>
+              {live && freePanelUrl(p, price) ? (
+                <p className="type-small text-ink-muted">{t("product.free", "Free for every Retexia account")}</p>
+              ) : null}
               {live && price ? (
                 <p className="type-small text-ink-muted">
                   {t("product.from_price", "From {price} a month", {

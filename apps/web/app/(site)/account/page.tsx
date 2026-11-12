@@ -3,7 +3,7 @@ import { Icon } from "@retexia/ui/icon";
 import type { Metadata } from "next";
 import { OrderCard } from "@/components/account/order-card";
 import { firstName, requireUser } from "@/lib/auth";
-import { getOrderStatuses, getProducts, getSiteSettings, productHref } from "@/lib/content";
+import { freePanelUrl, getOrderStatuses, getProducts, getSiteSettings, getStartingPrices, productHref } from "@/lib/content";
 import { whatsappHref } from "@/lib/links";
 import { getMyOrders } from "@/lib/orders";
 import { getT } from "@/lib/strings.server";
@@ -15,11 +15,12 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function AccountOverview({ searchParams }: PageProps<"/account">) {
   const sp = await searchParams;
-  const [{ supabase, user, profile }, settings, products, statuses, t] = await Promise.all([
+  const [{ supabase, user, profile }, settings, products, statuses, prices, t] = await Promise.all([
     requireUser("/account"),
     getSiteSettings(),
     getProducts(),
     getOrderStatuses(),
+    getStartingPrices(),
     getT(),
   ]);
   const orders = await getMyOrders(supabase);
@@ -98,20 +99,27 @@ export default async function AccountOverview({ searchParams }: PageProps<"/acco
           <div className="grid gap-4 sm:grid-cols-2">
             {explore.map((p) => {
               const live = p.status === "live";
+              const free = freePanelUrl(p, prices[p.id]);
               return (
                 <Card key={p.id} className="flex flex-col gap-3">
                   <div className="flex items-center justify-between gap-3">
                     <span className="flex size-10 items-center justify-center rounded-full" style={productStyle(p.slug)}>
                       <Icon name={p.icon} fallback="box" size={20} />
                     </span>
-                    {!live ? <Badge>{t("product.status.coming_soon", "Coming soon")}</Badge> : null}
+                    {!live ? <Badge>{t("product.status.coming_soon", "Coming soon")}</Badge> : free ? <Badge tone="success">{t("product.free_badge", "Free")}</Badge> : null}
                   </div>
                   <h3 className="type-h2 text-ink">{p.name}</h3>
                   {p.tagline ? <p className="type-body text-ink-muted">{p.tagline}</p> : null}
                   <div className="mt-auto pt-2">
-                    <Button href={live ? productHref(p) : `${productHref(p)}#waitlist`} variant="secondary" size="sm">
-                      {live ? t("product.learn_more", "Learn more") : t("product.join_waitlist", "Join the waitlist")}
-                    </Button>
+                    {free ? (
+                      <Button href={free} size="sm">
+                        {t("product.open_free", "Open {name}", { name: p.short_name })}
+                      </Button>
+                    ) : (
+                      <Button href={live ? productHref(p) : `${productHref(p)}#waitlist`} variant="secondary" size="sm">
+                        {live ? t("product.learn_more", "Learn more") : t("product.join_waitlist", "Join the waitlist")}
+                      </Button>
+                    )}
                   </div>
                 </Card>
               );
@@ -119,25 +127,6 @@ export default async function AccountOverview({ searchParams }: PageProps<"/acco
           </div>
         </section>
       ) : null}
-
-      <Card as="section" aria-labelledby="plan" className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-4">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-soft text-brand">
-            <Icon name="target" size={20} />
-          </span>
-          <div className="flex flex-col gap-1">
-            <h2 id="plan" className="type-h2 text-ink">
-              {t("account.plan.title", "Retexia Plan")} <Badge tone="success">{t("account.plan.free", "Free")}</Badge>
-            </h2>
-            <p className="type-body text-ink-muted">
-              {t("account.plan.text", "Set income, savings and business goals, track them on charts, tick off your daily tasks and keep your streak going.")}
-            </p>
-          </div>
-        </div>
-        <Button href={process.env.PLAN_PANEL_URL?.trim() || "https://plan.retexia.com"} variant="secondary" size="sm" className="shrink-0">
-          {t("account.plan.open", "Open Retexia Plan")}
-        </Button>
-      </Card>
 
       <Card as="section" aria-labelledby="help"className="flex flex-col gap-4 bg-surface-sunk! sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-1">
