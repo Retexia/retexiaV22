@@ -1,6 +1,6 @@
-import { createServerClient } from "@retexia/supabase/server";
 import { Button, Card } from "@retexia/ui";
 import { Centered } from "@/components/centered";
+import { actingUser } from "@/lib/customer";
 import { webUrl } from "@/lib/env";
 import { feederSlug } from "@/lib/feeder/access";
 
@@ -8,12 +8,13 @@ export const metadata = { title: "Retexia Feeder" };
 
 /** No Feeder package open: a free trial that has ended (pay to continue), or none at all. */
 export default async function FeederNoAccess() {
-  const supabase = await createServerClient();
+  const { userId, sb: supabase } = await actingUser();
   const { data: product } = await supabase.from("products").select("id").eq("slug", feederSlug()).maybeSingle();
-  const { data: ended } = product
+  const { data: ended } = product && userId
     ? await supabase
         .from("orders")
         .select("ref")
+        .eq("user_id", userId)
         .eq("product_id", product.id)
         .or(`status.eq.trial_ended,and(status.eq.trial,trial_ends_at.lte.${new Date().toISOString()})`)
         .order("created_at", { ascending: false })

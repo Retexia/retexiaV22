@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createServerClient } from "@retexia/supabase/server";
+import { actingUser } from "../customer";
 
 /** The order form's "Industry" answers → the panel's business types. */
 const INDUSTRY: Record<string, string> = {
@@ -44,8 +44,10 @@ const text = (v: unknown) => (typeof v === "string" ? v.trim() : Array.isArray(v
  * Read with the customer's own session (RLS: their own order only).
  */
 export async function orderPrefill(orderId: string): Promise<OrderPrefill | null> {
-  const supabase = await createServerClient();
-  const { data } = await supabase.from("orders").select("answers").eq("id", orderId).maybeSingle();
+  // The customer's own session (RLS), or the customer being helped in support mode.
+  const { userId, sb } = await actingUser();
+  if (!userId) return null;
+  const { data } = await sb.from("orders").select("answers").eq("id", orderId).eq("user_id", userId).maybeSingle();
   const answers = (Array.isArray(data?.answers) ? data.answers : []) as Answer[];
   const get = (key: string) => answers.find((a) => a?.key === key)?.value;
   const name = text(get("business_name")).slice(0, 120);

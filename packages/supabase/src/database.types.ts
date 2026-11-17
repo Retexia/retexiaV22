@@ -1871,6 +1871,45 @@ export type Database = {
         }
         Relationships: []
       }
+      support_sessions: {
+        Row: {
+          claimed_at: string | null
+          cookie_hash: string | null
+          created_at: string
+          customer_id: string
+          ended_at: string | null
+          expires_at: string
+          id: string
+          link_hash: string
+          reason: string
+          staff_id: string
+        }
+        Insert: {
+          claimed_at?: string | null
+          cookie_hash?: string | null
+          created_at?: string
+          customer_id: string
+          ended_at?: string | null
+          expires_at: string
+          id?: string
+          link_hash: string
+          reason: string
+          staff_id: string
+        }
+        Update: {
+          claimed_at?: string | null
+          cookie_hash?: string | null
+          created_at?: string
+          customer_id?: string
+          ended_at?: string | null
+          expires_at?: string
+          id?: string
+          link_hash?: string
+          reason?: string
+          staff_id?: string
+        }
+        Relationships: []
+      }
       testimonials: {
         Row: {
           author_name: string

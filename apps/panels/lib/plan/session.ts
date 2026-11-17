@@ -1,9 +1,9 @@
 import "server-only";
 
-import { createServerClient } from "@retexia/supabase/server";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { AccessError } from "../action";
+import { actingUser } from "../customer";
 import { localDate } from "../time";
 import { planDb, publicDb, type PlanDb } from "./db";
 import type { Goal, Role } from "./logic";
@@ -28,11 +28,11 @@ export type PlanUser = { id: string; email: string; name: string };
 
 /** Retexia Plan is free: any signed-in Retexia account can use it (no order). */
 export const getPlanUser = cache(async (): Promise<PlanUser | null> => {
-  const supabase = await createServerClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) return null;
-  const { data: profile } = await supabase.from("profiles").select("full_name, email").eq("id", data.user.id).maybeSingle();
-  return { id: data.user.id, email: (profile?.email ?? data.user.email ?? "").toLowerCase(), name: profile?.full_name ?? "" };
+  // The signed-in person, or the customer a Retexia admin opened in support mode.
+  const { userId, email, sb } = await actingUser();
+  if (!userId) return null;
+  const { data: profile } = await sb.from("profiles").select("full_name, email").eq("id", userId).maybeSingle();
+  return { id: userId, email: (profile?.email ?? email ?? "").toLowerCase(), name: profile?.full_name ?? "" };
 });
 
 /** The person's Plan settings (made on first visit, WhatsApp from their Retexia profile) and invites waiting for them. */

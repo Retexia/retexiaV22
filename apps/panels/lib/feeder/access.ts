@@ -1,9 +1,8 @@
 import "server-only";
 
-import { createServerClient } from "@retexia/supabase/server";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { ACCESS_STATUSES, opensPanel } from "../customer";
+import { ACCESS_STATUSES, actingUser, opensPanel } from "../customer";
 import { webUrl } from "../env";
 import { toolFor } from "./tools";
 
@@ -28,15 +27,15 @@ export type FeederPackage = {
  * from the customer's own orders (RLS: their own only). Cached per request.
  */
 export const getFeeder = cache(async () => {
-  const supabase = await createServerClient();
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return null;
+  // The customer's own session (RLS), or the customer a Retexia admin opened in support mode.
+  const { userId, email, sb: supabase } = await actingUser();
+  if (!userId) return null;
   const { data: product } = await supabase.from("products").select("id, name, page_slug").eq("slug", feederSlug()).maybeSingle();
   const [{ data: profile }, { data: packages }, { data: orders }] = await Promise.all([
-    supabase.from("profiles").select("full_name, email").eq("id", auth.user.id).maybeSingle(),
+    supabase.from("profiles").select("full_name, email").eq("id", userId).maybeSingle(),
     product ? supabase.from("packages").select("id, slug, name, tagline, sort_order, is_active, is_visible").eq("product_id", product.id).order("sort_order") : { data: [] },
     product
-      ? supabase.from("orders").select("ref, status, package_id, package_name, created_at, trial_ends_at").eq("product_id", product.id).in("status", ACCESS_STATUSES).order("created_at", { ascending: false })
+      ? supabase.from("orders").select("ref, status, package_id, package_name, created_at, trial_ends_at").eq("user_id", userId).eq("product_id", product.id).in("status", ACCESS_STATUSES).order("created_at", { ascending: false })
       : { data: [] },
   ]);
   const bought = new Map<string, { ref: string | null; status: string; name: string | null; trialEndsAt: string | null }>();
@@ -55,7 +54,7 @@ export const getFeeder = cache(async () => {
   const hasBulk = list.some((p) => p.owned && toolFor(p.slug));
   const shown = hasBulk ? list.filter((p) => p.owned || !toolFor(p.slug)) : list;
   return {
-    user: { id: auth.user.id, email: profile?.email ?? auth.user.email ?? "", name: profile?.full_name ?? "" },
+    user: { id: userId, email: profile?.email ?? email ?? "", name: profile?.full_name ?? "" },
     productName: product?.name ?? "Retexia Feeder",
     /** Where a locked package is bought on retexia.com. */
     buyUrl: (slug: string) => `${webUrl()}/${product?.page_slug || feederSlug()}/get-started?package=${encodeURIComponent(slug)}`,

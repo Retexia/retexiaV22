@@ -1,16 +1,27 @@
 import { can, roleLabels, type Role } from "@retexia/supabase";
-import { Avatar, Badge, Card, StatusBadge, formatDate, formatPrice, type Tone } from "@retexia/ui";
+import { Alert, Avatar, Badge, Card, StatusBadge, formatDate, formatPrice, type Tone } from "@retexia/ui";
 import { DescriptionList, LinkTabs, PageHeader } from "@retexia/ui/admin";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AuditList, type AuditEntry } from "@/components/common/audit-list";
 import { OrderStatus, ProductTag, label, paymentStatusTone } from "@/components/common/status";
 import { AccountActions, CustomerNotes, ProfileCard } from "@/components/customers/customer-panels";
+import { SupportAccess } from "@/components/customers/support-access";
 import { requireStaffPage } from "@/lib/auth";
 import { param, type SearchParams } from "@/lib/list-params";
 import { PostCustomerCard } from "@/products/post/customer-card";
 
 export const metadata = { title: "Customer" };
+
+/** Why support mode couldn't start (codes sent back by the panel's /support/end). */
+const SUPPORT_PROBLEMS: Record<string, string> = {
+  invalid: "That support link is not valid.",
+  signin: "Sign in here (admin.retexia.com) first, then open the customer again.",
+  other: "That support link was made for another team member.",
+  used: "That support link was already used. Start a new one below.",
+  expired: "That support link has expired (links work for 10 minutes). Start a new one below.",
+  role: "Only admins and owners can use support mode.",
+};
 
 const TABS = [
   { key: "overview", label: "Overview" },
@@ -33,7 +44,7 @@ export default async function CustomerPage({ params, searchParams }: { params: P
   if (!c?.id) notFound();
 
   const email = c.email ?? "";
-  const [orders, payments, messages, waitlist, notes, team, audit, settings] = await Promise.all([
+  const [orders, payments, messages, waitlist, notes, team, audit, settings, panelProducts] = await Promise.all([
     supabase.from("staff_orders").select("id, ref, status, status_label, status_tone, product_slug, product_short_name, package_name, price_amount, currency, billing_cycle, created_at, renews_at").eq("user_id", id).order("created_at", { ascending: false }),
     supabase.from("staff_payments").select("id, order_ref, kind, signed_amount, currency, status, paid_at, created_at, receipt_number").eq("user_id", id).order("created_at", { ascending: false }),
     email
@@ -46,10 +57,16 @@ export default async function CustomerPage({ params, searchParams }: { params: P
     supabase.from("profiles").select("id, full_name, email").neq("role", "customer"),
     canAdmin ? supabase.from("audit_logs").select("*").eq("record_id", id).order("created_at", { ascending: false }).limit(100) : Promise.resolve({ data: [] as AuditEntry[] }),
     supabase.from("site_settings").select("currency_code").eq("id", 1).maybeSingle(),
+    supabase.from("products").select("slug, name, panel_url, panel_live, sort_order").order("sort_order"),
   ]);
   const people = Object.fromEntries((team.data ?? []).map((p) => [p.id, p.full_name || p.email || "Team member"]));
   const currency = settings.data?.currency_code ?? "LKR";
   const isStaff = c.role !== "customer";
+  // Support mode: the customer's products with a live panel, plus Retexia Plan (free for everyone).
+  const supportPanels = (panelProducts.data ?? [])
+    .filter((p) => p.panel_live && p.panel_url && ((c.active_products ?? []).includes(p.slug) || p.slug === "plan"))
+    .map((p) => ({ slug: p.slug, name: p.name }));
+  const supportProblem = SUPPORT_PROBLEMS[param(sp, "support_problem") ?? ""];
 
   return (
     <div className="flex flex-col gap-6">
@@ -91,6 +108,8 @@ export default async function CustomerPage({ params, searchParams }: { params: P
         }))}
       />
 
+      {supportProblem ? <Alert tone="warning" title="Support mode didn't start">{supportProblem}</Alert> : null}
+
       {tab === "overview" ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <div className="flex flex-col gap-6">
@@ -114,6 +133,7 @@ export default async function CustomerPage({ params, searchParams }: { params: P
             )}
           </div>
           <div className="flex flex-col gap-6">
+            {!isStaff && can(role, "manageCustomers") ? <SupportAccess customerId={id} customerName={c.full_name || email || "the customer"} panels={supportPanels} /> : null}
             <Card className="flex flex-col gap-4">
               <h2 className="type-h2 text-ink">At a glance</h2>
               <DescriptionList

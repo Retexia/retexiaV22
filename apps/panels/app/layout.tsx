@@ -6,6 +6,7 @@ import type { Metadata, Viewport } from "next";
 import { DM_Mono, DM_Sans, Noto_Sans_Sinhala, Outfit } from "next/font/google";
 import type { ReactNode } from "react";
 import { Providers } from "@/components/providers";
+import { SupportBanner } from "@/components/support-banner";
 
 const outfit = Outfit({ subsets: ["latin"], weight: ["300", "400", "500"], variable: "--font-outfit", display: "swap" });
 const dmSans = DM_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-dm-sans", display: "swap" });
@@ -43,6 +44,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       </head>
       <body className="min-h-dvh bg-surface text-ink antialiased">
         <Providers>{children}</Providers>
+        <SupportBanner />
       </body>
     </html>
   );

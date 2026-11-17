@@ -33,7 +33,7 @@ export async function proxy(request: NextRequest) {
   if (WEB_PATHS.test(pathname)) return withSessionCookies(response, NextResponse.redirect(`${webUrl()}${pathname}${search}`));
 
   // Sign-in hand-off pages and the setup check work without a session and are not per-panel.
-  if (OWN_PATHS.test(pathname)) return response;
+  if (OWN_PATHS.test(pathname) || /^\/support\/end\/?$/.test(pathname)) return response;
 
   // Not signed in here: ask retexia.com (it hands the sign-in over, see app/auth).
   if (!claims?.sub) {
@@ -42,6 +42,9 @@ export async function proxy(request: NextRequest) {
     start.search = `?next=${encodeURIComponent(pathname + search)}`;
     return withSessionCookies(response, NextResponse.redirect(start));
   }
+
+  // Support mode start / end (app/support): the same on every panel, needs the team member signed in here.
+  if (/^\/support\/(start|end)\/?$/.test(pathname)) return response;
 
   const url = request.nextUrl.clone();
   url.pathname = `/${panel}${pathname === "/" ? "" : pathname}`;

@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@retexia/supabase/admin";
+import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { dbMessage, run, type ActionResult } from "@/lib/action";
@@ -207,5 +208,72 @@ export async function updateCustomerNote(input: { id: string; userId: string; pi
     if (error) return { ok: false, message: dbMessage(error) };
     revalidatePath(`/customers/${d.userId}`);
     return { ok: true, message: d.remove ? "Note deleted" : "Note updated" };
+  });
+}
+
+const SUPPORT_LINK_MINUTES = 60;
+const panelOk = (url: URL) => url.protocol === "https:" ? /(^|\.)retexia\.com$/i.test(url.hostname) : process.env.NODE_ENV !== "production" && url.hostname === "localhost";
+
+/**
+ * Support mode: open a customer's product panel as the customer (to change
+ * their settings for them). Admins and owners only, with a reason; recorded
+ * in the audit log, and (optionally) the customer is told by email. Returns a
+ * one-time link (10 minutes) for this team member only; the session lasts
+ * an hour or until "End". See supabase/migrations/0034_support_sessions.sql.
+ */
+export async function startSupportSession(input: { customer_id: string; product: string; reason: string; notify: boolean }): Promise<ActionResult<string>> {
+  return run(async () => {
+    const staff = await requireRole("manageCustomers");
+    if (!(await rateLimit("support", 20, 60 * 60 * 1000))) return { ok: false, message: "Too many support sessions. Try again later." };
+    const d = z
+      .object({
+        customer_id: uuid,
+        product: z.string().regex(/^[a-z0-9-]{1,40}$/),
+        reason: z.string().trim().min(3, "Say why you're opening their account").max(300),
+        notify: z.boolean(),
+      })
+      .parse(input);
+    if (d.customer_id === staff.user.id) return { ok: false, message: "That's your own account." };
+    const admin = createAdminClient();
+    const [{ data: c }, { data: p }] = await Promise.all([
+      admin.from("profiles").select("id, full_name, email, role").eq("id", d.customer_id).maybeSingle(),
+      admin.from("products").select("slug, short_name, panel_url, panel_live").eq("slug", d.product).maybeSingle(),
+    ]);
+    if (!c) return { ok: false, message: "Customer not found." };
+    if (c.role !== "customer") return { ok: false, message: "Support mode is for customers, not team members." };
+    if (!p?.panel_url || !p.panel_live) return { ok: false, message: "This product has no live panel yet." };
+    let panel: URL;
+    try {
+      panel = new URL(p.panel_url);
+    } catch {
+      return { ok: false, message: "This product's panel address is not valid." };
+    }
+    if (!panelOk(panel)) return { ok: false, message: "This product's panel is not on retexia.com." };
+
+    const token = randomBytes(32).toString("base64url");
+    const { error } = await admin.from("support_sessions").insert({
+      staff_id: staff.user.id,
+      customer_id: c.id,
+      reason: d.reason,
+      link_hash: createHash("sha256").update(token).digest("hex"),
+      expires_at: new Date(Date.now() + SUPPORT_LINK_MINUTES * 60_000).toISOString(),
+    });
+    if (error) return { ok: false, message: dbMessage(error) };
+    const name = c.full_name || c.email || "the customer";
+    await audit(staff, { action: "support.start", table: "profiles", recordId: c.id, summary: `Support mode for ${name} (${p.short_name}): ${d.reason}` });
+
+    if (d.notify && c.email) {
+      const who = staff.profile.full_name || "A member of the Retexia team";
+      await admin.from("notifications_outbox").insert({
+        event: "support.opened",
+        channel: "email",
+        recipient: c.email.toLowerCase(),
+        user_id: c.id,
+        subject: "Retexia support is helping with your account",
+        body: `Hi${c.full_name ? ` ${c.full_name.split(" ")[0]}` : ""},\n\n${who} from Retexia opened your ${p.short_name} panel to help you: ${d.reason}\n\nFor the next hour they can make changes in your Retexia panels for you. They can't see or change your password or your payments.\n\nIf you didn't ask for this, just reply to this email.`,
+        payload: {},
+      });
+    }
+    return { ok: true, message: "Opening their panel…", data: `${panel.origin}/support/start?token=${token}&next=/` };
   });
 }

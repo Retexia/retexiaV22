@@ -544,4 +544,18 @@ console.log("Free trials (0029)");
   await expectError(() => as("authenticated", fay, `select public.admin_extend_trial($1, 30)`, [t3.id]), "customers can't extend their own trial", /Only the Retexia team/);
 }
 
+// Support mode (0034): only the server writes sessions; admins and owners can read them.
+{
+  const cust = await user("support.customer@retexia.test");
+  const supportUser = await user("support.member@retexia.test", "support");
+  await q(`insert into public.support_sessions (staff_id, customer_id, reason, link_hash, expires_at) values ($1, $2, 'Switch posts to English', 'h1', now() + interval '60 minutes')`, [admin, cust]);
+  ok((await as("authenticated", admin, `select reason from public.support_sessions`)).rows.length === 1, "admins can see support sessions");
+  ok((await as("authenticated", supportUser, `select reason from public.support_sessions`)).rows.length === 0, "the support role can't see them");
+  ok((await as("authenticated", cust, `select reason from public.support_sessions`)).rows.length === 0, "customers can't see them");
+  await expectError(() => as("authenticated", admin, `insert into public.support_sessions (staff_id, customer_id, reason, link_hash, expires_at) values ($1, $2, 'x x x', 'h2', now() + interval '1 hour')`, [admin, cust]), "nobody starts a session from the browser", /permission denied/);
+  await expectError(() => q(`insert into public.support_sessions (staff_id, customer_id, reason, link_hash, expires_at) values ($1, $1, 'self', 'h3', now() + interval '1 hour')`, [admin]), "nobody opens their own account in support mode", /check constraint/);
+  await expectError(() => q(`insert into public.support_sessions (staff_id, customer_id, reason, link_hash, expires_at) values ($1, $2, 'long', 'h4', now() + interval '1 day')`, [admin, cust]), "a session lasts at most 4 hours", /check constraint/);
+  await expectError(() => q(`insert into public.support_sessions (staff_id, customer_id, reason, link_hash, expires_at) values ($1, $2, '', 'h5', now() + interval '1 hour')`, [admin, cust]), "a reason is required", /check constraint/);
+}
+
 summary();

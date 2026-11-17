@@ -26,6 +26,7 @@
     "PLAN_N8N_URL",
     "PLAN_N8N_KEY",
     "PLAN_PANEL_URL",
+    "ADMIN_URL",
     "PANEL_DEFAULT",
     "RESEND_API_KEY",
     "EMAIL_FROM",
