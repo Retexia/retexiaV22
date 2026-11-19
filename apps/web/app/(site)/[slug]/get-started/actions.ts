@@ -5,6 +5,7 @@ import { createServerClient } from "@retexia/supabase/server";
 import { z } from "zod";
 import { buildAnswers, parseForm, sanitizeValues, validateForm } from "@retexia/forms";
 import { validationMessages } from "@retexia/forms";
+import { isFreePackage } from "@/lib/content";
 import { getT } from "@/lib/strings.server";
 
 export type SubmitOrderResult =
@@ -53,11 +54,12 @@ export async function submitOrder(input: z.input<typeof inputSchema>): Promise<S
 
   const { data: pkg } = await supabase
     .from("packages")
-    .select("id, price_yearly, is_active")
+    .select("id, price_monthly, price_yearly, setup_fee, is_active")
     .eq("product_id", product.id)
     .eq("slug", packageSlug)
     .maybeSingle();
-  if (!pkg?.is_active) return { ok: false, message: t("onboarding.error.package", "That package is not available. Please choose another.") };
+  // Free packages (Feeder → Autopublish) open in the panel; there is nothing to order.
+  if (!pkg?.is_active || isFreePackage(pkg)) return { ok: false, message: t("onboarding.error.package", "That package is not available. Please choose another.") };
   if (cycle === "yearly" && pkg.price_yearly === null) {
     return { ok: false, message: t("onboarding.error.cycle", "Yearly billing is not available for this package.") };
   }

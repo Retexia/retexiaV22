@@ -208,6 +208,22 @@ ok((await q(`select product_ids from post.product_groups where id = $1`, [grp]))
 await q(`delete from post.posts where business_id = $1 and local_date = '2026-12-20'`, [biz]);
 await q(`select post.add_planned_items($1, '2026-12-20', $2::jsonb)`, [biz, JSON.stringify([{ format: "post", slot: 1, prompt: "Cake", focus: { type: "product", id: cake, name: "Chocolate cake" } }])]);
 ok((await q(`select brief from post.posts where business_id = $1 and local_date = '2026-12-20'`, [biz]))[0].brief.focus.id === cake, "playlist items keep their focus");
+{
+  // 0035: if the old 0013 version of add_planned_items is run again (it drops the focus), 0035 puts the right one back and repairs upcoming items.
+  const { readFileSync } = await import("node:fs");
+  const mig = (f) => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8");
+  const old = mig("0013_post_playlist.sql").match(/create or replace function post\.add_planned_items[\s\S]*?\nend \$\$;/)[0];
+  await db.exec(old);
+  await q(`delete from post.posts where business_id = $1 and local_date = '2026-12-21'`, [biz]);
+  await q(`select post.add_planned_items($1, '2026-12-21', $2::jsonb)`, [biz, JSON.stringify([{ format: "post", slot: 1, prompt: "Cake", product: "Chocolate cake", focus: { type: "product", id: cake, name: "Chocolate cake" } }])]);
+  ok(!(await q(`select brief from post.posts where business_id = $1 and local_date = '2026-12-21'`, [biz]))[0].brief.focus, "(the old 0013 function loses the focus: the bug)");
+  await q(`update post.posts set scheduled_at = now() + interval '2 days', status = 'planned' where business_id = $1 and local_date = '2026-12-21'`, [biz]);
+  await db.exec(mig("0035_post_keep_focus.sql"));
+  ok((await q(`select brief from post.posts where business_id = $1 and local_date = '2026-12-21'`, [biz]))[0].brief.focus?.id === cake, "0035 repairs upcoming items that lost their product");
+  await q(`delete from post.posts where business_id = $1 and local_date = '2026-12-22'`, [biz]);
+  await q(`select post.add_planned_items($1, '2026-12-22', $2::jsonb)`, [biz, JSON.stringify([{ format: "post", slot: 1, prompt: "Cake", focus: { type: "product", id: cake, name: "Chocolate cake" } }])]);
+  ok((await q(`select brief from post.posts where business_id = $1 and local_date = '2026-12-22'`, [biz]))[0].brief.focus?.id === cake, "after 0035 new items keep their product again");
+}
 
 console.log("n8n worker: accounts, publishing, delete, edit (0016)");
 await q(`update post.businesses set settings = settings || '{"paused": false, "auto_publish": true}', subscription_status = 'active' where id = $1`, [biz]);

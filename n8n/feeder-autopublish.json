@@ -1,0 +1,818 @@
+{
+  "name": "Retexia — Feeder Autopublish (gateway)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Retexia — Feeder Autopublish (gateway)\n\nfeeder.retexia.com/autopublish builds and watches ads; this workflow is its only door to **Meta**, **TikTok** and **WhatsApp**.\n\n* One request = one allowed call. Paths not in the allow-list (Config) are refused.\n* Tokens live in **n8n credentials** (Header Auth) — see Config. Nothing secret is in this file.\n* Every answer: `{ ok, status, body, usage }` (TikTok `code != 0` = not ok).\n* The panel retries, waits for rate limits and turns errors into plain messages (feeder.ad_error_catalog).\n\nSet in Vercel (panels): `FEEDER_ADS_N8N_URL` = this webhook's production URL, `FEEDER_ADS_N8N_KEY` = the Header Auth value.\n\nAPI docs used: Marketing API (campaign, adset, adcreative, ad, advideos, adimages, page/leadgen_forms, search?type=adinterest); TikTok Business API v1.3 (campaign/adgroup/ad create + status/update, file/video/ad/upload, file/image/ad/upload, page/get, ad/get, ad/review_info, advertiser/info, identity/get).",
+        "height": 520,
+        "width": 520,
+        "color": 5
+      },
+      "id": "5f1f7eb8-24f9-4fe2-9bfc-62763a0d8e8b",
+      "name": "About",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -620,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "feeder-autopublish",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1993c29e-40ff-4462-9bb9-3455e5f7aa26",
+      "name": "Webhook: Autopublish",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        400
+      ],
+      "webhookId": "7b16497e-76a7-4518-bec7-0238d83502c2",
+      "notes": "Credential: Header Auth “Retexia key (Autopublish)” (X-Retexia-Key)",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Retexia — Feeder Autopublish (gateway). The panel (feeder.retexia.com) decides everything;\n// this workflow only makes one allowed Meta / TikTok / WhatsApp call per request and answers\n// with the platform's status and body. Nothing waits here, nothing is stored here.\n//\n// EDIT only the values marked EDIT. Tokens live in n8n credentials (Header Auth), never here:\n//   \"Retexia key (Autopublish)\"      on the Webhook   Name: X-Retexia-Key  Value: = FEEDER_ADS_N8N_KEY (Vercel, panels)\n//   \"Meta System User (Autopublish)\" Meta nodes       Name: Authorization  Value: Bearer <System User token>\n//   \"TikTok Business (Autopublish)\"  TikTok nodes     Name: Access-Token   Value: <long-term access token>\n//   \"Evolution (Autopublish)\"        WA · Send        Name: apikey         Value: <Evolution API key>\n// Docs: developers.facebook.com/docs/marketing-api · business-api.tiktok.com/portal/docs (v1.3)\nconst CONFIG = {\n  graphVersion: 'v26.0', // Meta Graph / Marketing API version (latest stable)\n  tiktokBase: 'https://business-api.tiktok.com/open_api/v1.3',\n  evolutionUrl: 'EDIT: https://your-evolution-server',\n  evolutionInstance: 'EDIT: the instance name, e.g. retexia-ads',\n  // Images n8n downloads for Meta (adimages) must come from Retexia's Supabase Storage (signed links).\n  storageLink: /^https:\\/\\/[a-z0-9-]+\\.supabase\\.co\\/storage\\/v1\\/object\\/sign\\/autopublish\\//,\n};\n\nconst body = $input.first().json.body || {};\nconst graph = 'https://graph.facebook.com/' + CONFIG.graphVersion;\nconst path = String(body.path ?? '').replace(/^\\/+/, '');\nconst refuse = (why) => [{ json: { kind: 'refused', refused: String(why).slice(0, 200) } }];\nconst enc = (v) => (v !== null && typeof v === 'object' ? JSON.stringify(v) : String(v));\nconst flat = (p) => Object.fromEntries(Object.entries(p || {}).filter(([, v]) => v !== undefined && v !== null).map(([k, v]) => [k, enc(v)]));\nconst form = (p) => Object.entries(flat(p)).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');\n\n// Allowed calls only (anything else is refused).\nconst META_GET = [/^$/, /^search$/, /^act_\\d+$/, /^act_\\d+\\/(campaigns|adsets|ads|adcreatives|advideos|adimages|insights)$/, /^\\d+$/, /^\\d+\\/(thumbnails|ads|insights)$/];\nconst META_POST = [/^act_\\d+\\/(campaigns|adsets|adcreatives|ads|advideos)$/, /^\\d+$/];\nconst TT_GET = ['advertiser/info/', 'identity/get/', 'file/video/ad/info/', 'campaign/get/', 'adgroup/get/', 'ad/get/', 'ad/review_info/', 'page/get/', 'tool/region/', 'report/integrated/get/'];\nconst TT_POST = ['campaign/create/', 'adgroup/create/', 'ad/create/', 'ad/update/', 'campaign/status/update/', 'adgroup/status/update/', 'ad/status/update/', 'file/video/ad/upload/', 'file/image/ad/upload/'];\n\nswitch (body.action) {\n  case 'meta': {\n    const m = body.method === 'POST' ? 'POST' : 'GET';\n    if (!(m === 'GET' ? META_GET : META_POST).some((re) => re.test(path))) return refuse('Meta ' + m + ' ' + path + ' is not allowed');\n    if (m === 'GET' && path === '' && !(body.params && body.params.ids)) return refuse('Meta: ids needed');\n    // On an existing object (ad, ad set, campaign, video) only these changes are allowed.\n    if (m === 'POST' && /^\\d+$/.test(path) && !Object.keys(body.params || {}).every((k) => ['status', 'creative'].includes(k))) return refuse('Meta: only status / creative changes on an object');\n    return [{ json: { kind: m === 'GET' ? 'meta_get' : 'meta_post', platform: 'meta', url: graph + '/' + path, qs: m === 'GET' ? flat(body.params) : {}, form: m === 'POST' ? form(body.params) : '' } }];\n  }\n  case 'meta_page': {\n    const pid = String(body.page_id || '');\n    if (!/^\\d{5,25}$/.test(pid) || path !== pid + '/leadgen_forms') return refuse('Page call not allowed');\n    return [{ json: { kind: 'page', platform: 'meta', method: body.method === 'POST' ? 'POST' : 'GET', url: graph + '/' + path, tokenUrl: graph + '/' + pid, params: flat(body.params) } }];\n  }\n  case 'meta_image': {\n    const account = String(body.account || '');\n    if (!/^act_\\d{5,25}$/.test(account) || !CONFIG.storageLink.test(String(body.image_url || ''))) return refuse('image upload not allowed');\n    return [{ json: { kind: 'image', platform: 'meta', url: graph + '/' + account + '/adimages', image_url: String(body.image_url) } }];\n  }\n  case 'tiktok': {\n    const m = body.method === 'POST' ? 'POST' : 'GET';\n    if (!(m === 'GET' ? TT_GET : TT_POST).includes(path)) return refuse('TikTok ' + m + ' ' + path + ' is not allowed');\n    return [{ json: { kind: m === 'GET' ? 'tiktok_get' : 'tiktok_post', platform: 'tiktok', url: CONFIG.tiktokBase + '/' + path, qs: m === 'GET' ? flat(body.params) : {}, json: m === 'POST' ? body.params || {} : {} } }];\n  }\n  case 'whatsapp': {\n    const to = String(body.to || '').replace(/\\D/g, '');\n    if (!/^\\d{9,15}$/.test(to) || !body.text) return refuse('WhatsApp: number and text needed');\n    if (String(CONFIG.evolutionUrl).startsWith('EDIT')) return refuse('WhatsApp is not set up (Config → evolutionUrl)');\n    return [{ json: { kind: 'whatsapp', platform: 'whatsapp', url: CONFIG.evolutionUrl.replace(/\\/+$/, '') + '/message/sendText/' + CONFIG.evolutionInstance, json: { number: to, text: String(body.text).slice(0, 1500), delay: 1200, linkPreview: false } } }];\n  }\n  default:\n    return refuse('unknown action');\n}"
+      },
+      "id": "d45a902e-3ba8-40f7-ba9c-8a08f35265a0",
+      "name": "Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 8,
+        "output": "={{ [\"meta_get\", \"meta_post\", \"page\", \"image\", \"tiktok_get\", \"tiktok_post\", \"whatsapp\", \"refused\"].indexOf($json.kind) }}"
+      },
+      "id": "074a1263-2a19-4ae2-b730-dc262b03c404",
+      "name": "Which call?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        440,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 120000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "specifyQuery": "json",
+        "jsonQuery": "={{ JSON.stringify($json.qs) }}"
+      },
+      "id": "8625f681-6659-482e-ba64-fbe6fc64c537",
+      "name": "Meta GET",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        0
+      ],
+      "notes": "Credential: Header Auth “Meta System User (Autopublish)”",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 120000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/x-www-form-urlencoded",
+        "body": "={{ $json.form }}"
+      },
+      "id": "9e43b461-b026-4bb0-864d-51a87e80f663",
+      "name": "Meta POST",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        160
+      ],
+      "notes": "Credential: Header Auth “Meta System User (Autopublish)”",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.tokenUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 30000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "specifyQuery": "json",
+        "jsonQuery": "={{ JSON.stringify({ fields: 'access_token' }) }}"
+      },
+      "id": "3d533e6d-774e-4564-a876-6d8cf0695766",
+      "name": "Page token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        320
+      ],
+      "notes": "Credential: Header Auth “Meta System User (Autopublish)”",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "0f2c827a-304e-49c1-a744-5fa55b48c73a",
+              "leftValue": "={{ $json.body && $json.body.access_token }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b3597497-b30c-4d7a-8ceb-d6ea54b6989e",
+      "name": "Got Page token?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// The Page's own token (from the System User) is used for the Page's Instant Forms; it never leaves n8n.\nconst cfg = $('Config').first().json;\nconst token = $input.first().json.body.access_token;\nconst params = { ...cfg.params, access_token: token };\nconst form = Object.entries(params).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');\nreturn [{ json: { method: cfg.method, url: cfg.url, qs: cfg.method === 'GET' ? params : {}, form: cfg.method === 'POST' ? form : '' } }];"
+      },
+      "id": "580cc9a4-fec9-40bd-8001-0eb8e38cf568",
+      "name": "Page request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// The System User has no access to this Page (not shared with Retexia's business, or no \"Create ads\" / \"Leads\" task).\nconst r = $input.first().json || {};\nconst err = (r.body && r.body.error) || { code: 10, message: \"Retexia can't use this Page yet (no Page access token). Share the Page with Retexia's business with Create ads and Leads access.\" };\nreturn [{ json: { statusCode: r.statusCode && r.statusCode >= 400 ? r.statusCode : 403, body: { error: err } } }];"
+      },
+      "id": "1a67db05-d6ca-4974-90b3-4af445b82c2a",
+      "name": "No Page token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "b15029f1-2a7a-4c0e-8575-c69eaa6d9983",
+              "leftValue": "={{ $json.method }}",
+              "rightValue": "GET",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8a6c5037-09a8-406a-a56e-fc7906e02ef5",
+      "name": "Page: GET?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1400,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 120000
+        },
+        "sendQuery": true,
+        "specifyQuery": "json",
+        "jsonQuery": "={{ JSON.stringify($json.qs) }}"
+      },
+      "id": "222daae8-541d-4677-9e48-e31637a5001d",
+      "name": "Page GET",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1620,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 120000
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/x-www-form-urlencoded",
+        "body": "={{ $json.form }}"
+      },
+      "id": "50c2b620-5a49-4595-86d8-e58a4582d862",
+      "name": "Page POST",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1620,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.image_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "id": "3845a6d0-501b-4b01-b7cd-f9635af54ade",
+      "name": "Image: download",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        520
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// The image → base64 for Meta's adimages (bytes).\nconst item = $input.first();\nconst key = item.binary ? Object.keys(item.binary)[0] : null;\nif (!key) return [{ json: { form: '', failed: true } }];\nconst buf = await this.helpers.getBinaryDataBuffer(0, key);\nreturn [{ json: { form: 'bytes=' + encodeURIComponent(buf.toString('base64')) } }];"
+      },
+      "id": "f07fb0c8-2396-4f31-b972-ef97800fda07",
+      "name": "Image to base64",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { statusCode: 400, body: { error: { message: 'Could not download the image from Retexia storage (link expired?). Retry.' } } } }];"
+      },
+      "id": "3ca744d5-e860-4e08-bd81-d3777dbfc0be",
+      "name": "Download failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 120000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/x-www-form-urlencoded",
+        "body": "={{ $json.form }}"
+      },
+      "id": "c9754156-88d8-457e-9436-64d94f9ce02a",
+      "name": "Meta POST image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1180,
+        500
+      ],
+      "notes": "Credential: Header Auth “Meta System User (Autopublish)”",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 60000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "specifyQuery": "json",
+        "jsonQuery": "={{ JSON.stringify($json.qs) }}"
+      },
+      "id": "10f3e88f-c1e3-4fc0-bb1b-99775b74b57e",
+      "name": "TikTok GET",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        720
+      ],
+      "notes": "Credential: Header Auth “TikTok Business (Autopublish)”",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 120000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.json) }}"
+      },
+      "id": "ca03001e-9f65-436e-b676-57976a722840",
+      "name": "TikTok POST",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        860
+      ],
+      "notes": "Credential: Header Auth “TikTok Business (Autopublish)”",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 30000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.json) }}"
+      },
+      "id": "fb7fca3c-cb47-4048-90fb-0ac580b80d7a",
+      "name": "WA · Send",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        1000
+      ],
+      "notes": "Credential: Header Auth “Evolution (Autopublish)”",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ refused: $json.refused }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "19eae192-9154-4e3f-9a3a-d894e01ade22",
+      "name": "Respond: refused",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        740,
+        1140
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// One answer for the panel: { ok, status, body, usage }. TikTok: code != 0 is an error even with HTTP 200.\nconst cfg = $('Config').first().json;\nconst r = $input.first().json || {};\nconst status = Number(r.statusCode ?? r.status ?? 0);\nlet body = r.body ?? null;\nif (typeof body === 'string') {\n  try { body = JSON.parse(body); } catch (e) { body = { raw: body.slice(0, 500) }; }\n}\nlet ok = status >= 200 && status < 300;\nif (cfg.platform === 'tiktok') ok = ok && body !== null && Number(body.code) === 0;\nif (cfg.platform === 'meta') ok = ok && !(body && body.error);\nconst h = r.headers || {};\nconst usage = {};\nfor (const k of ['x-business-use-case-usage', 'x-ad-account-usage', 'x-app-usage']) if (h[k]) usage[k] = String(h[k]);\n// Never send tokens back.\nif (body && typeof body === 'object') delete body.access_token;\nreturn [{ json: { ok, status, body, usage } }];"
+      },
+      "id": "ce845213-e4a2-406f-ab7e-95a1432b4d1f",
+      "name": "Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1880,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "3df252c3-686d-4a76-a868-9aaaabd45dde",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2100,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook: Autopublish": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Which call?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Which call?": {
+      "main": [
+        [
+          {
+            "node": "Meta GET",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Meta POST",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Page token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Image: download",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok GET",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok POST",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "WA · Send",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: refused",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Page token": {
+      "main": [
+        [
+          {
+            "node": "Got Page token?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Got Page token?": {
+      "main": [
+        [
+          {
+            "node": "Page request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Page token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Page request": {
+      "main": [
+        [
+          {
+            "node": "Page: GET?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Page: GET?": {
+      "main": [
+        [
+          {
+            "node": "Page GET",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Page POST",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Image: download": {
+      "main": [
+        [
+          {
+            "node": "Image to base64",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Download failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Image to base64": {
+      "main": [
+        [
+          {
+            "node": "Meta POST image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta GET": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta POST": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Page GET": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Page POST": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Page token": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta POST image": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download failed": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok GET": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok POST": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WA · Send": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all"
+  },
+  "pinData": {},
+  "tags": []
+}

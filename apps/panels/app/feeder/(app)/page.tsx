@@ -19,8 +19,8 @@ export default async function FeederHome() {
             <div className="flex items-start justify-between gap-2">
               <h2 className="type-h3 text-ink">{p.name}</h2>
               {p.owned ? (
-                <Badge tone={p.orderStatus === "active" || p.orderStatus === "trial" ? "success" : "neutral"}>
-                  {p.orderStatus === "trial" ? "Free trial" : p.orderStatus === "active" ? "Active" : p.orderStatus === "paused" ? "Paused" : "Setting up"}
+                <Badge tone={p.orderStatus === "active" || p.orderStatus === "trial" || p.orderStatus === "free" ? "success" : "neutral"}>
+                  {p.orderStatus === "free" ? "Free" : p.orderStatus === "trial" ? "Free trial" : p.orderStatus === "active" ? "Active" : p.orderStatus === "paused" ? "Paused" : "Setting up"}
                 </Badge>
               ) : (
                 <Badge tone="neutral">

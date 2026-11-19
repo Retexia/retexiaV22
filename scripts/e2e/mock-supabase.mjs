@@ -63,16 +63,24 @@ const ident = (s) => {
   return `"${s}"`;
 };
 
-// Foreign keys between public tables (embedding) and the columns of views.
+// Schemas served by the REST API (Accept-Profile / Content-Profile headers, like Supabase's "Exposed schemas").
+const SCHEMAS = ["public", "feeder", "post", "lingo", "plan"];
+const schemaOf = (req) => {
+  const s = String(req.headers[req.method === "GET" || req.method === "HEAD" ? "accept-profile" : "content-profile"] ?? "public");
+  if (!SCHEMAS.includes(s)) throw httpError(406, "PGRST106", `The schema must be one of the following: ${SCHEMAS.join(", ")}`);
+  return s;
+};
+
+// Foreign keys between tables of the same exposed schema (embedding) and the columns of views.
 const fks = (
   await db.query(`
-  select c.relname as child, a.attname as child_col, p.relname as parent, pa.attname as parent_col, k.conname as name
+  select n.nspname as schema, c.relname as child, a.attname as child_col, p.relname as parent, pa.attname as parent_col, k.conname as name
     from pg_constraint k
-    join pg_class c on c.oid = k.conrelid join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
-    join pg_class p on p.oid = k.confrelid join pg_namespace pn on pn.oid = p.relnamespace and pn.nspname = 'public'
+    join pg_class c on c.oid = k.conrelid join pg_namespace n on n.oid = c.relnamespace and n.nspname = any($1)
+    join pg_class p on p.oid = k.confrelid join pg_namespace pn on pn.oid = p.relnamespace and pn.nspname = n.nspname
     join pg_attribute a on a.attrelid = k.conrelid and a.attnum = k.conkey[1]
     join pg_attribute pa on pa.attrelid = k.confrelid and pa.attnum = k.confkey[1]
-   where k.contype = 'f'`)
+   where k.contype = 'f'`, [SCHEMAS])
 ).rows;
 
 /* ------------------------------------------------------------ PostgREST --- */
@@ -179,7 +187,7 @@ function logic(alias, kind, raw, values) {
   return `(${conds.join(kind === "or" ? " or " : " and ")})`;
 }
 
-function rowExpr(table, alias, items, embedFilters, values) {
+function rowExpr(table, alias, items, embedFilters, values, schema = "public") {
   const parts = [];
   const inner = [];
   let star = false;
@@ -200,8 +208,8 @@ function rowExpr(table, alias, items, embedFilters, values) {
     const fkHint = hints.find((h) => h !== "inner" && h !== "left");
     const sub = `t${++aliasN}`;
     const match = (f) => !fkHint || f.name === fkHint || f.child_col === fkHint;
-    const toOne = fks.find((f) => f.child === table && f.parent === relTable && match(f));
-    const toMany = fks.find((f) => f.child === relTable && f.parent === table && match(f));
+    const toOne = fks.find((f) => f.schema === schema && f.child === table && f.parent === relTable && match(f));
+    const toMany = fks.find((f) => f.schema === schema && f.child === relTable && f.parent === table && match(f));
     const filters = (embedFilters.get(name) ?? embedFilters.get(relTable) ?? []).map(([c, raw]) => condition(sub, c, raw, values));
     const link = toOne
       ? `${sub}.${ident(toOne.parent_col)} = ${alias}.${ident(toOne.child_col)}`
@@ -210,16 +218,16 @@ function rowExpr(table, alias, items, embedFilters, values) {
         : null;
     if (!link) throw httpError(400, "PGRST200", `Could not find a relationship between '${table}' and '${relTable}'`);
     const where = [link, ...filters].join(" and ");
-    const childExpr = rowExpr(relTable, sub, it.children, new Map(), values);
+    const childExpr = rowExpr(relTable, sub, it.children, new Map(), values, schema);
     parts.push(
       toOne
-        ? `'${name}', (select ${childExpr.expr} from public.${ident(relTable)} ${sub} where ${where})`
-        : `'${name}', coalesce((select jsonb_agg(${childExpr.expr}) from public.${ident(relTable)} ${sub} where ${where}), '[]'::jsonb)`,
+        ? `'${name}', (select ${childExpr.expr} from ${ident(schema)}.${ident(relTable)} ${sub} where ${where})`
+        : `'${name}', coalesce((select jsonb_agg(${childExpr.expr}) from ${ident(schema)}.${ident(relTable)} ${sub} where ${where}), '[]'::jsonb)`,
     );
     if (isInner || filters.length) {
       const s2 = `t${++aliasN}`;
       const where2 = where.replaceAll(`${sub}.`, `${s2}.`);
-      if (isInner) inner.push(`exists (select 1 from public.${ident(relTable)} ${s2} where ${where2})`);
+      if (isInner) inner.push(`exists (select 1 from ${ident(schema)}.${ident(relTable)} ${s2} where ${where2})`);
     }
   }
   const obj = parts.length ? `jsonb_build_object(${parts.join(", ")})` : `'{}'::jsonb`;
@@ -262,12 +270,19 @@ async function rest(req, url, body, claims) {
   const prefer = req.headers.prefer ?? "";
   const single = accept.includes("vnd.pgrst.object");
   const wantCount = /count=(exact|planned|estimated)/.test(prefer);
+  const schema = schemaOf(req);
+  const S = ident(schema);
 
   if (path.startsWith("rpc/")) {
     const fn = ident(path.slice(4));
     const args = Object.entries(req.method === "GET" ? Object.fromEntries(url.searchParams) : (body ?? {}));
     const values = args.map(([, v]) => sqlValue(v));
-    const res = await asRole(claims, req.headers, (tx) => tx.query(`select public.${fn}(${args.map(([k], i) => `${ident(k)} => $${i + 1}`).join(", ")}) as r`, values));
+    const call = `${S}.${fn}(${args.map(([k], i) => `${ident(k)} => $${i + 1}`).join(", ")})`;
+    // Functions that return a set of rows come back as a JSON array (like PostgREST).
+    const retset = (await q1(`select p.proretset from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = $1 and p.proname = $2 limit 1`, [schema, path.slice(4)]))?.proretset;
+    const res = await asRole(claims, req.headers, (tx) =>
+      tx.query(retset ? `select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) as r from ${call} t` : `select ${call} as r`, values),
+    );
     const r = res.rows[0]?.r ?? null;
     return { status: 200, body: r };
   }
@@ -292,9 +307,9 @@ async function rest(req, url, body, claims) {
 
   if (req.method === "GET" || req.method === "HEAD") {
     aliasN = 0;
-    const { expr, inner } = rowExpr(table, alias, parseSelect(url.searchParams.get("select")), embedFilters, values);
+    const { expr, inner } = rowExpr(table, alias, parseSelect(url.searchParams.get("select")), embedFilters, values, schema);
     const allWhere = [...where, ...inner];
-    const from = `from public.${ident(table)} ${alias}${allWhere.length ? ` where ${allWhere.join(" and ")}` : ""}`;
+    const from = `from ${S}.${ident(table)} ${alias}${allWhere.length ? ` where ${allWhere.join(" and ")}` : ""}`;
     let sql = `select ${expr} as j ${from}${orderBy(url.searchParams.get("order"), alias)}`;
     const limit = url.searchParams.get("limit");
     const offset = Number(url.searchParams.get("offset") ?? 0);
@@ -328,7 +343,7 @@ async function rest(req, url, body, claims) {
       for (const row of rows) {
         const cols = Object.keys(row);
         const vals = cols.map((c) => sqlValue(row[c]));
-        let sql = `insert into public.${ident(table)} (${cols.map(ident).join(", ")}) values (${cols.map((_, i) => `$${i + 1}`).join(", ")})`;
+        let sql = `insert into ${S}.${ident(table)} (${cols.map(ident).join(", ")}) values (${cols.map((_, i) => `$${i + 1}`).join(", ")})`;
         if (merge || ignore) {
           const target = onConflict ? `(${onConflict.split(",").map(ident).join(", ")})` : "";
           const updates = cols.filter((c) => !(onConflict ?? "id").split(",").includes(c)).map((c) => `${ident(c)} = excluded.${ident(c)}`);
@@ -349,14 +364,14 @@ async function rest(req, url, body, claims) {
     const setVals = cols.map((c) => sqlValue(body[c]));
     // Filters were numbered first; renumber the SET placeholders after them.
     const sets = cols.map((c, i) => `${ident(c)} = $${values.length + i + 1}`).join(", ");
-    const sql = `update public.${ident(table)} ${alias} set ${sets}${where.length ? ` where ${where.join(" and ")}` : ""}${returning ? ` returning ${retCols}` : ""}`;
+    const sql = `update ${S}.${ident(table)} ${alias} set ${sets}${where.length ? ` where ${where.join(" and ")}` : ""}${returning ? ` returning ${retCols}` : ""}`;
     const res = await asRole(claims, req.headers, (tx) => tx.query(sql, [...values, ...setVals]));
     if (!returning) return { status: 204, body: null };
     return { status: 200, body: single ? (res.rows[0] ?? null) : res.rows };
   }
 
   if (req.method === "DELETE") {
-    const sql = `delete from public.${ident(table)} ${alias}${where.length ? ` where ${where.join(" and ")}` : ""}${returning ? ` returning ${retCols}` : ""}`;
+    const sql = `delete from ${S}.${ident(table)} ${alias}${where.length ? ` where ${where.join(" and ")}` : ""}${returning ? ` returning ${retCols}` : ""}`;
     const res = await asRole(claims, req.headers, (tx) => tx.query(sql, values));
     if (!returning) return { status: 204, body: null };
     return { status: 200, body: single ? (res.rows[0] ?? null) : res.rows };
@@ -633,6 +648,39 @@ async function storage(req, url, raw, claims) {
     if (!bucket?.public || !f) return { status: 404, body: { message: "Object not found" } };
     return { status: 200, raw: f.bytes, type: f.type };
   }
+  // Signed uploads (createSignedUploadUrl → uploadToSignedUrl): made with the service role, used by the browser.
+  const upSign = path.match(/^\/object\/upload\/sign\/([^/]+)\/(.+)$/);
+  if (upSign && req.method === "POST") {
+    if (claims.role !== "service_role") return { status: 403, body: { message: "service role only" } };
+    const token = sign({ upload: `${upSign[1]}/${upSign[2]}`, exp: Math.floor(Date.now() / 1000) + 7200 });
+    return { status: 200, body: { url: `/object/upload/sign/${upSign[1]}/${encodeURI(upSign[2])}?token=${token}` } };
+  }
+  if (upSign && req.method === "PUT") {
+    const t = verify(url.searchParams.get("token"));
+    const key = `${upSign[1]}/${upSign[2]}`;
+    if (!t || t.upload !== key) return { status: 400, body: { message: "Invalid signature" } };
+    const type = String(req.headers["content-type"] ?? "application/octet-stream").split(";")[0];
+    // The signed token is the permission (like Supabase): written as the database owner.
+    await serial(() => db.query(`insert into storage.objects (bucket_id, name) select $1, $2 where not exists (select 1 from storage.objects where bucket_id = $1 and name = $2)`, [upSign[1], upSign[2]]));
+    files.set(key, { bytes: raw, type });
+    return { status: 200, body: { Key: key } };
+  }
+  // Many signed links at once (createSignedUrls).
+  const bulk = path.match(/^\/object\/sign\/([^/]+)$/);
+  if (bulk && req.method === "POST") {
+    const { paths = [], expiresIn = 60 } = JSON.parse(raw.toString() || "{}");
+    const query = (tx) => tx.query(`select name from storage.objects where bucket_id = $1 and name = any($2)`, [bulk[1], paths]);
+    const seen = claims.role === "service_role" ? await serial(() => query(db)) : await asRole(claims, req.headers, query);
+    const ok = new Set(seen.rows.map((r) => r.name));
+    return {
+      status: 200,
+      body: paths.map((name) =>
+        ok.has(name)
+          ? { path: name, error: null, signedURL: `/object/sign/${bulk[1]}/${encodeURI(name)}?token=${sign({ url: `${bulk[1]}/${name}`, exp: Math.floor(Date.now() / 1000) + Number(expiresIn) })}` }
+          : { path: name, error: "Either the object does not exist or you do not have access to it", signedURL: null },
+      ),
+    };
+  }
   const signedGet = path.match(/^\/object\/sign\/([^/]+)\/(.+)$/);
   if (signedGet && req.method === "GET") {
     const token = verify(url.searchParams.get("token"));
@@ -643,7 +691,9 @@ async function storage(req, url, raw, claims) {
   }
   if (signedGet && req.method === "POST") {
     const [bucket, name] = [signedGet[1], signedGet[2]];
-    const visible = await asRole(claims, req.headers, (tx) => tx.query(`select 1 from storage.objects where bucket_id = $1 and name = $2`, [bucket, name]));
+    const look = (tx) => tx.query(`select 1 from storage.objects where bucket_id = $1 and name = $2`, [bucket, name]);
+    // The service role signs anything (like Supabase); others only what their policies show.
+    const visible = claims.role === "service_role" ? await serial(() => look(db)) : await asRole(claims, req.headers, look);
     if (!visible.rows.length) return { status: 400, body: { statusCode: "404", error: "not_found", message: "Object not found" } };
     const body = JSON.parse(raw.toString() || "{}");
     const token = sign({ url: `${bucket}/${name}`, exp: Math.floor(Date.now() / 1000) + Number(body.expiresIn ?? 60) });

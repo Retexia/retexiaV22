@@ -152,6 +152,11 @@ export function freePanelUrl(product: Pick<Product, "status" | "panel_live" | "p
   return product.status === "live" && product.panel_live && product.panel_url && !startingPrice ? product.panel_url : null;
 }
 
+/** A package that costs nothing (Feeder → Autopublish): open its tool in the panel instead of ordering. */
+export function isFreePackage(pkg: { price_monthly: number; price_yearly: number | null; setup_fee: number; is_active: boolean }) {
+  return pkg.is_active && Number(pkg.price_monthly) === 0 && !Number(pkg.price_yearly ?? 0) && Number(pkg.setup_fee) === 0;
+}
+
 export async function getPage(slug: string): Promise<{ page: Page; sections: PageSection[] } | null> {
   "use cache";
   cache();
@@ -248,11 +253,13 @@ export async function getStartingPrices(): Promise<Record<string, { amount: numb
   if (!sb) return {};
   const { data, error } = await sb
     .from("packages")
-    .select("product_id, price_monthly, currency, is_active")
+    .select("product_id, price_monthly, setup_fee, currency, is_active")
     .eq("is_active", true);
   logError("packages/prices", error);
   const out: Record<string, { amount: number; currency: string | null }> = {};
   for (const row of data ?? []) {
+    // Free packages (e.g. Feeder → Autopublish) don't set a "From" price.
+    if (Number(row.price_monthly) === 0 && Number(row.setup_fee) === 0) continue;
     const current = out[row.product_id];
     if (!current || row.price_monthly < current.amount) {
       out[row.product_id] = { amount: Number(row.price_monthly), currency: row.currency };

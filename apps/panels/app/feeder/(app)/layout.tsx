@@ -8,8 +8,8 @@ const daysLeft = (endsAt: string) => Math.max(1, Math.ceil((new Date(endsAt).get
 
 export default async function FeederLayout({ children }: { children: ReactNode }) {
   const { user, packages } = await requireFeederPage();
-  // Only on a free trial (no paid package): "Free trial · N days left · Upgrade".
-  const trial = packages.some((p) => p.owned && !p.trialEndsAt) ? null : packages.find((p) => p.owned && p.trialEndsAt);
+  // Only on a free trial (no paid package; free packages like Autopublish don't count): "Free trial · N days left · Upgrade".
+  const trial = packages.some((p) => p.owned && !p.trialEndsAt && !p.free) ? null : packages.find((p) => p.owned && p.trialEndsAt);
   return (
     <FeederShell
       packages={packages.map((p) => ({ slug: p.slug, name: p.name, owned: p.owned }))}

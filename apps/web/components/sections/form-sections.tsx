@@ -1,6 +1,6 @@
 import { Button, Card, Section, SectionHeader, type PricingCardData } from "@retexia/ui";
 import { Icon } from "@retexia/ui/icon";
-import { getPackages, getProductBySlug } from "@/lib/content";
+import { getPackages, getProductBySlug, isFreePackage } from "@/lib/content";
 import { formatPrice } from "@/lib/format";
 import { telHref, whatsappHref } from "@/lib/links";
 import { ContactForm } from "./contact-form";
@@ -21,6 +21,7 @@ export async function PricingSection({ section, content, ctx, isFirst }: Section
     const currency = p.currency ?? settings.currency_code;
     const fmt = (n: number) => formatPrice(n, currency, settings.currency_locale);
     const saving = p.price_yearly !== null ? p.price_monthly * 12 - p.price_yearly : 0;
+    const free = isFreePackage(p);
     return {
       id: p.id,
       slug: p.slug,
@@ -32,8 +33,9 @@ export async function PricingSection({ section, content, ctx, isFirst }: Section
       active: p.is_active && product.status === "live",
       ctaLabel: p.cta_label ?? t("pricing.choose", "Choose {name}", { name: p.name }),
       priceNote: p.price_note,
-      monthly: fmt(p.price_monthly),
-      yearly: p.price_yearly !== null ? fmt(p.price_yearly) : null,
+      monthly: free ? t("pricing.free", "Free") : fmt(p.price_monthly),
+      yearly: free ? null : p.price_yearly !== null ? fmt(p.price_yearly) : null,
+      free,
       yearlySaving: saving > 0 ? t("pricing.yearly_saving", "You save {amount} a year", { amount: fmt(saving) }) : null,
       setupFee: p.setup_fee > 0 ? fmt(p.setup_fee) : null,
       features: p.features.map((f) => ({ label: f.label, included: f.included, tooltip: f.tooltip })),

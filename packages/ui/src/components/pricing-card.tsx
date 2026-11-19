@@ -21,6 +21,8 @@ export type PricingCardData = {
   yearlySaving: string | null;
   setupFee: string | null;
   features: { label: string; included: boolean; tooltip: string | null }[];
+  /** Costs nothing (e.g. Feeder → Autopublish): `monthly` holds the word ("Free"), no "/ month" or setup line. */
+  free?: boolean;
 };
 
 export type PricingCardLabels = {
@@ -88,11 +90,11 @@ export function PricingCard({
       <div className="flex flex-col gap-1">
         <p className="flex flex-wrap items-baseline gap-x-2">
           <span className="font-display text-[30px] leading-[38px] font-light tracking-[-0.015em] text-ink">{price}</span>
-          <span className="type-body text-ink-muted">{yearly ? labels.perYear : labels.perMonth}</span>
+          {pkg.free ? null : <span className="type-body text-ink-muted">{yearly ? labels.perYear : labels.perMonth}</span>}
         </p>
-        {cycle === "yearly" && !pkg.yearly ? <p className="type-small text-ink-muted">{labels.monthlyOnly}</p> : null}
+        {cycle === "yearly" && !pkg.yearly && !pkg.free ? <p className="type-small text-ink-muted">{labels.monthlyOnly}</p> : null}
         {yearly && pkg.yearlySaving ? <p className="type-small text-success">{pkg.yearlySaving}</p> : null}
-        <p className="type-small text-ink-muted">{pkg.setupFee ? labels.setupFee(pkg.setupFee) : labels.noSetupFee}</p>
+        {pkg.free ? null : <p className="type-small text-ink-muted">{pkg.setupFee ? labels.setupFee(pkg.setupFee) : labels.noSetupFee}</p>}
         {pkg.priceNote ? <p className="type-small text-ink-muted">{pkg.priceNote}</p> : null}
       </div>
       {pkg.active ? (

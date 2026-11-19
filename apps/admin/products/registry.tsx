@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { StaffContext } from "@/lib/auth";
+import { FeederAdsTab } from "./feeder/ads-tab";
 import { LingoAccountsTab } from "./lingo/accounts-tab";
 import { LingoRequestPanel } from "./lingo/request-panel";
 import { PostBusinessesTab } from "./post/businesses-tab";
@@ -37,6 +38,9 @@ export const productExtensions: Record<string, ProductExtension> = {
   lingo: {
     hubTabs: [{ key: "accounts", label: "Bot accounts", render: (ctx) => <LingoAccountsTab {...ctx} /> }],
     requestPanels: [{ key: "lingo-account", render: (ctx) => <LingoRequestPanel {...ctx} /> }],
+  },
+  feeder: {
+    hubTabs: [{ key: "ad-accounts", label: "Autopublish", render: (ctx) => <FeederAdsTab {...ctx} /> }],
   },
   post: {
     hubTabs: [{ key: "businesses", label: "Businesses", render: (ctx) => <PostBusinessesTab {...ctx} /> }],

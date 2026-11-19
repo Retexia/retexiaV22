@@ -84,7 +84,7 @@ export async function toViews(db: PostDb, businessId: string, tz: string, posts:
       captionLanguage: (((p.brief ?? {}) as Record<string, unknown>).caption_language as string | undefined) ?? null,
       designLanguage: (((p.brief ?? {}) as Record<string, unknown>).design_language as string | undefined) ?? null,
       focus: focusValue(readFocus(p.brief)),
-      focusLabel: focusLabel(readFocus(p.brief)),
+      focusLabel: p.source === "offer" ? "An offer (Week plan and offers)" : p.source === "week_plan" ? "Your week plan" : focusLabel(readFocus(p.brief)),
       live: (pubs ?? []).some((x) => x.post_id === p.id && x.status === "published"),
       publications: (pubs ?? [])
         .filter((x) => x.post_id === p.id)

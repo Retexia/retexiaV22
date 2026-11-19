@@ -19,6 +19,8 @@ export type FeederPackage = {
   orderStatus: string | null;
   /** Free trial end (only while the package is on a trial). */
   trialEndsAt: string | null;
+  /** Free for every Retexia account (no price, no setup fee): open without an order. */
+  free: boolean;
 };
 
 /**
@@ -33,7 +35,7 @@ export const getFeeder = cache(async () => {
   const { data: product } = await supabase.from("products").select("id, name, page_slug").eq("slug", feederSlug()).maybeSingle();
   const [{ data: profile }, { data: packages }, { data: orders }] = await Promise.all([
     supabase.from("profiles").select("full_name, email").eq("id", userId).maybeSingle(),
-    product ? supabase.from("packages").select("id, slug, name, tagline, sort_order, is_active, is_visible").eq("product_id", product.id).order("sort_order") : { data: [] },
+    product ? supabase.from("packages").select("id, slug, name, tagline, sort_order, is_active, is_visible, price_monthly, price_yearly, setup_fee").eq("product_id", product.id).order("sort_order") : { data: [] },
     product
       ? supabase.from("orders").select("ref, status, package_id, package_name, created_at, trial_ends_at").eq("user_id", userId).eq("product_id", product.id).in("status", ACCESS_STATUSES).order("created_at", { ascending: false })
       : { data: [] },
@@ -48,11 +50,13 @@ export const getFeeder = cache(async () => {
     .filter((p) => (p.is_active && p.is_visible) || bought.has(p.id))
     .map((p) => {
       const o = bought.get(p.id);
-      return { id: p.id, slug: p.slug, name: p.name, tagline: p.tagline, owned: Boolean(o), orderRef: o?.ref ?? null, orderStatus: o?.status ?? null, trialEndsAt: o?.trialEndsAt ?? null };
+      const free = p.is_active && Number(p.price_monthly) === 0 && !Number(p.price_yearly ?? 0) && Number(p.setup_fee) === 0;
+      return { id: p.id, slug: p.slug, name: p.name, tagline: p.tagline, owned: Boolean(o) || free, orderRef: o?.ref ?? null, orderStatus: o?.status ?? (free ? "free" : null), trialEndsAt: o?.trialEndsAt ?? null, free };
     });
   // Bulk create v2 does everything the older Bulk import did: owners of either don't see the other offered.
-  const hasBulk = list.some((p) => p.owned && toolFor(p.slug));
-  const shown = hasBulk ? list.filter((p) => p.owned || !toolFor(p.slug)) : list;
+  const isBulk = (slug: string) => toolFor(slug) === "bulk-import-v2";
+  const hasBulk = list.some((p) => p.owned && isBulk(p.slug));
+  const shown = hasBulk ? list.filter((p) => p.owned || !isBulk(p.slug)) : list;
   return {
     user: { id: userId, email: profile?.email ?? email ?? "", name: profile?.full_name ?? "" },
     productName: product?.name ?? "Retexia Feeder",

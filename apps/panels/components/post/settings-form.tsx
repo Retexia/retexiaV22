@@ -14,6 +14,8 @@ import type { Settings, WhatsAppType } from "@/lib/post/post-db.types";
 
 type Basics = { name: string; category: string; country: string; timezone: string; languages: string[] };
 
+export type TopicFacts = { products: number; offers: number };
+
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
     <Card className="flex flex-col gap-4">
@@ -32,6 +34,7 @@ export function SettingsForm({
   whatsAppReady,
   canTestWhatsApp,
   limits,
+  topics,
 }: {
   basics: Basics;
   settings: Settings;
@@ -40,6 +43,8 @@ export function SettingsForm({
   /** The panel itself can reach the WhatsApp line (for the test button). */
   canTestWhatsApp: boolean;
   limits: { label: string; postsPerDay: number; storiesPerDay: number };
+  /** Active products and running offers: why "about a product" may not apply. */
+  topics?: TopicFacts;
 }) {
   const router = useRouter();
   const [b, setB] = useState(initialBasics);
@@ -53,7 +58,7 @@ export function SettingsForm({
 
   return (
     <div className="flex flex-col gap-6">
-      <PlaylistSection settings={initial} limits={limits} />
+      <PlaylistSection settings={initial} limits={limits} topics={topics} />
 
       <WhatsAppSection settings={initial} whatsAppReady={whatsAppReady} canTestWhatsApp={canTestWhatsApp} />
 
@@ -192,11 +197,13 @@ export function PlaylistSection({
   limits,
   saveLabel = "Save playlist",
   onSaved,
+  topics,
 }: {
   settings: Settings;
   limits: { label: string; postsPerDay: number; storiesPerDay: number };
   saveLabel?: string;
   onSaved?: () => void;
+  topics?: TopicFacts;
 }) {
   const router = useRouter();
   const [v, setV] = useState({
@@ -266,6 +273,16 @@ export function PlaylistSection({
       >
         <RadioCards name="topic-mix" value={v.topic_mix} onChange={(topic_mix) => setV({ ...v, topic_mix: topic_mix as TopicMix })} columns={3} compact options={TOPIC_MIXES.map((m) => ({ value: m.value, label: m.label, description: m.description }))} />
       </Field>
+      {topics && v.topic_mix !== "business_only" && topics.products === 0 ? (
+        <Alert tone="warning" title="No products yet" action={<Button href="/products" variant="secondary" size="sm">Add products</Button>}>
+          Items can only be about a product once you have products (Products, switched on). Until then every item is about the whole business.
+        </Alert>
+      ) : null}
+      {topics && topics.offers > 0 && v.topic_mix !== "business_only" ? (
+        <p className="-mt-3 type-small text-ink-muted">
+          You have {topics.offers === 1 ? "an offer" : `${topics.offers} offers`} running (Week plan and offers): while an offer runs, its items are about the offer, and the rest follow this choice.
+        </p>
+      ) : null}
       <Field label="Captions in" labelAs="legend" hint="Each item can use another language too: change it on the item.">
         <RadioCards name="caption-language" value={v.caption_language} onChange={(caption_language) => setV({ ...v, caption_language })} columns={3} compact options={CAPTION_LANGUAGES.map((l) => ({ value: l.value, label: l.label, description: l.description }))} />
       </Field>

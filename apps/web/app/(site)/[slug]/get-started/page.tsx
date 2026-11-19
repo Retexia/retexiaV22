@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { OnboardingFlow, type OnboardingPackage } from "@/components/onboarding/onboarding-flow";
 import { requireUser } from "@/lib/auth";
-import { freePanelUrl, getForm, getPackages, getProductByPageSlug, getSiteSettings, getStartingPrices } from "@/lib/content";
+import { freePanelUrl, getForm, getPackages, getProductByPageSlug, getSiteSettings, getStartingPrices, isFreePackage } from "@/lib/content";
 import { initialValues } from "@retexia/forms";
 import { formatPrice } from "@/lib/format";
 import { getT } from "@/lib/strings.server";
@@ -51,6 +51,11 @@ async function GetStarted({ params, searchParams }: PageProps<"/[slug]/get-start
   if (free) redirect(free);
 
   const requestedPackage = typeof sp.package === "string" ? sp.package : null;
+  // A free package (Feeder → Autopublish) has nothing to order: open it in the product's panel.
+  if (requestedPackage && product.panel_live && product.panel_url) {
+    const pkg = (await getPackages(product.id)).find((p) => p.slug === requestedPackage);
+    if (pkg && isFreePackage(pkg)) redirect(`${product.panel_url.replace(/\/+$/, "")}/${encodeURIComponent(pkg.slug)}`);
+  }
   const requestedCycle = sp.cycle === "yearly" ? "yearly" : "monthly";
   const nextPath = `/${slug}/get-started${requestedPackage ? `?package=${encodeURIComponent(requestedPackage)}&cycle=${requestedCycle}` : ""}`;
 
@@ -59,7 +64,8 @@ async function GetStarted({ params, searchParams }: PageProps<"/[slug]/get-start
     getPackages(product.id),
     product.onboarding_form_id ? getForm(product.onboarding_form_id) : Promise.resolve(null),
   ]);
-  const active = packages.filter((p) => p.is_active);
+  // Free packages open in the panel (above); only paid ones are ordered here.
+  const active = packages.filter((p) => p.is_active && !isFreePackage(p));
 
   if (!form || !form.steps.length || !active.length) {
     return (

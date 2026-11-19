@@ -22,10 +22,10 @@ export function createAdminClient(): SupabaseClient<Database> {
 }
 
 /**
- * Service-role client for a product's own schema ("lingo", "post"). Same rules
+ * Service-role client for a product's own schema ("lingo", "post", "feeder"). Same rules
  * as createAdminClient: apps/admin server code only, after requireRole().
  */
-export function createAdminSchemaClient(schema: "lingo" | "post") {
+export function createAdminSchemaClient(schema: "lingo" | "post" | "feeder") {
   const { url } = requireSupabaseEnv();
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set (apps/admin only, server-side).");
