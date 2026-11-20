@@ -461,13 +461,13 @@ export async function metaCheck(a: { meta_ad_account_id: string | null; meta_pag
   const info: Record<string, unknown> = { checked_at: new Date().toISOString() };
   if (!a.meta_ad_account_id || !a.meta_page_id) return { ok: false, info: { ...info, problems: ["Enter the ad account ID and the Page ID."] } };
   const acct = await meta("GET", `act_${a.meta_ad_account_id}`, { fields: "name,account_status,disable_reason,currency,timezone_name,business{id,name}" });
-  if (!acct.ok) problems.push(acct.network ? "Retexia couldn't reach Meta just now. Try again in a minute." : `Retexia can't open ad account ${a.meta_ad_account_id} yet. Share it with Retexia's business (steps above), then check again.`);
+  if (!acct.ok) problems.push(acct.network ? `Retexia couldn't reach Meta just now (${String(acct.body?.error?.message ?? "no answer").slice(0, 120)}). Try again in a minute.` : `Retexia can't open ad account ${a.meta_ad_account_id} yet. Share it with Retexia's business (steps above), then check again.`);
   else {
     Object.assign(info, { account_name: acct.body.name, account_status: acct.body.account_status, currency: acct.body.currency, timezone: acct.body.timezone_name, business_name: acct.body.business?.name ?? null });
     if (acct.body.account_status !== 1) problems.push("Meta shows this ad account as not active (disabled, unpaid or under review). Open Meta Ads Manager → Account overview.");
   }
   const page = await meta("GET", a.meta_page_id, { fields: "name" });
-  if (!page.ok) problems.push(`Retexia can't open Page ${a.meta_page_id} yet. Share the Page with Retexia's business (with "Create ads" and "Leads" access).`);
+  if (!page.ok && !page.network) problems.push(`Retexia can't open Page ${a.meta_page_id} yet. Share the Page with Retexia's business (with "Create ads" and "Leads" access).`);
   else info.page_name = page.body.name;
   if (a.meta_instagram_id) {
     const ig = await meta("GET", a.meta_instagram_id, { fields: "username" });

@@ -1,0 +1,82 @@
+// Checks Meta's signature with this number's app secret (Retexia's in embedded mode), then splits
+// the webhook: delivery statuses, the seller's own replies from the WhatsApp Business app (echoes)
+// and the customer's message(s). Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto on the n8n server.
+const crypto = require('crypto');
+const cfg = $('Config').first().json;
+const w = $('Read Webhook').first().json;
+const num = $('Number').first().json;
+const cut = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n) + '…' : s; };
+
+const secret = num.connect_mode === 'embedded' ? String(cfg.RETEXIA_APP_SECRET || '') : String(num.app_secret || '');
+const expect = 'sha256=' + crypto.createHmac('sha256', secret).update(Buffer.from(w.raw, 'utf8')).digest('hex');
+const got = String(w.signature || '');
+const signed = secret && !secret.startsWith('EDIT') && got.length === expect.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(expect));
+if (!signed) return [];                                // not from Meta (or the app secret is wrong): ignore
+
+const statuses = [], echoes = [];
+let msgs = [], contacts = [];
+for (const e of w.body.entry || []) for (const ch of e.changes || []) {
+  const v = ch.value || {};
+  if (String((v.metadata || {}).phone_number_id || '') !== String(num.phone_number_id)) continue;
+  if (ch.field === 'messages') {
+    for (const s of v.statuses || []) {
+      const err = (s.errors || [])[0] || {};
+      statuses.push({
+        id: s.id, status: s.status, recipient: s.recipient_id,
+        billable: s.pricing ? !!s.pricing.billable : null, category: s.pricing ? (s.pricing.category || '') : '',
+        error: s.status === 'failed' ? cut(`${err.code || ''} ${err.title || ''} ${(err.error_data || {}).details || err.message || ''}`, 300) : null,
+      });
+    }
+    contacts = contacts.concat(v.contacts || []);
+    msgs = msgs.concat(v.messages || []);
+  } else if (ch.field === 'smb_message_echoes') {
+    for (const x of v.message_echoes || []) {
+      const text = x.type === 'text' ? (x.text || {}).body : `[${x.type || 'message'}] ${((x[x.type] || {}).caption) || ''}`;
+      echoes.push({ to: String(x.to || ''), id: x.id, text: cut(text, 4000) });
+    }
+  }
+}
+
+let message = null;
+if (msgs.length) {
+  const from = msgs[0].from;
+  const mine = msgs.filter(x => x.from === from);
+  const texts = [];
+  let media = null, tap = null, quotedId = '', referral = null;
+  for (const x of mine) {
+    if (x.context && x.context.id && !quotedId) quotedId = x.context.id;
+    if (x.referral && !referral) referral = x.referral;
+    switch (x.type) {
+      case 'text': texts.push(x.text.body); break;
+      case 'image': if (!media) media = { kind: 'image', id: x.image.id, mime: x.image.mime_type }; if (x.image.caption) texts.push(x.image.caption); break;
+      case 'audio': if (!media) media = { kind: 'audio', id: x.audio.id, mime: x.audio.mime_type }; break;
+      case 'video': texts.push('[video] ' + ((x.video || {}).caption || '')); break;
+      case 'document': texts.push(`[document ${(x.document || {}).filename || ''}] ${(x.document || {}).caption || ''}`); break;
+      case 'location': { const l = x.location || {}; texts.push(`[location ${l.latitude},${l.longitude} ${l.name || ''} ${l.address || ''}]`); break; }
+      case 'contacts': { const c = (x.contacts || [])[0] || {}; texts.push(`[contact ${(c.name || {}).formatted_name || ''} ${((c.phones || [])[0] || {}).phone || ''}]`); break; }
+      case 'interactive': {
+        const it = x.interactive || {};
+        const r = it.button_reply || it.list_reply;
+        if (r) { tap = tap || { id: r.id, title: r.title }; texts.push(`[tapped: ${r.title}]`); }
+        break;
+      }
+      case 'button': tap = tap || { id: x.button.payload, title: x.button.text }; texts.push(`[tapped: ${x.button.text}]`); break;
+      default: break;                                  // reaction, sticker, unsupported, system…
+    }
+  }
+  const text = cut(texts.join('\n'), 1500);
+  if (text || media) {
+    const last = mine[mine.length - 1];
+    const contact = contacts.find(c => c.wa_id === from) || contacts[0] || {};
+    message = {
+      phone: String(from), waId: last.id, name: cut((contact.profile || {}).name, 80),
+      text, media, tap, quotedId,
+      referral: referral ? {
+        source_id: referral.source_id || '', source_url: referral.source_url || '', source_type: referral.source_type || '',
+        headline: cut(referral.headline, 200), body: cut(referral.body, 400),
+      } : null,
+      ts: Number(last.timestamp) || Math.floor(Date.now() / 1000),
+    };
+  }
+}
+return [{ json: { statuses, echoes, message } }];

@@ -742,7 +742,8 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/__test/sql" && req.method === "POST") {
     const { sql, params } = JSON.parse(raw.toString());
     try {
-      const r = await serial(() => db.query(sql, params ?? []));
+      // No params: may be a whole script (several statements, e.g. a migration file).
+      const r = await serial(() => (params?.length ? db.query(sql, params) : db.exec(sql).then((all) => all[all.length - 1] ?? { rows: [] })));
       return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(r.rows));
     } catch (e) {
       return res.writeHead(400, { "content-type": "application/json" }).end(JSON.stringify({ error: e.message }));

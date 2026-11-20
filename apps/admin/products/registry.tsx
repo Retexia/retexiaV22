@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { StaffContext } from "@/lib/auth";
 import { FeederAdsTab } from "./feeder/ads-tab";
+import { FeederLingoTab } from "./feeder/lingo-tab";
 import { LingoAccountsTab } from "./lingo/accounts-tab";
 import { LingoRequestPanel } from "./lingo/request-panel";
 import { PostBusinessesTab } from "./post/businesses-tab";
@@ -40,7 +41,10 @@ export const productExtensions: Record<string, ProductExtension> = {
     requestPanels: [{ key: "lingo-account", render: (ctx) => <LingoRequestPanel {...ctx} /> }],
   },
   feeder: {
-    hubTabs: [{ key: "ad-accounts", label: "Autopublish", render: (ctx) => <FeederAdsTab {...ctx} /> }],
+    hubTabs: [
+      { key: "ad-accounts", label: "Autopublish", render: (ctx) => <FeederAdsTab {...ctx} /> },
+      { key: "lingo", label: "Lingo", render: (ctx) => <FeederLingoTab {...ctx} /> },
+    ],
   },
   post: {
     hubTabs: [{ key: "businesses", label: "Businesses", render: (ctx) => <PostBusinessesTab {...ctx} /> }],

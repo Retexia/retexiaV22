@@ -15,7 +15,8 @@ const csp = [
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
-  `img-src 'self' data: blob: ${supabase}`,
+  // https: — Lingo product photos are public links anywhere (WhatsApp downloads them); images only.
+  `img-src 'self' data: blob: https: ${supabase}`,
   `media-src 'self' blob: ${supabase}`,
   `connect-src 'self' ${supabase} ${supabase.replace(/^http/, "ws")}${isDev ? " ws://localhost:* http://localhost:*" : ""}`,
   "frame-ancestors 'none'",

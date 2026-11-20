@@ -1,0 +1,3069 @@
+{
+  "name": "Retexia — Feeder Lingo (WhatsApp bot)",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {
+          "rawBody": true
+        },
+        "httpMethod": "POST",
+        "path": "feeder-lingo"
+      },
+      "id": "d65dda20-1541-4df0-b63b-f7a6d4b5fba8",
+      "name": "WhatsApp Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "ddae24ae-edc1-4cfc-bfbc-d61a23442a34",
+      "notes": "Meta → here (answers 200 at once)",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Meta's webhook → which WhatsApp number it came to, plus the exact raw body for the\n// X-Hub-Signature-256 check (Webhook node: Options → Raw Body ON). Meta already got its 200.\nconst item = $input.first();\nconst headers = item.json.headers || {};\nlet raw = '';\ntry { raw = (await this.helpers.getBinaryDataBuffer(0, 'data')).toString('utf8'); } catch (e) { raw = ''; }\nlet body = item.json.body;\nif (!body || typeof body !== 'object' || !Object.keys(body).length) {\n  try { body = JSON.parse(raw); } catch (e) { body = {}; }\n}\nif (!raw) raw = JSON.stringify(body);\n\nlet pnid = '';\nfor (const e of body.entry || []) for (const ch of e.changes || []) {\n  const id = ((ch.value || {}).metadata || {}).phone_number_id;\n  if (id) { pnid = String(id); break; }\n}\nif (!pnid) return [];                                  // not a WhatsApp event we handle\nreturn [{ json: { phone_number_id: pnid, signature: String(headers['x-hub-signature-256'] || ''), raw, body } }];\n"
+      },
+      "id": "baeb1762-ce19-473a-bd3b-2153691bcff9",
+      "name": "Read Webhook",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "path": "feeder-lingo",
+        "responseMode": "responseNode"
+      },
+      "id": "346af87b-c966-4af2-bf6c-6c9edcaeabe0",
+      "name": "Meta Verify (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        -260
+      ],
+      "webhookId": "c5a9ff51-ae22-4401-9958-4aea9c1d9d62",
+      "notes": "Meta's webhook check",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "options": {},
+        "httpMethod": "POST",
+        "path": "feeder-lingo-panel",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode"
+      },
+      "id": "13573075-847e-40d7-a774-8a4df975ccfb",
+      "name": "Panel: Lingo",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        260
+      ],
+      "webhookId": "ff809b26-25f3-48d6-a831-c5c3167a9087",
+      "notes": "Credential: Header Auth “Retexia key (Lingo)” (X-Retexia-Key)",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0de95aba-b9c4-4e96-b98f-bb011bb4101c",
+              "name": "SUPABASE_URL",
+              "value": "EDIT: https://YOUR-PROJECT.supabase.co",
+              "type": "string"
+            },
+            {
+              "id": "6491e58c-9d1a-41a8-8609-6574afa656e1",
+              "name": "GRAPH_VERSION",
+              "value": "v25.0",
+              "type": "string"
+            },
+            {
+              "id": "92c92daa-5e42-4731-8a2a-258cc91f21a4",
+              "name": "MODEL_FAST",
+              "value": "gemini-3.5-flash-lite",
+              "type": "string"
+            },
+            {
+              "id": "a185a41f-b6b4-4f42-aadf-bdbeda412d4b",
+              "name": "MODEL_REPLY",
+              "value": "gemini-3.5-flash-lite",
+              "type": "string"
+            },
+            {
+              "id": "3744b375-331f-4ed4-b82f-751785800b11",
+              "name": "REPLY_THINKING",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "6b625e47-6837-4aac-9938-4fa912b476bd",
+              "name": "TAP_WAIT_SECONDS",
+              "value": 2,
+              "type": "number"
+            },
+            {
+              "id": "e5583a3b-2d70-424f-bbdc-09177b236633",
+              "name": "HISTORY_LIMIT",
+              "value": 5,
+              "type": "number"
+            },
+            {
+              "id": "a7479f06-cbe5-427a-8d54-a89d7d8a2031",
+              "name": "KEEP_LAST",
+              "value": 2,
+              "type": "number"
+            },
+            {
+              "id": "73783370-0c33-431d-8a87-1a860b186236",
+              "name": "RETEXIA_APP_SECRET",
+              "value": "EDIT: only for Embedded Signup (later)",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "97a40af3-68c7-43ea-b9ba-fbf534b909f6",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        480,
+        0
+      ],
+      "notes": "Edit SUPABASE_URL once",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cc8de144-7292-44d0-be73-b88f71bd96f6",
+              "leftValue": "={{ $('Read Webhook').isExecuted }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "145666df-e2e4-40f1-b4b1-5c880d83002f",
+      "name": "From WhatsApp?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "0985d450-c498-4b49-a56b-b8e785c15241",
+              "leftValue": "={{ $('Meta Verify (GET)').isExecuted }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "fdef5f5b-bfdb-4d38-958f-f40d8fa7954e",
+      "name": "Meta Check?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.SUPABASE_URL }}/rest/v1/rpc/bot_verify_token",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Profile",
+              "value": "lingo"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p: { token: String(($('Meta Verify (GET)').first().json.query || {})['hub.verify_token'] || '') } }) }}"
+      },
+      "id": "18607867-ee05-4c8e-850a-048cfb03266f",
+      "name": "Check Verify Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        -380
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_supabase",
+          "name": "Supabase service key (Lingo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500
+    },
+    {
+      "parameters": {
+        "options": {},
+        "respondWith": "text",
+        "responseBody": "={{ $json.ok ? String(($('Meta Verify (GET)').first().json.query || {})['hub.challenge'] || '') : 'wrong verify token' }}"
+      },
+      "id": "c49e3cd7-9b9f-4ff0-a472-f3c4262475e9",
+      "name": "Answer Meta Check",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1440,
+        -380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// feeder.retexia.com → n8n (X-Retexia-Key checked by the webhook's Header Auth credential).\n//   test_bot: one message through the real pipeline in test mode (nothing sent to WhatsApp)\n//   check:    is this seller's number + token working? (Test connection)\n//   send:     the seller's reply from the Inbox (free text, inside WhatsApp's 24 h window)\nconst b = $('Panel: Lingo').first().json.body || {};\nconst seller = Number(b.lingo_user_id);\nif (!Number.isSafeInteger(seller) || seller <= 0) throw new Error('lingo_user_id is required');\nconst action = String(b.action || '');\nconst cut = (s, n) => { s = String(s || '').trim(); return s.length > n ? s.slice(0, n) : s; };\n\nif (action === 'test_bot') {\n  const session = String(b.session || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 40) || 'panel';\n  const tap = b.tap && b.tap.id ? { id: cut(b.tap.id, 60), title: cut(b.tap.title, 60) } : null;\n  const text = cut(b.text, 1500);\n  if (!text && !tap) throw new Error('text or tap is required');\n  return [{ json: { action, lingo_user_id: seller, message: {\n    phone: 'test-' + session, waId: 'test.' + Date.now() + '.' + Math.random().toString(36).slice(2, 8), name: 'Test customer',\n    text: tap ? `[tapped: ${tap.title}]` : text, media: null, tap, quotedId: cut(b.quoted_id, 120), referral: null,\n    ts: Math.floor(Date.now() / 1000), start_product: Number(b.start_product) || null,\n  } } }];\n}\nif (action === 'check') return [{ json: { action, lingo_user_id: seller } }];\nif (action === 'send') {\n  const to = String(b.to || '').replace(/\\D/g, '');\n  const text = cut(b.text, 4000);\n  if (!/^\\d{6,20}$/.test(to) || !text) throw new Error('to and text are required');\n  return [{ json: { action, lingo_user_id: seller, to, text } }];\n}\nthrow new Error('unknown action');\n"
+      },
+      "id": "2471fa32-113c-44b0-986a-97df810dff97",
+      "name": "Panel Action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.SUPABASE_URL }}/rest/v1/rpc/bot_number",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Profile",
+              "value": "lingo"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p: { lingo_user_id: $json.lingo_user_id } }) }}"
+      },
+      "id": "b93982fe-86fe-4328-9c29-12a70882c607",
+      "name": "Seller",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        -140
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_supabase",
+          "name": "Supabase service key (Lingo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "notes": "Seller + token (Vault)",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "b41d5c3d-9692-4c2a-9261-0d7b2208003a",
+              "leftValue": "={{ $('Panel Action').first().json.action === 'test_bot' && $json.ok === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0d7805bf-8380-415a-8b1a-b2655b315b79",
+      "name": "Test Bot?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1680,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "0478d770-d5f1-4950-9e19-98346808c276",
+              "leftValue": "={{ $('Panel Action').first().json.action === 'check' && $json.ok === true && !!$json.token && !!$json.phone_number_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d84481c7-65fb-48c3-96e0-e347b7d7238a",
+      "name": "Check?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1920,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.GRAPH_VERSION }}/{{ $('Seller').first().json.phone_number_id }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 60000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Seller').first().json.token }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "specifyQuery": "json",
+        "jsonQuery": "={{ JSON.stringify({ fields: 'display_phone_number,verified_name,quality_rating,code_verification_status,name_status,platform_type' }) }}"
+      },
+      "id": "c59206ce-cfe1-437c-acf3-565eb7781954",
+      "name": "WA: Number Info",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2160,
+        -380
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "a8c4b8dc-9cd3-488f-b7c1-557846a3d865",
+              "leftValue": "={{ !!$('Seller').first().json.waba_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "54c50dd6-0349-46b9-9ae1-187722355b0f",
+      "name": "Has WABA?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2400,
+        -380
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.GRAPH_VERSION }}/{{ $('Seller').first().json.waba_id }}/subscribed_apps",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 60000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Seller').first().json.token }}"
+            }
+          ]
+        }
+      },
+      "id": "3a694bb1-9824-48b9-9b08-f835b9fa6b38",
+      "name": "WA: Subscribed Apps",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        -460
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "d2f02c80-d079-468d-8244-34f172405e28",
+              "leftValue": "={{ $('Panel Action').first().json.action === 'send' && $('Seller').first().json.ok === true && !!$('Seller').first().json.token }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b5ed6e53-e628-4cbb-b663-98843361274d",
+      "name": "Inbox Send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2160,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.GRAPH_VERSION }}/{{ $('Seller').first().json.phone_number_id }}/messages",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 60000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Seller').first().json.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: $('Panel Action').first().json.to, type: 'text', text: { body: $('Panel Action').first().json.text, preview_url: false } }) }}"
+      },
+      "id": "feef5f5a-78a3-406f-8c7c-f3f6fd6f7361",
+      "name": "WA: Send Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        -220
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// The answer to feeder.retexia.com for \"check\" (Test connection), \"send\" (Inbox reply) or an unknown seller.\nconst a = $('Panel Action').first().json;\nconst s = $('Seller').first().json;\nconst err = r => {\n  const e = (r && (r.error || (r.body && r.body.error))) || null;\n  if (!e) return '';\n  return typeof e === 'string' ? e : `${e.code ? '(' + e.code + ') ' : ''}${e.error_user_msg || e.message || 'error'}`.slice(0, 300);\n};\nconst body = r => (r && r.body !== undefined ? r.body : r) || {};\n\nif (!s.ok) return [{ json: { reply: { ok: false, error: s.why || 'unknown seller' } } }];\nif (!s.token || !s.phone_number_id) return [{ json: { reply: { ok: false, error: 'No WhatsApp number or token saved yet.' } } }];\n\nif (a.action === 'check') {\n  const info = $('WA: Number Info').first().json;\n  const apps = $('WA: Subscribed Apps').isExecuted ? $('WA: Subscribed Apps').first().json : null;\n  const e = err(info);\n  const i = body(info);\n  const subscribed = apps && !err(apps) ? (body(apps).data || []).length > 0 : null;\n  return [{ json: { reply: {\n    ok: !e && !!i.id, error: e || (i.id ? null : 'WhatsApp did not answer'),\n    info: e ? null : { display_phone_number: i.display_phone_number || '', verified_name: i.verified_name || '', quality_rating: i.quality_rating || '',\n                       code_verification_status: i.code_verification_status || '', name_status: i.name_status || '', platform_type: i.platform_type || '' },\n    subscribed, subscribe_error: apps ? err(apps) || null : null,\n  } } }];\n}\n\n// send\nconst r = $('WA: Send Reply').first().json;\nconst e = err(r);\nconst id = ((body(r).messages || [])[0] || {}).id || null;\nreturn [{ json: { reply: { ok: !e && !!id, wa_id: id, error: e || (id ? null : 'WhatsApp did not accept the message') } } }];\n"
+      },
+      "id": "aad786e0-8c47-4e7a-9f8e-40d61e3a277f",
+      "name": "Panel Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.reply) }}"
+      },
+      "id": "efcb0201-e87b-4b7c-a359-7fc77a40b4b3",
+      "name": "Respond: Panel",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3120,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.SUPABASE_URL }}/rest/v1/rpc/bot_number",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Profile",
+              "value": "lingo"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p: { phone_number_id: $('Read Webhook').first().json.phone_number_id } }) }}"
+      },
+      "id": "fd41f904-fded-4c97-9657-24d7b5b92372",
+      "name": "Number",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        140
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_supabase",
+          "name": "Supabase service key (Lingo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "notes": "Seller + token + app secret (Vault)",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "7db90bd4-4290-49a8-91cf-a3cceeda5d57",
+              "leftValue": "={{ $json.ok === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "88af92eb-e756-4059-a74b-753ad217cfc1",
+      "name": "Known Number?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Checks Meta's signature with this number's app secret (Retexia's in embedded mode), then splits\n// the webhook: delivery statuses, the seller's own replies from the WhatsApp Business app (echoes)\n// and the customer's message(s). Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto on the n8n server.\nconst crypto = require('crypto');\nconst cfg = $('Config').first().json;\nconst w = $('Read Webhook').first().json;\nconst num = $('Number').first().json;\nconst cut = (s, n) => { s = String(s || '').replace(/\\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n) + '…' : s; };\n\nconst secret = num.connect_mode === 'embedded' ? String(cfg.RETEXIA_APP_SECRET || '') : String(num.app_secret || '');\nconst expect = 'sha256=' + crypto.createHmac('sha256', secret).update(Buffer.from(w.raw, 'utf8')).digest('hex');\nconst got = String(w.signature || '');\nconst signed = secret && !secret.startsWith('EDIT') && got.length === expect.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(expect));\nif (!signed) return [];                                // not from Meta (or the app secret is wrong): ignore\n\nconst statuses = [], echoes = [];\nlet msgs = [], contacts = [];\nfor (const e of w.body.entry || []) for (const ch of e.changes || []) {\n  const v = ch.value || {};\n  if (String((v.metadata || {}).phone_number_id || '') !== String(num.phone_number_id)) continue;\n  if (ch.field === 'messages') {\n    for (const s of v.statuses || []) {\n      const err = (s.errors || [])[0] || {};\n      statuses.push({\n        id: s.id, status: s.status, recipient: s.recipient_id,\n        billable: s.pricing ? !!s.pricing.billable : null, category: s.pricing ? (s.pricing.category || '') : '',\n        error: s.status === 'failed' ? cut(`${err.code || ''} ${err.title || ''} ${(err.error_data || {}).details || err.message || ''}`, 300) : null,\n      });\n    }\n    contacts = contacts.concat(v.contacts || []);\n    msgs = msgs.concat(v.messages || []);\n  } else if (ch.field === 'smb_message_echoes') {\n    for (const x of v.message_echoes || []) {\n      const text = x.type === 'text' ? (x.text || {}).body : `[${x.type || 'message'}] ${((x[x.type] || {}).caption) || ''}`;\n      echoes.push({ to: String(x.to || ''), id: x.id, text: cut(text, 4000) });\n    }\n  }\n}\n\nlet message = null;\nif (msgs.length) {\n  const from = msgs[0].from;\n  const mine = msgs.filter(x => x.from === from);\n  const texts = [];\n  let media = null, tap = null, quotedId = '', referral = null;\n  for (const x of mine) {\n    if (x.context && x.context.id && !quotedId) quotedId = x.context.id;\n    if (x.referral && !referral) referral = x.referral;\n    switch (x.type) {\n      case 'text': texts.push(x.text.body); break;\n      case 'image': if (!media) media = { kind: 'image', id: x.image.id, mime: x.image.mime_type }; if (x.image.caption) texts.push(x.image.caption); break;\n      case 'audio': if (!media) media = { kind: 'audio', id: x.audio.id, mime: x.audio.mime_type }; break;\n      case 'video': texts.push('[video] ' + ((x.video || {}).caption || '')); break;\n      case 'document': texts.push(`[document ${(x.document || {}).filename || ''}] ${(x.document || {}).caption || ''}`); break;\n      case 'location': { const l = x.location || {}; texts.push(`[location ${l.latitude},${l.longitude} ${l.name || ''} ${l.address || ''}]`); break; }\n      case 'contacts': { const c = (x.contacts || [])[0] || {}; texts.push(`[contact ${(c.name || {}).formatted_name || ''} ${((c.phones || [])[0] || {}).phone || ''}]`); break; }\n      case 'interactive': {\n        const it = x.interactive || {};\n        const r = it.button_reply || it.list_reply;\n        if (r) { tap = tap || { id: r.id, title: r.title }; texts.push(`[tapped: ${r.title}]`); }\n        break;\n      }\n      case 'button': tap = tap || { id: x.button.payload, title: x.button.text }; texts.push(`[tapped: ${x.button.text}]`); break;\n      default: break;                                  // reaction, sticker, unsupported, system…\n    }\n  }\n  const text = cut(texts.join('\\n'), 1500);\n  if (text || media) {\n    const last = mine[mine.length - 1];\n    const contact = contacts.find(c => c.wa_id === from) || contacts[0] || {};\n    message = {\n      phone: String(from), waId: last.id, name: cut((contact.profile || {}).name, 80),\n      text, media, tap, quotedId,\n      referral: referral ? {\n        source_id: referral.source_id || '', source_url: referral.source_url || '', source_type: referral.source_type || '',\n        headline: cut(referral.headline, 200), body: cut(referral.body, 400),\n      } : null,\n      ts: Number(last.timestamp) || Math.floor(Date.now() / 1000),\n    };\n  }\n}\nreturn [{ json: { statuses, echoes, message } }];\n"
+      },
+      "id": "8415a1c1-be72-42b1-84f4-920d483d8861",
+      "name": "Verify & Split",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        140
+      ],
+      "notes": "Signature check (needs crypto)",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "89acb7f9-db72-40c3-ab6a-23718994c5b7",
+              "leftValue": "={{ ($json.statuses || []).length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "fafe7449-6778-4777-a03d-12d57f483817",
+      "name": "Statuses?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1680,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.SUPABASE_URL }}/rest/v1/rpc/bot_statuses",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Profile",
+              "value": "lingo"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p: { lingo_user_id: $('Number').first().json.lingo_user_id, statuses: $('Verify & Split').first().json.statuses } }) }}"
+      },
+      "id": "8a5c8091-cd88-4d4d-af77-3a1f987f5cef",
+      "name": "Save Statuses",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        20
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_supabase",
+          "name": "Supabase service key (Lingo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "5b1af9fe-6053-4fe6-8c5c-6e72e3fa427f",
+              "leftValue": "={{ ($json.echoes || []).length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "424d1455-3c19-4d21-97f4-d5c45b68185a",
+      "name": "Echoes?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1680,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.SUPABASE_URL }}/rest/v1/rpc/bot_echo",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Profile",
+              "value": "lingo"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p: { lingo_user_id: $('Number').first().json.lingo_user_id, items: $('Verify & Split').first().json.echoes } }) }}"
+      },
+      "id": "4a6508e6-8932-475a-83b8-e2e358737af7",
+      "name": "Save Echoes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        160
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_supabase",
+          "name": "Supabase service key (Lingo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "notes": "Seller replied in the app → bot pauses",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "39db7cfb-9532-452a-b69f-7775f29c95fe",
+              "leftValue": "={{ !!$json.message }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b4313c51-b626-4b53-9f61-fb5f0a2a8610",
+      "name": "Has Message?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// One customer turn, whether it came from WhatsApp or from the panel's Test bot (test mode:\n// nothing is sent to WhatsApp, rows are marked test). Every later node reads $('Message').\nif ($('Verify & Split').isExecuted) {\n  const v = $('Verify & Split').first().json;\n  const n = $('Number').first().json;\n  return [{ json: { ...v.message, lingo_user_id: n.lingo_user_id, phone_number_id: n.phone_number_id, token: n.token, settings: n.settings || {}, test: false, start_product: null } }];\n}\nconst a = $('Panel Action').first().json;\nconst s = $('Seller').first().json;\nreturn [{ json: { ...a.message, lingo_user_id: s.lingo_user_id, phone_number_id: s.phone_number_id, token: null, settings: s.settings || {}, test: true } }];\n"
+      },
+      "id": "b2e67451-a31b-4586-a2c9-73fdfc8e5be6",
+      "name": "Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.SUPABASE_URL }}/rest/v1/rpc/bot_gate",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Profile",
+              "value": "lingo"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p: { lingo_user_id: $('Message').first().json.lingo_user_id, phone: $('Message').first().json.phone, wa_id: $('Message').first().json.waId, name: $('Message').first().json.name, referral: $('Message').first().json.referral, test: $('Message').first().json.test, start_product: $('Message').first().json.start_product, text: $('Message').first().json.media ? ('[' + ($('Message').first().json.media.kind === 'audio' ? 'voice note' : 'image') + '] ' + ($('Message').first().json.text || '')) : $('Message').first().json.text } }) }}"
+      },
+      "id": "0a543796-3edc-4b84-97ea-06f91a99336d",
+      "name": "Gate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_supabase",
+          "name": "Supabase service key (Lingo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "notes": "Duplicates · not from an ad · paused · ad → product",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "524eba23-900c-4d1c-9a1a-9a96fc1b5ce0",
+              "leftValue": "={{ $json.status === 'ok' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c4774881-48dc-465e-8136-69415811feb5",
+      "name": "Gate OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "37cf3fcc-8522-4b1d-8aff-4214dbcc9624",
+              "leftValue": "={{ $json.need_ad_match === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "01e4d3ac-3871-4a38-912e-d296d9c2d56a",
+      "name": "New Ad?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// First customer from a NEW ad: one small AI call decides which product the ad sells.\n// The answer is saved (bot_ads), so later customers from that ad cost 0 tokens. This is the\n// only call that sees the seller's whole product list, once per ad.\nconst cfg = $('Config').first().json;\nconst m = $('Message').first().json;\nconst g = $input.first().json;\nconst ad = g.ad || {};\nconst list = (g.products || []).map(p => `${p.id}:${p.n}${p.k ? ' (' + String(p.k).slice(0, 80) + ')' : ''}`).join('\\n');\nconst models = (m.settings || {}).ai_models || {};\n\nreturn [{ json: {\n  stage: 'ad_match',\n  model: models.ad_match || cfg.MODEL_FAST,\n  req: {\n    systemInstruction: { parts: [{ text: 'Which product does this Facebook/Instagram ad sell? Return JSON {\"p\": product id}, or {\"p\": 0} if none fits.' }] },\n    contents: [{ role: 'user', parts: [{ text: `Ad headline: ${ad.headline || '-'}\\nAd text: ${ad.body || '-'}\\n\\nProducts:\\n${list}` }] }],\n    generationConfig: {\n      maxOutputTokens: 256, responseMimeType: 'application/json',\n      responseJsonSchema: { type: 'object', properties: { p: { type: 'integer' } }, required: ['p'] },\n    },\n  },\n} }];\n"
+      },
+      "id": "8e584484-e397-4c49-8859-76edf39b8da8",
+      "name": "Build Ad Match",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/{{ $json.model }}:generateContent",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 60000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.req) }}"
+      },
+      "id": "4c487171-0208-43dd-a665-54cc82bcb7bf",
+      "name": "Gemini: Ad Match",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3360,
+        180
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_gemini",
+          "name": "Gemini API key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput",
+      "notes": "Once per new ad",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// The ad-match answer → bot_set_ad (0 = nothing fits: the seller picks the product in Lingo → Ads).\nconst m = $('Message').first().json;\nconst gate = $('Gate').first().json;\nconst g = $input.first().json || {};\nconst raw = ((((g.candidates || [])[0] || {}).content || {}).parts || []).filter(x => !x.thought).map(x => x.text || '').join('');\nlet pid = 0;\ntry { pid = Number(JSON.parse(raw.replace(/```(json)?/g, '').trim()).p) || 0; } catch (e) { pid = 0; }\nreturn [{ json: { p: { lingo_user_id: m.lingo_user_id, ad_id: (gate.ad || {}).id, product_id: pid || null, phone: m.phone } } }];\n"
+      },
+      "id": "c28bce25-c015-4e27-8056-9aac0404d54e",
+      "name": "Read Ad Match",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3600,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.SUPABASE_URL }}/rest/v1/rpc/bot_set_ad",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Profile",
+              "value": "lingo"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p: $json.p }) }}"
+      },
+      "id": "0e834875-7d7a-4a0a-885e-36dfa7d1157f",
+      "name": "Save Ad Product",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3840,
+        180
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_supabase",
+          "name": "Supabase service key (Lingo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "93552181-0344-4f19-ae49-02389b075697",
+              "leftValue": "={{ !!$('Message').first().json.media }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "40d0a11a-2cbc-469c-ac80-5d50b29d9514",
+      "name": "Is Media?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4080,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.GRAPH_VERSION }}/{{ $('Message').first().json.media.id }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 60000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Message').first().json.token }}"
+            }
+          ]
+        }
+      },
+      "id": "afd9ad73-2291-4d1d-b75e-f36901f6c95c",
+      "name": "Get Media URL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4320,
+        420
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Message').first().json.token }}"
+            }
+          ]
+        }
+      },
+      "id": "1fd59e72-25d5-494d-a1a0-1e50a3416cdb",
+      "name": "Download Media",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4560,
+        420
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Voice note / image → a tiny Gemini request that returns very short text. Done once: later\n// calls only ever see that text, never the media again.\nconst cfg = $('Config').first().json;\nconst m = $('Message').first().json;\nlet b64 = '';\ntry { b64 = (await this.helpers.getBinaryDataBuffer(0, 'data')).toString('base64'); } catch (e) { b64 = ''; }\nconst mime = String(m.media.mime || (m.media.kind === 'audio' ? 'audio/ogg' : 'image/jpeg')).split(';')[0].trim();\nconst models = (m.settings || {}).ai_models || {};\n\nconst prompt = m.media.kind === 'audio'\n  ? 'Customer voice note to a Sri Lankan shop. Write what they say as short text in the same language (Sinhala script, Singlish or English). Keep names, numbers and addresses exact. Max 40 words. Output only the text.'\n  : 'Customer sent this image to a Sri Lankan shop. In max 15 English words say what it shows. If it has an address, phone number, payment slip or order details, copy them exactly. Output only that.';\n\nreturn [{ json: {\n  ok: !!b64,\n  stage: 'media',\n  model: models.media || cfg.MODEL_FAST,\n  req: b64 ? {\n    systemInstruction: { parts: [{ text: prompt }] },\n    contents: [{ role: 'user', parts: [{ inlineData: { mimeType: mime, data: b64 } }] }],\n    generationConfig: { maxOutputTokens: 512 },\n  } : { contents: [] },\n} }];\n"
+      },
+      "id": "c7e1ded7-3bcb-4f69-bf86-5fd0220560a0",
+      "name": "Build Media Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4800,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/{{ $json.model }}:generateContent",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 60000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.req) }}"
+      },
+      "id": "a15d3276-3ee0-46b1-94d7-d69f521fafd9",
+      "name": "Gemini: Media",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5040,
+        420
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_gemini",
+          "name": "Gemini API key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput",
+      "notes": "Voice / photo → ≤40 words, once",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Media description + caption → one text line (max ~40 words).\nconst m = $('Message').first().json;\nconst g = $input.first().json || {};\nconst said = ((((g.candidates || [])[0] || {}).content || {}).parts || [])\n  .filter(x => !x.thought).map(x => x.text || '').join(' ').replace(/\\s+/g, ' ').trim().split(' ').slice(0, 45).join(' ');\n\nconst text = m.media.kind === 'audio'\n  ? (m.text ? m.text + ' ' : '') + (said ? `[voice] ${said}` : '[voice note - could not understand]')\n  : (said ? `[image: ${said}]` : '[image]') + (m.text ? ' ' + m.text : '');\nreturn [{ json: { text } }];\n"
+      },
+      "id": "fe086a1a-37b9-4b95-8377-0b4b6bca17f9",
+      "name": "Media to Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5280,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// One row for the batching buffer (text or the media description), with the AI usage of this\n// message's voice note / image / ad match so every call is logged even if the batch moves on.\nconst m = $('Message').first().json;\nconst usage = [];\nconst add = (node, builder) => {\n  if (!$(node).isExecuted) return;\n  const g = $(node).first().json || {};\n  const b = $(builder).first().json || {};\n  if (g.usageMetadata) usage.push({ stage: b.stage, model: b.model, usage: g.usageMetadata, ok: !g.error });\n};\nadd('Gemini: Ad Match', 'Build Ad Match');\nadd('Gemini: Media', 'Build Media Request');\nconst text = $('Media to Text').isExecuted ? $('Media to Text').first().json.text : m.text;\nreturn [{ json: { p: {\n  lingo_user_id: m.lingo_user_id, phone: m.phone, wa_id: m.waId, content: text || '[media]', quoted_id: m.quotedId || null,\n  tap: m.tap ? m.tap.id : null, wa_ts: m.ts, test: !!m.test, usage,\n} } }];\n"
+      },
+      "id": "684f497c-7c21-4f96-bdb1-c5b5cb8da0d0",
+      "name": "Build Buffer Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.SUPABASE_URL }}/rest/v1/rpc/bot_buffer_add",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Profile",
+              "value": "lingo"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p: $json.p }) }}"
+      },
+      "id": "38c7ad15-2e23-4332-8cbf-bb7f6d6d9a8e",
+      "name": "Buffer Add",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        520
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_supabase",
+          "name": "Supabase service key (Lingo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "256dab3e-372d-42a6-9236-347a9654c02a",
+              "leftValue": "={{ !$('Message').first().json.test }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6835d6ee-04f9-47d2-87db-aa7d329cca75",
+      "name": "Wait?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": "={{ $('Message').first().json.tap ? Number($('Config').first().json.TAP_WAIT_SECONDS) : Number(($('Message').first().json.settings || {}).batch_seconds || 12) }}",
+        "unit": "seconds"
+      },
+      "id": "65157bdd-8bf5-43b6-ae15-13f5084d645c",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        420
+      ],
+      "webhookId": "d3ef1d9c-e0b0-4ee2-aee6-e1bd132154ff",
+      "notes": "12 s (2 s for taps): one turn for close messages",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.SUPABASE_URL }}/rest/v1/rpc/bot_claim",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Profile",
+              "value": "lingo"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p: { lingo_user_id: $('Message').first().json.lingo_user_id, phone: $('Message').first().json.phone, buffer_id: $('Buffer Add').first().json.id } }) }}"
+      },
+      "id": "240e7036-a039-428f-ba40-ea9dcc6491a3",
+      "name": "Claim Batch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        520
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_supabase",
+          "name": "Supabase service key (Lingo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "notes": "Batch + this product only",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c566b9ed-74c7-4fc1-bab1-deeb46328fc2",
+              "leftValue": "={{ $json.ok === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f6a15ce6-4d51-465a-aba6-61a2bcae7dc0",
+      "name": "Latest Message?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "4bd5febb-94c2-409d-9ca6-9a006bb9d5e5",
+              "leftValue": "={{ !$('Message').first().json.test }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9bcfa3e8-2aca-4967-a3b9-278b3af74007",
+      "name": "Real Chat?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1440,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.GRAPH_VERSION }}/{{ $('Message').first().json.phone_number_id }}/messages",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 60000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Message').first().json.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', status: 'read', message_id: $('Claim Batch').first().json.msgs[$('Claim Batch').first().json.msgs.length - 1].wa_id, typing_indicator: { type: 'text' } }) }}"
+      },
+      "id": "b18bfcd3-e6d5-4e51-b378-2f3cb24b1dc0",
+      "name": "Mark Read + Typing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        420
+      ],
+      "onError": "continueRegularOutput",
+      "notes": "Blue ticks + typing…",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "b796ef3b-a2bb-4c46-98bb-edcef2b2fc86",
+              "leftValue": "={{ ($('Claim Batch').first().json.history || []).length > Number($('Config').first().json.HISTORY_LIMIT) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9ac94d3d-eda0-4d61-b838-393e05c6f4c7",
+      "name": "Summarize?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1920,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// More than HISTORY_LIMIT past messages → the older ones (and the old summary) become one ~30-word\n// summary. The newest KEEP_LAST stay word for word so a short \"ow\" / \"yes\" still makes sense.\n// The messages themselves stay in the Inbox; only the AI's view of the chat gets shorter.\nconst cfg = $('Config').first().json;\nconst m = $('Message').first().json;\nconst ctx = $('Claim Batch').first().json;\nconst h = ctx.history || [];\nconst keep = Math.max(0, Number(cfg.KEEP_LAST) || 0);\nconst old = h.slice(0, Math.max(0, h.length - keep));\nconst label = r => (r === 'c' ? 'C: ' : 'B: ');\nconst models = (m.settings || {}).ai_models || {};\nconst lines = (ctx.summary ? ['Summary so far: ' + ctx.summary] : []).concat(old.map(x => label(x.r) + x.c));\n\nreturn [{ json: {\n  upto: old.length ? old[old.length - 1].id : null,\n  stage: 'summary',\n  model: models.summary || cfg.MODEL_FAST,\n  req: {\n    systemInstruction: { parts: [{ text: 'Summarize this shop WhatsApp chat in max 30 English words. Keep product names, what the customer asked or decided, order details, and any question we are still waiting on.' }] },\n    contents: [{ role: 'user', parts: [{ text: lines.join('\\n') }] }],\n    generationConfig: { maxOutputTokens: 512 },\n  },\n} }];\n"
+      },
+      "id": "f32c2863-fcd7-4401-9fa6-28d6c818237c",
+      "name": "Build Summary Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/{{ $json.model }}:generateContent",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 60000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.req) }}"
+      },
+      "id": "146870ce-88b9-488f-9b4a-cc047166d755",
+      "name": "Gemini: Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_gemini",
+          "name": "Gemini API key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.SUPABASE_URL }}/rest/v1/rpc/bot_compact",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Profile",
+              "value": "lingo"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p: { lingo_user_id: $('Message').first().json.lingo_user_id, phone: $('Message').first().json.phone, upto: $('Build Summary Request').first().json.upto, summary: (((($json.candidates || [])[0] || {}).content || {}).parts || []).filter(x => !x.thought).map(x => x.text || '').join(' ').trim() } }) }}"
+      },
+      "id": "cfec511c-099e-4f91-a84b-9e80b9dc4c08",
+      "name": "Save Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_supabase",
+          "name": "Supabase service key (Lingo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "notes": "Old msgs → 1 summary",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Level 0 / Level 1: what does the customer want?\n//   • Only button / list taps → understood exactly, no AI.\n//   • A quick rule matches the WHOLE batched text (hi, ok, kiyada?, a phone number, \"ow\" while\n//     confirming…) → no AI.\n//   • Otherwise one small \"middle AI\" call (prompt mid-3) with only: the current product, ≤4\n//     products the database matched, the stage and missing fields, ≤15 FAQ questions, the\n//     language, the chat summary + last 2 messages, the quote and the new text.\nconst cfg = $('Config').first().json;\nconst m = $('Message').first().json;\nconst ctx = $('Claim Batch').first().json;\nconst sum = $('Save Summary').isExecuted ? $('Save Summary').first().json : { summary: ctx.summary, history: ctx.history };\nconst history = sum.history || [];\nconst cust = ctx.customer || {};\nconst settings = ctx.settings || m.settings || {};\nconst prod = ctx.product;\nconst matches = ctx.matches || [];\nconst faqs = ctx.faqs || [];\nconst qp = ctx.quoted_pids || {};\nconst stage = cust.stage || 'new';\nconst cut = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n) + '…' : s; };\nconst has = v => v !== undefined && v !== null && String(v).trim() !== '';\n\nconst msgs = ctx.msgs || [];\nconst taps = msgs.filter(x => x.tap).map(x => x.tap);\nconst typedList = msgs.filter(x => !x.tap).map(x => x.t);\nconst now = cut(typedList.join('\\n'), 1500);\nconst typed = typedList.length > 0 && /\\S/.test(now);\n\nlet quotedPid = 0;\nfor (const x of msgs) if (x.qid && qp[x.qid]) quotedPid = Number(qp[x.qid]);\n\nconst fields = (Array.isArray(settings.order_fields) && settings.order_fields.length ? settings.order_fields : ['name', 'address', 'contact']);\nconst o = ctx.order;\nlet missing = [];\nif (o && o.status === 'draft') missing = fields.filter(f => !has(o[f]));\n\n// ---------- level 0: quick rules ----------\nconst normalize = s => String(s || '').normalize('NFC').toLowerCase()\n  .replace(/\\p{Extended_Pictographic}/gu, ' ').replace(/[\\u{1F3FB}-\\u{1F3FF}\\u{FE0F}\\u{20E3}]/gu, '')\n  .replace(/[\\p{P}\\p{S}]/gu, ' ').replace(/\\s+/g, ' ').trim();\nlet rule = null, c = null;\nif (typed && !taps.length) {\n  const norm = normalize(now);\n  const probe = norm || 'ok';                          // only emojis (👍 🙏) = \"ok\"\n  const compact = probe.replace(/[\\s-]/g, '');\n  for (const r of ctx.rules || []) {\n    if (Array.isArray(r.st) && r.st.length && !r.st.includes(stage)) continue;\n    let re;\n    try { re = new RegExp(r.re, 'iu'); } catch (e) { continue; }\n    if (re.test(probe) || (r.k === 'details' && re.test(compact))) {\n      rule = { id: r.id, k: r.k, t: r.t || 'other' };\n      c = { k: r.k, t: r.t || 'other', faq: 0, p: 0, q: '', l: '', o: r.k === 'details' ? { ph: compact } : {}, u: false };\n      break;\n    }\n  }\n}\n\n// ---------- level 1: the middle AI ----------\nconst skip = !typed || !!rule;\nconst label = r => (r === 'c' ? 'C: ' : 'B: ');\nconst last2 = history.slice(-2);\nconst stageLine = 'Stage: ' + stage + (missing.length ? ', missing ' + missing.join(', ') : '')\n  + (o && o.status === 'draft' && !missing.length ? ', order complete, we asked them to confirm' : '')\n  + (o && o.status === 'confirmed' ? ', order confirmed' : '');\nconst user = [\n  'Product: ' + (prod ? `${prod.id}:${prod.name}` : 'unknown'),\n  matches.length ? 'Others: ' + matches.map(p => `${p.id}:${p.name}`).join(' | ') : '',\n  stageLine,\n  faqs.length ? 'FAQs: ' + faqs.map(f => `${f.id}:${cut(f.q, 70)}`).join(' | ') : '',\n  `Lang: ${cust.lang || settings.default_lang || 'si'}`,\n  (sum.summary || last2.length) ? 'Chat:' + (sum.summary ? '\\nSummary: ' + cut(sum.summary, 300) : '') + (last2.length ? '\\n' + last2.map(x => label(x.r) + cut(x.c, 200)).join('\\n') : '') : '',\n  quotedPid ? `Quote: [our msg about product ${quotedPid}]` : '',\n  'Now: ' + now,\n].filter(Boolean).join('\\n');\n\nconst system = `Read a Sri Lankan shop's WhatsApp chat. Return JSON.\nk: details = gives name/address/phone/quantity | confirm = says yes to our order summary | change = wants to change order details | cancel = cancels | question = asks something | other_product = asks about a product that is not Product | complaint = unhappy or problem with an order | human = wants a person or a call | chat = greeting, thanks, ok, anything else.\nt (for question): price | delivery | payment | usage | ingredients | safety | results | stock | contact | shop | other.\nfaq: id from FAQs if one answers the question, else 0.\np: id from Others if they want that product, else 0.\nq: what they want now, max 15 simple English words, topic first. Resolve \"meka/eka/this\" from Quote and Chat.\nl: si = writes Sinhala script, sg = Sinhala in English letters, en ONLY if they ask us to use English; if unsure keep Lang.\no: details found in Now only: n name, a address, ph phone (\"same\" if they say use this WhatsApp number), qty.\nu: true if you are not sure what they mean.`;\n\nconst schema = {\n  type: 'object',\n  properties: {\n    k: { type: 'string', enum: ['details', 'confirm', 'change', 'cancel', 'question', 'other_product', 'complaint', 'human', 'chat'] },\n    t: { type: 'string', enum: ['price', 'delivery', 'payment', 'usage', 'ingredients', 'safety', 'results', 'stock', 'contact', 'shop', 'other'] },\n    faq: { type: 'integer' },\n    p: { type: 'integer' },\n    q: { type: 'string' },\n    l: { type: 'string', enum: ['si', 'sg', 'en'] },\n    o: { type: 'object', properties: { n: { type: 'string' }, a: { type: 'string' }, ph: { type: 'string' }, qty: { type: 'integer' } } },\n    u: { type: 'boolean' },\n  },\n  required: ['k', 't', 'faq', 'p', 'q', 'l', 'o', 'u'],\n};\nconst models = settings.ai_models || {};\n\nreturn [{ json: {\n  now, typed, taps, skip, rule, c, stage, missing, quotedPid,\n  prompt_version: 'mid-3',\n  prompt_chars: skip ? 0 : system.length + user.length,\n  stage_name: 'classify',\n  model: models.classify || cfg.MODEL_FAST,\n  req: skip ? null : {\n    systemInstruction: { parts: [{ text: system }] },\n    contents: [{ role: 'user', parts: [{ text: user }] }],\n    generationConfig: { maxOutputTokens: 1024, responseMimeType: 'application/json', responseJsonSchema: schema },\n  },\n} }];\n"
+      },
+      "id": "4ed17853-a5bd-4467-9dc5-c0c3b87db7e7",
+      "name": "Understand",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        520
+      ],
+      "notes": "Taps · quick rules · middle AI request",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "838f25b3-1198-4889-81f2-6a55f0e03afa",
+              "leftValue": "={{ $json.skip !== true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9bf80607-6ace-4c99-bf73-7916e6523fad",
+      "name": "Needs Middle AI?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3120,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/{{ $json.model }}:generateContent",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 60000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.req) }}"
+      },
+      "id": "bbe6f236-418d-4bed-94c5-67b8665fdd24",
+      "name": "Gemini: Classify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3360,
+        400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_gemini",
+          "name": "Gemini API key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput",
+      "notes": "Middle AI (mid-3)",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Decides the whole reply in code (a state machine), aiming for a confirmed order:\n//   • a product the customer hasn't seen yet → its photo + long description, then ask for details\n//   • price / delivery / payment / contact / shop / stock → the seller's fixed text, numbers from\n//     the product row (no AI)\n//   • an FAQ the middle AI picked → its answer as written (no AI)\n//   • a real product question with no FAQ → answer cache, then the reply AI (only the product\n//     fields for that topic)\n//   • details → ask only for what's missing → summary with Confirm / Change / Cancel\n//   • not sure → one clarifying question with buttons; not sure twice, a complaint or \"talk to a\n//     person\" → hand the chat to the seller (Inbox) and pause the bot for it\nconst cfg = $('Config').first().json;\nconst m = $('Message').first().json;\nconst ctx = $('Claim Batch').first().json;\nconst u = $('Understand').first().json;\nconst history = $('Save Summary').isExecuted ? ($('Save Summary').first().json.history || []) : (ctx.history || []);\nconst settings = ctx.settings || m.settings || {};\nconst cust = ctx.customer || {};\nconst fixed = ctx.fixed || {};\nconst matches = ctx.matches || [];\nconst faqs = ctx.faqs || [];\nconst budget = ctx.budget || {};\n\nconst cut = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n) + '…' : s; };\nconst has = v => v !== undefined && v !== null && String(v).trim() !== '';\nconst money = n => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });\nconst gtext = g => ((((g || {}).candidates || [])[0] || {}).content || { parts: [] }).parts.filter(x => !x.thought).map(x => x.text || '').join('');\n\n// ---------- what the customer wants ----------\nconst KINDS = ['details', 'confirm', 'change', 'cancel', 'question', 'other_product', 'complaint', 'human', 'chat'];\nconst TOPICS = ['price', 'delivery', 'payment', 'usage', 'ingredients', 'safety', 'results', 'stock', 'contact', 'shop', 'other'];\nlet c = null;\nif (u.rule) c = u.c;\nelse if ($('Gemini: Classify').isExecuted) {\n  try { c = JSON.parse(gtext($('Gemini: Classify').first().json).replace(/```(json)?/g, '').trim()); } catch (e) { c = null; }\n  if (!c || !KINDS.includes(c.k)) c = null;                 // invalid output = not sure; a turn never crashes on AI output\n}\nconst unsure = !!u.typed && (!c || c.u === true);\nconst k = c && !unsure ? c.k : 'chat';\nconst t = c && TOPICS.includes(c.t) ? c.t : 'other';\nconst lang = c && ['si', 'sg', 'en'].includes(c.l) ? c.l : (cust.lang || settings.default_lang || 'si');\nconst L = lang === 'en' ? 'en' : 'si';\nconst q = cut(String((c && c.q) || '').trim() || u.now, 200);\nconst o = (c && !unsure && c.o) || {};\n\n// ---------- button / list taps (exact, no AI) ----------\nlet act = null, pick = 0, info = false, human = false;\nfor (const id of u.taps || []) {\n  if (/^P_\\d+$/.test(id)) pick = Number(id.slice(2));\n  else if (['ORDER', 'CONFIRM', 'CHANGE', 'CANCEL'].includes(id)) act = id;\n  else if (id === 'INFO') info = true;\n  else if (id === 'HUMAN') human = true;\n}\nif (!act) act = { details: 'DETAILS', confirm: 'CONFIRM', change: 'CHANGE', cancel: 'CANCEL' }[k] || null;\n\n// ---------- product: pick → quoted product → current (ad) → the AI's pick among the DB matches ----------\nconst byId = {};\nfor (const p of [ctx.product, ...matches]) if (p) byId[Number(p.id)] = p;\nlet pid = ctx.product ? Number(ctx.product.id) : 0;\nlet switched = false;\nconst want = pick || Number(u.quotedPid) || (c && !unsure ? Number(c.p) || 0 : 0) || (!pid && matches.length === 1 ? Number(matches[0].id) : 0);\nif (want && byId[want] && want !== pid) { pid = want; switched = true; }\nconst prod = pid ? byId[pid] : null;\nconst seen = (cust.seen_products || []).map(Number);\n\n// ---------- order ----------\nconst fields = Array.isArray(settings.order_fields) && settings.order_fields.length ? settings.order_fields : ['name', 'address', 'contact'];\nconst gave = has(o.n) || has(o.a) || has(o.ph) || Number(o.qty) > 0;\nconst lastBot = [...history].reverse().find(x => x.r === 'b');\nconst changing = !!(lastBot && String(lastBot.c).includes('[asked what to change]'));\nlet order = ctx.order ? { ...ctx.order } : null;\nlet target = null, event = '';\nconst fresh = () => ({ id: null, product_id: null, qty: null, name: null, address: null, contact: null, status: 'draft' });\n\nif (act === 'CANCEL') {\n  if (order && order.status !== 'cancelled') { order.status = 'cancelled'; target = order; event = 'cancelled'; }\n} else if (act === 'CHANGE' || act === 'CONFIRM') {\n  if (order && order.status !== 'cancelled') target = order;\n} else if (act === 'ORDER' || act === 'DETAILS' || gave) {\n  if (order && (order.status === 'draft' || (order.status === 'confirmed' && changing))) target = order;\n  else target = fresh();\n}\nconst missingOf = x => { const mm = fields.filter(f => !has(x[f])); if (!x.product_id) mm.unshift('product'); return mm; };\nif (target && event !== 'cancelled') {\n  if (has(o.n)) target.name = cut(String(o.n).trim(), 80);\n  if (has(o.a)) target.address = cut(String(o.a).trim(), 300);\n  if (has(o.ph)) {\n    const ph = String(o.ph);\n    target.contact = /same|this|meka|මේ/i.test(ph) && !/\\d{6,}/.test(ph) ? '0' + String(cust.phone).replace(/^94/, '') : ph.replace(/[^\\d+ ]/g, '').trim();\n  }\n  if (Number(o.qty) > 0) target.qty = Math.min(99, Math.round(Number(o.qty)));\n  if (pid && target.status !== 'confirmed' && (!target.product_id || switched)) target.product_id = pid;\n  if (!target.qty) target.qty = 1;\n  if (act === 'CONFIRM') {\n    if (target.status === 'draft' && !missingOf(target).length) { target.status = 'confirmed'; event = 'confirmed'; }\n    else if (target.status === 'confirmed') event = 'already';\n  } else if (target.status === 'confirmed' && gave) {\n    target.status = 'draft';                                  // changed after confirming → confirm again\n  }\n  order = target;\n}\nconst missing = order && order.status === 'draft' ? missingOf(order) : [];\nconst complete = !!(order && order.status === 'draft' && !missing.length);\n\n// ---------- fixed texts ----------\nconst oprod = (order && byId[Number(order.product_id)]) || prod;\nconst LABEL = { si: { name: 'නම', address: 'ලිපිනය', contact: 'දුරකථන අංකය', product: 'product එක' },\n                en: { name: 'name', address: 'address', contact: 'phone number', product: 'product' } }[L];\nconst missingText = (() => {\n  const w = missing.map(x => LABEL[x] || x);\n  return w.length < 2 ? w.join('') : w.slice(0, -1).join(', ') + (L === 'en' ? ' and ' : ' සහ ') + w[w.length - 1];\n})();\nconst qty = (order && order.qty) || 1;\nconst vals = {\n  business: settings.business || '', name: (order && order.name) || cust.name || '',\n  product: (oprod || {}).name || '', price: money((oprod || {}).price), delivery_fee: money((oprod || {}).delivery_fee),\n  qty, address: (order && order.address) || '', contact: (order && order.contact) || '',\n  total: money(Number((oprod || {}).price || 0) * qty + Number((oprod || {}).delivery_fee || 0)),\n  missing: missingText, shop_phone: settings.shop_phone || '', shop_address: settings.shop_address || '',\n  delivery_days: settings.delivery_days || 3,\n};\nconst fill = s => String(s || '').replace(/\\{(\\w+)\\}/g, (x, key) => (key in vals ? String(vals[key]) : x))\n  .replace(/[ \\t]{2,}/g, ' ').replace(/ ([!?.,])/g, '$1').replace(/\\n{3,}/g, '\\n\\n').trim();\nconst fx = key => { const f = fixed[key] || {}; return fill(L === 'en' ? (f.en || f.si) : f.si); };\nconst btn = (id, key) => ({ id, title: fx(key) });\nconst productList = () => ({ kind: 'list', text: fx('pick_product'), button: fx('btn_menu'),\n  rows: matches.map(p => ({ id: `P_${p.id}`, title: p.name, description: p.short_info || '' })) });\n\n// ---------- build the reply ----------\nconst blocks = [], log = [], seenAdd = [];\nlet route = u.rule ? 'rule' : (!u.typed ? 'tap' : 'fixed');\nlet ai = null, faqId = null, handoff = null;\n\nif (human || k === 'human' || k === 'complaint') handoff = { reason: k === 'complaint' ? 'complaint' : 'asked for a person' };\nelse if (unsure && Number(cust.unsure_streak || 0) + 1 >= 2) handoff = { reason: 'not sure what they mean (twice)' };\n\nif (handoff) {\n  blocks.push({ kind: 'text', text: fx('handoff') });\n  log.push(`[handed to the shop: ${handoff.reason}]`);\n  route = 'human';\n} else if (unsure) {\n  blocks.push({ kind: 'buttons', text: fx('clarify'), buttons: [btn('ORDER', 'btn_order'), btn('INFO', 'btn_info'), btn('HUMAN', 'btn_human')] });\n  log.push('[asked what they mean]');\n} else {\n  const welcome = !!(prod && (!seen.includes(pid) || info) && !['CONFIRM', 'CANCEL'].includes(act) && !event);\n  if (welcome) {\n    const desc = fill(prod.long_description || prod.short_info || prod.name);\n    blocks.push(prod.image_url ? { kind: 'image', image: prod.image_url, caption: desc, pid } : { kind: 'text', text: desc, pid });\n    seenAdd.push(pid);\n    log.push(`[sent ${prod.name} photo + details]`);\n  }\n\n  if (event === 'cancelled') {\n    blocks.push({ kind: 'text', text: fx('order_cancelled') }); log.push('[order cancelled]');\n  } else if (event === 'confirmed' || event === 'already') {\n    blocks.push({ kind: 'text', text: fx('order_confirmed') }); log.push('[order confirmed]');\n  } else if (!prod) {\n    if (matches.length > 1) { blocks.push(productList()); log.push('[asked which product]'); }\n    else { blocks.push({ kind: 'text', text: fx('ask_product') }); log.push('[asked which product]'); }\n  } else {\n    // 1) answer what they asked\n    const waitingChange = act === 'CHANGE' && !gave;\n    if (waitingChange) {\n      blocks.push({ kind: 'text', text: fx('ask_change') }); log.push('[asked what to change]');\n    } else if (k === 'question') {\n      const FIXED_TOPIC = { price: 'price', delivery: 'delivery', payment: 'payment', contact: 'contact', shop: 'shop' };\n      const coveredByWelcome = welcome && ['price', 'delivery', 'other'].includes(t);   // the photo text has price & delivery\n      const faq = !switched && Number(c.faq) ? faqs.find(f => Number(f.id) === Number(c.faq)) : null;\n      const faqAnswer = faq ? (L === 'en' ? (faq.en || faq.si) : (faq.si || faq.en)) : '';\n      if (coveredByWelcome) { /* nothing extra */ }\n      else if (FIXED_TOPIC[t] && fx(FIXED_TOPIC[t])) { blocks.push({ kind: 'text', text: fx(FIXED_TOPIC[t]) }); log.push(`[answered ${t}]`); }\n      else if (t === 'stock') {\n        if (fx('stock')) { blocks.push({ kind: 'text', text: fx('stock') }); log.push('[answered stock]'); }\n        else { blocks.push({ kind: 'text', text: fx('will_check') }); handoff = { reason: 'stock question (no stock text set)' }; route = 'human'; log.push('[will check stock, handed to the shop]'); }\n      } else if (faqAnswer) {\n        blocks.push({ kind: 'text', text: fill(faqAnswer) }); faqId = faq.id; route = 'faq'; log.push(`[answered FAQ: ${cut(faq.q, 60)}]`);\n      } else {\n        blocks.push({ kind: 'ai' }); ai = { topic: t };\n      }\n    } else if (k === 'other_product' && !switched) {\n      if (matches.length > 1) { blocks.push(productList()); log.push('[asked which product]'); }\n      else { blocks.push({ kind: 'ai' }); ai = { topic: 'unknown_product' }; }\n    }\n\n    // 2) always move towards the order (not after a hand-off)\n    if (!waitingChange && !handoff) {\n      if (complete) {\n        blocks.push({ kind: 'buttons', text: fx('order_summary'),\n          buttons: [btn('CONFIRM', 'btn_confirm'), btn('CHANGE', 'btn_change'), btn('CANCEL', 'btn_cancel')] });\n        log.push('[sent order summary, asked to confirm]');\n      } else if (order && order.status === 'draft' && fields.some(f => has(order[f]))) {\n        blocks.push({ kind: 'text', text: fx('ask_missing') });\n        log.push(`[asked missing: ${missing.join(', ')}]`);\n      } else if (!order || order.status !== 'confirmed') {\n        blocks.push({ kind: 'text', text: welcome || act === 'ORDER' ? fx('ask_details') : fx('nudge') });\n        log.push('[asked name/address/phone]');\n      } else if (!blocks.length) {\n        blocks.push({ kind: 'text', text: fx('chat_reply') }); log.push('[said thanks]');\n      }\n    }\n  }\n}\nif (!blocks.length) { blocks.push({ kind: 'text', text: fx('chat_reply') }); log.push('[said thanks]'); }\n\n// ---------- stage ----------\nlet stage = cust.stage || 'new';\nif (handoff) stage = 'handoff';\nelse if (event === 'cancelled') stage = 'cancelled';\nelse if (event === 'confirmed' || event === 'already' || (order && order.status === 'confirmed')) stage = 'ordered';\nelse if (complete) stage = 'confirming';\nelse if (order && order.status === 'draft' && fields.some(f => has(order[f]))) stage = 'collecting';\nelse if (prod && ['new', 'handoff', 'cancelled'].includes(stage)) stage = 'browsing';\n\n// ---------- reply AI request (only real product questions; only that topic's fields, ≤600 chars) ----------\nlet aiReq = null, facts = '';\nif (ai && prod) {\n  const langName = { si: 'Sinhala (Sinhala script)', sg: 'Singlish (Sinhala written in English letters)', en: 'English' }[lang];\n  const list = {\n    usage: [prod.usage],\n    ingredients: [prod.ingredients],\n    safety: [prod.precautions, prod.usage],\n    results: [prod.short_info, prod.symptoms],\n    unknown_product: ['We do not have details of that product here. We only have the products we sell.'],\n  }[ai.topic] || [prod.short_info, prod.usage, prod.precautions];\n  facts = cut(list.filter(has).join(' | ') || 'No details.', 600);\n  const sys = `You are a staff member at a Sri Lankan online shop, answering a customer on WhatsApp. Never say you are a bot or AI.\nAnswer only the question, like a real person: 1-3 short sentences, polite, not over-friendly, 1-2 fitting emojis.\nUse only the facts. Never invent anything, including numbers; if the facts don't answer it, say you will check and reply soon.\nHealth products: never promise a cure and never tell anyone to stop a doctor's medicine; for pregnancy, children, long-term illness or other medicines, advise checking with a doctor.\nDo not ask for order details. Return JSON {\"r\": reply}.`;\n  aiReq = {\n    systemInstruction: { parts: [{ text: sys }] },\n    contents: [{ role: 'user', parts: [{ text: `Product: ${prod.name}\\nFacts: ${facts}\\nCustomer: ${q}\\nWrite in ${langName}.` }] }],\n    generationConfig: {\n      maxOutputTokens: 1024, responseMimeType: 'application/json',\n      responseJsonSchema: { type: 'object', properties: { r: { type: 'string' } }, required: ['r'] },\n    },\n  };\n  if (has(cfg.REPLY_THINKING)) aiReq.generationConfig.thinkingConfig = { thinkingLevel: String(cfg.REPLY_THINKING) };\n}\nconst models = settings.ai_models || {};\n\nreturn [{ json: {\n  route: aiReq ? 'ai' : 'send',\n  final_route: route,\n  lang, blocks, req: aiReq,\n  stage_name: 'reply',\n  model: models.reply || cfg.MODEL_REPLY,\n  degrade: !!budget.degrade,\n  cache: aiReq ? { facts_hash: prod.facts_hash, t: ai.topic, lang, q } : null,\n  guard: aiReq ? {\n    facts: [facts, prod.price, prod.delivery_fee, Number(prod.price || 0) + Number(prod.delivery_fee || 0), settings.shop_phone, settings.delivery_days].join(' '),\n    banned: (settings.banned_claims || []).map(x => String(x).toLowerCase()).filter(Boolean),\n    product_id: prod.id, product_id_feeder: prod.feeder_id,\n  } : null,\n  fixed_will_check: fx('will_check'),\n  save: {\n    lingo_user_id: m.lingo_user_id, phone: m.phone, test: !!m.test,\n    msgs: (ctx.msgs || []).map(x => ({ wa_id: x.wa_id, t: x.t })),\n    log: log.join('\\n'),\n    meta: { k: c ? c.k : null, t: c ? c.t : null, q, faq: c ? Number(c.faq) || 0 : 0, u: unsure, rule: u.rule ? u.rule.id : null, pid: pid || null, prompt: u.prompt_version },\n    product_id: pid || null,\n    seen_add: seenAdd,\n    lang, stage,\n    unsure: unsure && !handoff,\n    handoff,\n    route,\n    faq_id: faqId,\n    rule_id: u.rule ? u.rule.id : null,\n    order: target ? {\n      id: order.id || null, product_id: order.product_id || null, qty: order.qty || 1,\n      name: order.name || null, address: order.address || null, contact: order.contact || null, status: order.status,\n    } : null,\n  },\n} }];\n"
+      },
+      "id": "959a6d77-2397-425b-aa27-49f9474a6cae",
+      "name": "Plan Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3600,
+        520
+      ],
+      "notes": "State machine → reply blocks",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "0622cbdf-1657-4e08-92a6-feaeb4d6b4ee",
+              "leftValue": "={{ $json.route === 'ai' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8de71696-b90b-4e9e-9556-25fc2fcd8374",
+      "name": "Needs AI Answer?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3840,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.SUPABASE_URL }}/rest/v1/rpc/bot_cache_get",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Profile",
+              "value": "lingo"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p: $json.cache }) }}"
+      },
+      "id": "acdd4e3c-d0ae-4cfc-b6d9-a010d39d6387",
+      "name": "Cache Get",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4080,
+        400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_supabase",
+          "name": "Supabase service key (Lingo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "f780ed7f-e1b1-455c-8a8d-19f15f137cdf",
+              "leftValue": "={{ $json.hit === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "58c46fcc-f18b-44d9-a45c-e2b6d5a71f36",
+      "name": "Cache Hit?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4320,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "3714096e-4b3e-4bc4-b0a7-8c63a920c7f6",
+              "leftValue": "={{ $('Plan Reply').first().json.degrade !== true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "38b5e1af-fa6c-48dd-90d2-8c66f8d4a8a2",
+      "name": "Reply AI Allowed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4560,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/{{ $('Plan Reply').first().json.model }}:generateContent",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 60000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Plan Reply').first().json.req) }}"
+      },
+      "id": "176a50ee-5837-4bb9-8dda-bd1adb81bdb3",
+      "name": "Gemini: Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4800,
+        480
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_gemini",
+          "name": "Gemini API key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput",
+      "notes": "Only real product questions",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Puts the answer for a real product question into the reply: a saved answer (cache), or the reply\n// AI's answer after the OUTPUT GUARD (code): no banned claims, every number must be in the facts,\n// short enough, and in the customer's script. A failed check, or no AI allowance left this month\n// (degrade mode), sends \"we'll check and reply\" and hands the chat to the seller.\nconst plan = $('Plan Reply').first().json;\nconst cache = $('Cache Get').isExecuted ? $('Cache Get').first().json : {};\nconst g = $('Gemini: Reply').isExecuted ? ($('Gemini: Reply').first().json || {}) : null;\nconst gtext = x => ((((x || {}).candidates || [])[0] || {}).content || { parts: [] }).parts.filter(p => !p.thought).map(p => p.text || '').join('');\n\nlet r = '', route = 'ai', why = '', cacheKey = null, cachePut = null;\nif (cache.hit && cache.answer) {\n  r = String(cache.answer); route = 'cache'; cacheKey = cache.key;\n} else if (!g) {\n  why = 'AI allowance used up this month';\n} else {\n  const raw = gtext(g);\n  try { r = String(JSON.parse(raw.replace(/```(json)?/g, '').trim()).r || '').trim(); } catch (e) { r = raw.trim(); }\n  if (!r) why = g.error ? 'AI call failed' : 'empty AI answer';\n  if (!why) {\n    const low = r.toLowerCase();\n    const banned = (plan.guard.banned || []).find(b => low.includes(b));\n    const nums = s => (String(s).match(/\\d+(?:[.,]\\d+)*/g) || []).map(x => x.replace(/,/g, '').replace(/\\.0+$/, '').replace(/^0+(?=\\d)/, ''));\n    const allowed = new Set(nums(plan.guard.facts));\n    const strange = nums(r).filter(n => !allowed.has(n));\n    const sinhala = (r.match(/[඀-෿]/g) || []).length;\n    const latin = (r.match(/[A-Za-z]/g) || []).length;\n    if (banned) why = `banned claim: ${banned}`;\n    else if (strange.length) why = `number not in the facts: ${strange.slice(0, 3).join(', ')}`;\n    else if (Array.from(r).length > 600) why = 'answer too long';\n    else if (plan.lang === 'si' && sinhala < latin * 0.5) why = 'not in Sinhala script';\n    else if ((plan.lang === 'sg' || plan.lang === 'en') && sinhala > 0) why = 'Sinhala script for a Singlish/English customer';\n  }\n  if (!why && plan.cache) cachePut = { ...plan.cache, answer: r, product_id: plan.guard.product_id, product_id_feeder: plan.guard.product_id_feeder };\n}\n\nlet blocks, save = { ...plan.save };\nif (why) {\n  blocks = plan.blocks.filter(b => b.kind === 'image' || (b.kind === 'text' && b.pid)).concat([{ kind: 'text', text: plan.fixed_will_check }]);\n  save.handoff = { reason: `will check: ${why}`, q: plan.save.meta.q };\n  save.stage = 'handoff';\n  save.unsure = false;\n  route = 'human';\n  save.log = [save.log, `[will check, handed to the shop: ${why}]`].filter(Boolean).join('\\n');\n} else {\n  blocks = plan.blocks.map(b => (b.kind === 'ai' ? { kind: 'text', text: r } : b));\n  save.log = [r ? `[answered: ${r.slice(0, 160)}]` : '', save.log].filter(Boolean).join('\\n');\n}\nsave.route = route;\nsave.cache_key = cacheKey;\nsave.cache_put = cachePut;\nreturn [{ json: { blocks, save } }];\n"
+      },
+      "id": "3ef115cc-1266-4f4b-a410-7a150133a914",
+      "name": "Compose Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5040,
+        400
+      ],
+      "notes": "Output guard",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reply blocks → WhatsApp Cloud API messages. Neighbouring texts are merged into one message\n// (fewer messages = cheaper outside free windows). Limits: buttons ≤3 (titles ≤20), list rows ≤10\n// (titles ≤24, descriptions ≤72), body / caption ≤1024, text ≤4096.\nconst m = $('Message').first().json;\nconst src = $input.first().json;\nconst to = String(m.phone);\nconst clip = (s, n) => Array.from(String(s || '')).slice(0, n).join('');\nconst len = s => Array.from(String(s || '')).length;\nconst base = { messaging_product: 'whatsapp', recipient_type: 'individual', to };\n\nconst out = [];\nlet pend = '', pendPid = null;\nconst push = (pid, body, text) => out.push({ json: { pid, text, body, url: `https://graph.facebook.com/${$('Config').first().json.GRAPH_VERSION}/${m.phone_number_id}/messages` } });\nconst flush = () => {\n  if (!pend) return;\n  push(pendPid, { ...base, type: 'text', text: { body: clip(pend, 4096), preview_url: false } }, clip(pend, 4096));\n  pend = ''; pendPid = null;\n};\nconst join = (a, b) => (a ? a + '\\n\\n' + b : b);\n\nfor (const b of src.blocks || []) {\n  if (b.kind === 'text') {\n    if (!b.text) continue;\n    if (len(join(pend, b.text)) > 4096) flush();\n    pend = join(pend, b.text);\n    if (b.pid) pendPid = b.pid;\n  } else if (b.kind === 'image') {\n    flush();\n    if (len(b.caption) <= 1024) {\n      push(b.pid, { ...base, type: 'image', image: { link: b.image, caption: b.caption || '' } }, '[photo] ' + (b.caption || ''));\n    } else {\n      push(b.pid, { ...base, type: 'image', image: { link: b.image } }, '[photo]');\n      pend = b.caption; pendPid = b.pid;\n    }\n  } else if (b.kind === 'buttons' || b.kind === 'list') {\n    let text = join(pend, b.text);\n    if (len(text) > 1024) { flush(); text = b.text; }\n    const pid = pendPid; pend = ''; pendPid = null;\n    const action = b.kind === 'buttons'\n      ? { buttons: b.buttons.slice(0, 3).map(x => ({ type: 'reply', reply: { id: x.id, title: clip(x.title, 20) } })) }\n      : { button: clip(b.button, 20), sections: [{ title: 'Products', rows: b.rows.slice(0, 10).map(r => ({\n          id: r.id, title: clip(r.title, 24), description: clip(r.description, 72) })) }] };\n    const labels = b.kind === 'buttons' ? action.buttons.map(x => x.reply.title) : action.sections[0].rows.map(x => x.title);\n    push(pid, { ...base, type: 'interactive', interactive: { type: b.kind === 'buttons' ? 'button' : 'list', body: { text: clip(text, 1024) }, action } },\n      clip(text, 1024) + '\\n[' + labels.join(' | ') + ']');\n  }\n}\nflush();\nreturn out;\n"
+      },
+      "id": "cdafaf19-cc17-4986-b6f3-e3c887faf8cd",
+      "name": "Split Outgoing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "ff7f309a-513e-451f-8876-9f4fac01293e",
+              "leftValue": "={{ !$('Message').first().json.test }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ff2118b2-bdea-41f8-bcba-8b24a5c81bc9",
+      "name": "Real Send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 60000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 400
+            }
+          }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Message').first().json.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}"
+      },
+      "id": "d3b96d11-fce8-4b40-baf5-c88c88540ac0",
+      "name": "Send WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        940
+      ],
+      "onError": "continueRegularOutput",
+      "notes": "One by one, in order",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collects what was sent (WhatsApp ids for delivery statuses and quote matching) and every AI call's\n// usage, then saves the whole turn in one database call. In test mode nothing was sent.\nconst m = $('Message').first().json;\nconst src = $('Compose Reply').isExecuted ? $('Compose Reply').first().json : $('Plan Reply').first().json;\nconst outs = $('Split Outgoing').all();\nconst results = m.test ? [] : $input.all();\nconst sent = [], productMsgs = [];\nouts.forEach((o, i) => {\n  const r = results[i] ? (results[i].json || {}) : {};\n  const id = ((r.messages || [])[0] || {}).id || null;\n  const e = r.error ? (typeof r.error === 'string' ? r.error : `${r.error.code || ''} ${r.error.message || ''}`.trim()) : null;\n  sent.push({ wa_id: id, text: o.json.text, error: m.test ? null : (e || (id ? null : 'no message id')) });\n  if (o.json.pid && id) productMsgs.push({ wa_id: id, product_id: o.json.pid });\n});\n\nconst usage = [];\nconst add = (node, builder) => {\n  if (!$(node).isExecuted) return;\n  const g = $(node).first().json || {};\n  const b = $(builder).first().json || {};\n  if (g.usageMetadata) usage.push({ stage: b.stage_name || b.stage, model: b.model, usage: g.usageMetadata, ok: !g.error });\n};\nadd('Gemini: Summary', 'Build Summary Request');\nadd('Gemini: Classify', 'Understand');\nadd('Gemini: Reply', 'Plan Reply');\n\nreturn [{ json: { p: { ...src.save, sent, product_msgs: productMsgs, usage } } }];\n"
+      },
+      "id": "1a6b9cc5-b74e-48ed-8132-2f5e3b03c71d",
+      "name": "Build Save Turn",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.SUPABASE_URL }}/rest/v1/rpc/bot_save_turn",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Profile",
+              "value": "lingo"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p: $json.p }) }}"
+      },
+      "id": "c9cb8bc0-8603-4ca8-9dee-d4793b66b7b4",
+      "name": "Save Turn",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        1040
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_supabase",
+          "name": "Supabase service key (Lingo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "notes": "Messages · order (prices in SQL) · usage",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "80921a29-3e9b-43b6-94a1-f29f99489e43",
+              "leftValue": "={{ $('Message').first().json.test === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8faac51e-319a-46d0-ad7b-4507c9073082",
+      "name": "Test Done?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "e6b7b851-82cb-4140-ba42-363ac68ed556",
+              "leftValue": "={{ $('Message').first().json.test === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "501d497b-508c-465a-a863-50a7b893d5cc",
+      "name": "Test Stopped?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Test bot (feeder.retexia.com → Lingo → Test bot): what the customer would have received, how the\n// turn was answered and what the AI cost — the same pipeline as a real WhatsApp message.\nconst m = $('Message').first().json;\nconst gate = $('Gate').isExecuted ? $('Gate').first().json : {};\nif (!$('Save Turn').isExecuted) {\n  const claim = $('Claim Batch').isExecuted ? $('Claim Batch').first().json : {};\n  return [{ json: { reply: { ok: true, stopped: gate.status !== 'ok' ? gate.status : (claim.why || 'stopped'), messages: [] } } }];\n}\nconst st = $('Build Save Turn').first().json.p;\nconst saved = $('Save Turn').first().json || {};\nreturn [{ json: { reply: {\n  ok: true,\n  phone: m.phone,\n  route: st.route,\n  stage: st.stage,\n  lang: st.lang,\n  handoff: st.handoff || null,\n  meta: st.meta,\n  log: st.log,\n  messages: $('Split Outgoing').all().map(o => ({ text: o.json.text, body: o.json.body, pid: o.json.pid || null })),\n  ai: (st.usage || []).map(x => ({ stage: x.stage, model: x.model, in: (x.usage || {}).promptTokenCount || 0,\n    out: ((x.usage || {}).candidatesTokenCount || 0) + ((x.usage || {}).thoughtsTokenCount || 0) })),\n  ad_match: $('Gemini: Ad Match').isExecuted,\n  cost_usd: Number(saved.cost_usd || 0),\n  order_id: saved.order_id || null,\n} } }];\n"
+      },
+      "id": "0f74bb93-1cf9-4062-a351-16ea879955ba",
+      "name": "Test Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Retexia — Feeder Lingo (WhatsApp bot)\n**Setup** (once):\n1. Credentials (Header Auth): **Supabase service key (Lingo)** → name `apikey`, value = Supabase service_role / secret key. **Gemini API key** → `x-goog-api-key`. **Retexia key (Lingo)** → `X-Retexia-Key`, value = `FEEDER_LINGO_N8N_KEY` on Vercel.\n2. **Config** → SUPABASE_URL.\n3. n8n server env: `NODE_FUNCTION_ALLOW_BUILTIN=crypto` (signature check).\n4. Activate. Sellers paste the **Production URL** of *WhatsApp Webhook* (feeder.retexia.com shows it to them) in their Meta app.\nWhatsApp tokens are per seller, in Supabase Vault — never in n8n.",
+        "height": 420,
+        "width": 760,
+        "color": 6
+      },
+      "id": "80ae7504-eb13-487c-952a-da31d008f48e",
+      "name": "Note 7ee331",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -900
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Cost ladder\n0 · code: taps, quick rules, fixed texts, missing fields, summary, confirm/cancel\n1 · middle AI (one small JSON)\n2 · FAQ / answer cache\n3 · reply AI (only that topic's product fields)\n4 · hand to the seller\nEvery Gemini call's usage is saved in lingo.ai_usage with its cost.",
+        "height": 260,
+        "width": 560,
+        "color": 4
+      },
+      "id": "08fee985-819d-4002-b768-b6eac6aad1f4",
+      "name": "Note b19bcf",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1880,
+        100
+      ]
+    }
+  ],
+  "connections": {
+    "WhatsApp Webhook": {
+      "main": [
+        [
+          {
+            "node": "Read Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Webhook": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta Verify (GET)": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Panel: Lingo": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "From WhatsApp?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "From WhatsApp?": {
+      "main": [
+        [
+          {
+            "node": "Number",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Meta Check?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta Check?": {
+      "main": [
+        [
+          {
+            "node": "Check Verify Token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Panel Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Verify Token": {
+      "main": [
+        [
+          {
+            "node": "Answer Meta Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Panel Action": {
+      "main": [
+        [
+          {
+            "node": "Seller",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Seller": {
+      "main": [
+        [
+          {
+            "node": "Test Bot?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Bot?": {
+      "main": [
+        [
+          {
+            "node": "Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check?": {
+      "main": [
+        [
+          {
+            "node": "WA: Number Info",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Inbox Send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WA: Number Info": {
+      "main": [
+        [
+          {
+            "node": "Has WABA?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has WABA?": {
+      "main": [
+        [
+          {
+            "node": "WA: Subscribed Apps",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Panel Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WA: Subscribed Apps": {
+      "main": [
+        [
+          {
+            "node": "Panel Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inbox Send?": {
+      "main": [
+        [
+          {
+            "node": "WA: Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Panel Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WA: Send Reply": {
+      "main": [
+        [
+          {
+            "node": "Panel Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Panel Reply": {
+      "main": [
+        [
+          {
+            "node": "Respond: Panel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Number": {
+      "main": [
+        [
+          {
+            "node": "Known Number?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Known Number?": {
+      "main": [
+        [
+          {
+            "node": "Verify & Split",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify & Split": {
+      "main": [
+        [
+          {
+            "node": "Statuses?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Echoes?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Has Message?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Statuses?": {
+      "main": [
+        [
+          {
+            "node": "Save Statuses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Echoes?": {
+      "main": [
+        [
+          {
+            "node": "Save Echoes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Message?": {
+      "main": [
+        [
+          {
+            "node": "Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message": {
+      "main": [
+        [
+          {
+            "node": "Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gate": {
+      "main": [
+        [
+          {
+            "node": "Gate OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gate OK?": {
+      "main": [
+        [
+          {
+            "node": "New Ad?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Test Stopped?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Ad?": {
+      "main": [
+        [
+          {
+            "node": "Build Ad Match",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is Media?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Ad Match": {
+      "main": [
+        [
+          {
+            "node": "Gemini: Ad Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini: Ad Match": {
+      "main": [
+        [
+          {
+            "node": "Read Ad Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Ad Match": {
+      "main": [
+        [
+          {
+            "node": "Save Ad Product",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Ad Product": {
+      "main": [
+        [
+          {
+            "node": "Is Media?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Media?": {
+      "main": [
+        [
+          {
+            "node": "Get Media URL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Buffer Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Media URL": {
+      "main": [
+        [
+          {
+            "node": "Download Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Media": {
+      "main": [
+        [
+          {
+            "node": "Build Media Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Media Request": {
+      "main": [
+        [
+          {
+            "node": "Gemini: Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini: Media": {
+      "main": [
+        [
+          {
+            "node": "Media to Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Media to Text": {
+      "main": [
+        [
+          {
+            "node": "Build Buffer Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Buffer Row": {
+      "main": [
+        [
+          {
+            "node": "Buffer Add",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buffer Add": {
+      "main": [
+        [
+          {
+            "node": "Wait?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait?": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Claim Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Claim Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim Batch": {
+      "main": [
+        [
+          {
+            "node": "Latest Message?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Latest Message?": {
+      "main": [
+        [
+          {
+            "node": "Real Chat?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Test Stopped?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Real Chat?": {
+      "main": [
+        [
+          {
+            "node": "Mark Read + Typing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Summarize?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Read + Typing": {
+      "main": [
+        [
+          {
+            "node": "Summarize?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize?": {
+      "main": [
+        [
+          {
+            "node": "Build Summary Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Understand",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Summary Request": {
+      "main": [
+        [
+          {
+            "node": "Gemini: Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini: Summary": {
+      "main": [
+        [
+          {
+            "node": "Save Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Summary": {
+      "main": [
+        [
+          {
+            "node": "Understand",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Understand": {
+      "main": [
+        [
+          {
+            "node": "Needs Middle AI?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Middle AI?": {
+      "main": [
+        [
+          {
+            "node": "Gemini: Classify",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Plan Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini: Classify": {
+      "main": [
+        [
+          {
+            "node": "Plan Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan Reply": {
+      "main": [
+        [
+          {
+            "node": "Needs AI Answer?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs AI Answer?": {
+      "main": [
+        [
+          {
+            "node": "Cache Get",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Split Outgoing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cache Get": {
+      "main": [
+        [
+          {
+            "node": "Cache Hit?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cache Hit?": {
+      "main": [
+        [
+          {
+            "node": "Compose Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply AI Allowed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply AI Allowed?": {
+      "main": [
+        [
+          {
+            "node": "Gemini: Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compose Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini: Reply": {
+      "main": [
+        [
+          {
+            "node": "Compose Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose Reply": {
+      "main": [
+        [
+          {
+            "node": "Split Outgoing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Outgoing": {
+      "main": [
+        [
+          {
+            "node": "Real Send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Real Send?": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Save Turn",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Build Save Turn",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Save Turn": {
+      "main": [
+        [
+          {
+            "node": "Save Turn",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Turn": {
+      "main": [
+        [
+          {
+            "node": "Test Done?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Done?": {
+      "main": [
+        [
+          {
+            "node": "Test Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Stopped?": {
+      "main": [
+        [
+          {
+            "node": "Test Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Result": {
+      "main": [
+        [
+          {
+            "node": "Respond: Panel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true
+  },
+  "tags": []
+}

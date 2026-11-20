@@ -307,7 +307,7 @@ export async function tiktokCheck(advertiserId: string | null) {
   if (!advertiserId) return { ok: false, info: { ...info, problems: ["Enter the TikTok advertiser ID."] } };
   const a = await tt("GET", "advertiser/info/", { advertiser_ids: [advertiserId], fields: ["name", "status", "currency", "timezone", "display_timezone"] });
   const row = a.ok ? ((ttData(a)?.list ?? [])[0] as { name?: string; status?: string; currency?: string; timezone?: string; display_timezone?: string } | undefined) : undefined;
-  if (!row) problems.push(a.network ? "Retexia couldn't reach TikTok just now. Try again in a minute." : `Retexia can't open TikTok advertiser ${advertiserId} yet. Share it with Retexia's Business Center, then check again.`);
+  if (!row) problems.push(a.network ? `Retexia couldn't reach TikTok just now (${String(a.body?.error?.message ?? "no answer").slice(0, 120)}). Try again in a minute.` : `Retexia can't open TikTok advertiser ${advertiserId} yet. Share it with Retexia's Business Center, then check again.`);
   else {
     Object.assign(info, { name: row.name, status: row.status, currency: row.currency, timezone: row.display_timezone ?? row.timezone });
     if (row.status && !/ENABLE|ACTIVE/.test(row.status)) problems.push(`TikTok shows this ad account as ${row.status}. Check it in TikTok Ads Manager.`);
