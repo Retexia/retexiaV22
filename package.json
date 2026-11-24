@@ -10,12 +10,13 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "db:test": "node scripts/test-db.mjs && node scripts/test-admin-db.mjs && node scripts/test-products-db.mjs && node scripts/test-plan-db.mjs && node scripts/test-autopublish-db.mjs && node scripts/test-autopublish.mjs && node scripts/test-lingo.mjs",
+    "db:test": "node scripts/test-db.mjs && node scripts/test-admin-db.mjs && node scripts/test-products-db.mjs && node scripts/test-plan-db.mjs && node scripts/test-autopublish-db.mjs && node scripts/test-autopublish.mjs && node scripts/test-lingo-feeder.mjs",
     "db:types": "node scripts/gen-types.mjs",
     "db:types:supabase": "supabase gen types typescript --local > packages/supabase/src/database.types.ts",
     "e2e": "playwright test -c e2e/playwright.config.ts",
     "e2e:mock": "node scripts/e2e/mock-supabase.mjs",
-    "lingo:n8n": "node scripts/build-lingo-n8n.mjs"
+    "lingo-feeder:n8n": "node scripts/build-lingo-feeder-n8n.mjs",
+    "lingo-feeder:catalog": "node scripts/lingo-feeder-catalog.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",

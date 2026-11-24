@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
 import { toolFor } from "@/lib/feeder/tools";
 
 const icon = (C: typeof LayoutDashboard) => <C aria-hidden size={18} strokeWidth={1.5} />;
-const TOOL_ICON = { "bulk-import": FileSpreadsheet, "bulk-import-v2": FileStack, autopublish: Megaphone, lingo: MessageCircle } as const;
+const TOOL_ICON = { "bulk-import": FileSpreadsheet, "bulk-import-v2": FileStack, autopublish: Megaphone, "lingo-feeder": MessageCircle } as const;
 
 /** Every Feeder package in the menu; packages not bought are greyed out with a lock. */
 export function FeederShell({

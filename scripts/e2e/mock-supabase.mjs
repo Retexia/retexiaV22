@@ -64,7 +64,7 @@ const ident = (s) => {
 };
 
 // Schemas served by the REST API (Accept-Profile / Content-Profile headers, like Supabase's "Exposed schemas").
-const SCHEMAS = ["public", "feeder", "post", "lingo", "plan"];
+const SCHEMAS = ["public", "feeder", "post", "lingo", "plan", "lingo_feeder"];
 const schemaOf = (req) => {
   const s = String(req.headers[req.method === "GET" || req.method === "HEAD" ? "accept-profile" : "content-profile"] ?? "public");
   if (!SCHEMAS.includes(s)) throw httpError(406, "PGRST106", `The schema must be one of the following: ${SCHEMAS.join(", ")}`);

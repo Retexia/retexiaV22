@@ -1,0 +1,576 @@
+{
+  "name": "Retexia — Lingo Feeder (follow-ups + health)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "88b827db-5cd6-416b-ac4d-8651721a6cec",
+      "name": "Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "d7d9f78a-e792-4265-bdb1-b115a6fbeb2d",
+      "name": "Every 6 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5676e5da-02ce-4ea2-ad32-5843782cf95e",
+              "name": "SUPABASE_URL",
+              "value": "EDIT: https://YOUR-PROJECT.supabase.co",
+              "type": "string"
+            },
+            {
+              "id": "d7496a43-55ca-4a94-81d0-0327e62ba14f",
+              "name": "GRAPH_VERSION",
+              "value": "v25.0",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "d80d9b77-4173-41bf-8a2c-8af9dfd54ef1",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        340
+      ],
+      "notes": "Edit SUPABASE_URL once",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "88e8647a-bf6c-48ba-8b30-93865cc691c1",
+              "leftValue": "={{ $('Every 15 Minutes').isExecuted }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d55ee973-0508-4b61-9589-032a81f56016",
+      "name": "Follow-ups?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.SUPABASE_URL }}/rest/v1/rpc/bot_due_followups",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Profile",
+              "value": "lingo_feeder"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p: { limit: 100 } }) }}"
+      },
+      "id": "3d157125-96ac-4eb1-b592-97bbe2b38ecd",
+      "name": "Due Follow-ups",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_supabase",
+          "name": "Supabase service key (Lingo Feeder)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "notes": "Statuses · one follow-up · inside 24 h",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Follow-ups (texts filled in and saved by bot_due_followups): one WhatsApp message each with a\n// 🛒 Order button, sent with that seller's own token.\nconst cfg = $('Config').first().json;\nconst res = $input.first().json || {};\nconst items = [];\nfor (const it of res.items || []) {\n  if (!it.text || !it.token || !it.phone_number_id) continue;\n  const body = { messaging_product: 'whatsapp', recipient_type: 'individual', to: String(it.to), type: 'interactive',\n    interactive: { type: 'button', body: { text: Array.from(it.text).slice(0, 1024).join('') },\n      action: { buttons: [{ type: 'reply', reply: { id: 'ORDER', title: Array.from(it.button || 'Order').slice(0, 20).join('') } }] } } };\n  items.push({ json: { msg_id: it.msg_id, auth: 'Bearer ' + it.token, url: `https://graph.facebook.com/${cfg.GRAPH_VERSION}/${it.phone_number_id}/messages`, body } });\n}\nreturn items;\n"
+      },
+      "id": "7708eac7-de98-4ed0-863d-9a9de469d464",
+      "name": "Build Follow-ups",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 60000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 300
+            }
+          }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.auth }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}"
+      },
+      "id": "d8a19f4c-f6ce-4984-95dd-8b7dd29a614a",
+      "name": "Send Follow-up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        200
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// WhatsApp message ids of the follow-ups just sent → saved with each message (for delivery statuses).\nconst sent = $('Build Follow-ups').all();\nconst items = $input.all().map((r, i) => {\n  const j = r.json || {};\n  const id = ((j.messages || [])[0] || {}).id || null;\n  const e = j.error ? (typeof j.error === 'string' ? j.error : `${j.error.code || ''} ${j.error.message || ''}`.trim()) : null;\n  return { msg_id: sent[i] ? sent[i].json.msg_id : null, wa_id: id, error: e || (id ? null : 'no message id') };\n}).filter(x => x.msg_id);\nreturn [{ json: { p: { items } } }];\n"
+      },
+      "id": "2a488b2a-f526-429f-81f9-c0ee56f83a03",
+      "name": "Collect Ids",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.SUPABASE_URL }}/rest/v1/rpc/bot_set_wa_ids",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Profile",
+              "value": "lingo_feeder"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p: $json.p }) }}"
+      },
+      "id": "dca8a9e1-db6b-4705-9c6a-d24bf8ab5fe3",
+      "name": "Save Ids",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_supabase",
+          "name": "Supabase service key (Lingo Feeder)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.SUPABASE_URL }}/rest/v1/rpc/bot_numbers_to_check",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Profile",
+              "value": "lingo_feeder"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p: {} }) }}"
+      },
+      "id": "55a964ae-a111-460f-9c49-98c24adf2fc9",
+      "name": "Numbers To Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        480
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_supabase",
+          "name": "Supabase service key (Lingo Feeder)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500
+    },
+    {
+      "parameters": {
+        "jsCode": "// Every connected WhatsApp number → one health check each (token valid, number status, quality rating).\nconst cfg = $('Config').first().json;\nconst list = Array.isArray($input.first().json) ? $input.first().json : ($input.first().json || {}).items || $input.all().map(i => i.json);\nreturn (list || []).filter(n => n && n.token && n.phone_number_id).map(n => ({ json: {\n  phone_number_id: n.phone_number_id,\n  auth: 'Bearer ' + n.token,\n  url: `https://graph.facebook.com/${cfg.GRAPH_VERSION}/${n.phone_number_id}`,\n  qs: { fields: 'display_phone_number,verified_name,quality_rating,code_verification_status,name_status,platform_type' },\n} }));\n"
+      },
+      "id": "bfb96c22-0ead-41dd-adaf-307c45b3411b",
+      "name": "Split Numbers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 60000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 200
+            }
+          }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.auth }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "specifyQuery": "json",
+        "jsonQuery": "={{ JSON.stringify($json.qs) }}"
+      },
+      "id": "91eb34a2-4213-4418-bf49-d82003ca05aa",
+      "name": "WA: Number Info",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        480
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Health answer per number → bot_save_check (problems show as a banner in the seller's Lingo Feeder and in admin).\nconst asked = $('Split Numbers').all();\nreturn $input.all().map((r, i) => {\n  const j = r.json || {};\n  const b = j.body !== undefined ? j.body : j;\n  const e = (b && b.error) || null;\n  const err = e ? `${e.code ? '(' + e.code + ') ' : ''}${e.error_user_msg || e.message || 'error'}`.slice(0, 300) : null;\n  return { json: { p: {\n    phone_number_id: asked[i] ? asked[i].json.phone_number_id : null,\n    ok: !err && !!(b && b.id),\n    error: err || (b && b.id ? null : 'WhatsApp did not answer'),\n    info: err ? {} : { display_phone_number: b.display_phone_number || '', verified_name: b.verified_name || '', quality_rating: b.quality_rating || '',\n                        code_verification_status: b.code_verification_status || '', name_status: b.name_status || '' },\n  } } };\n}).filter(x => x.json.p.phone_number_id);\n"
+      },
+      "id": "8def3a77-a4ef-4e73-b785-2de7f484bf0d",
+      "name": "Health Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.SUPABASE_URL }}/rest/v1/rpc/bot_save_check",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Profile",
+              "value": "lingo_feeder"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p: $json.p }) }}"
+      },
+      "id": "f09fa5e9-54c4-4afa-888f-89f19a7cb0b3",
+      "name": "Save Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        480
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SET_ME_supabase",
+          "name": "Supabase service key (Lingo Feeder)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "notes": "Problems → banner in the panel",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "content": "## Lingo Feeder follow-ups + number health\nEvery 15 min: chats where Lingo spoke last and the customer went quiet become **Stopped replying**; each gets ONE follow-up with a 🛒 Order button, only inside WhatsApp's free 24 h window and between 08:00 and 21:00 Sri Lanka time (lingo_feeder.settings → timing).\nEvery 6 h: each number's token, status and quality rating.\nSame credentials and SUPABASE_URL as the main Lingo Feeder workflow.",
+        "height": 320,
+        "width": 1000,
+        "color": 6
+      },
+      "id": "323d58a3-2554-4331-bcef-89625e599759",
+      "name": "Note dc9528",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -180
+      ]
+    }
+  ],
+  "connections": {
+    "Every 15 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 6 Hours": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Follow-ups?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Follow-ups?": {
+      "main": [
+        [
+          {
+            "node": "Due Follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Numbers To Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Due Follow-ups": {
+      "main": [
+        [
+          {
+            "node": "Build Follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Follow-ups": {
+      "main": [
+        [
+          {
+            "node": "Send Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Collect Ids",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Ids": {
+      "main": [
+        [
+          {
+            "node": "Save Ids",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Numbers To Check": {
+      "main": [
+        [
+          {
+            "node": "Split Numbers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Numbers": {
+      "main": [
+        [
+          {
+            "node": "WA: Number Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WA: Number Info": {
+      "main": [
+        [
+          {
+            "node": "Health Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Health Result": {
+      "main": [
+        [
+          {
+            "node": "Save Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true
+  },
+  "tags": []
+}
