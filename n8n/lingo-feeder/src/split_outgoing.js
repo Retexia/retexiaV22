@@ -30,6 +30,14 @@ for (const b of src.blocks || []) {
   } else if (b.kind === 'image') {
     flush();
     push(b.pid, { ...base, type: 'image', image: { link: b.image, caption: clip(b.caption, 1024) } }, clip(b.caption, 1024), 'image', { image: b.image });
+  } else if (b.kind === 'flow') {
+    let text = join(pend, b.text);
+    if (len(text) > 1024) { flush(); text = b.text; }
+    const pid = pendPid; pend = ''; pendPid = null;
+    push(pid, { ...base, type: 'interactive', interactive: { type: 'flow', body: { text: clip(text, 1024) }, action: { name: 'flow', parameters: {
+      flow_message_version: b.version || '3', flow_token: b.token, flow_id: b.flow_id, flow_cta: clip(b.cta, 20),
+      flow_action: 'navigate', flow_action_payload: { screen: 'ORDER', data: b.data } } } } },
+      clip(text, 1024) + '\n[' + clip(b.cta, 20) + ']', 'buttons', { buttons: [clip(b.cta, 20)], form: true });
   } else if (b.kind === 'buttons' || b.kind === 'list') {
     let text = join(pend, b.text);
     if (len(text) > 1024) { flush(); text = b.text; }

@@ -9,7 +9,17 @@ export const metadata = { title: "Lingo Feeder" };
 
 /** feeder.retexia.com/lingo-feeder: Lingo answers the seller's WhatsApp ad customers and takes their orders (paid package). */
 export default async function LingoFeederLayout({ children }: { children: ReactNode }) {
-  const { feeder, pkg, ctx } = await lingoFeederContext("/lingo-feeder");
+  const { feeder, pkg, ctx, error } = await lingoFeederContext("/lingo-feeder");
+  if (error) {
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader title="Lingo Feeder" />
+        <Alert tone="danger" title="Lingo Feeder isn't ready yet">
+          The database said: {error}. Retexia needs to run migrations 0039 and 0040 and add &quot;lingo_feeder&quot; to Supabase → Settings → Data API → Exposed schemas.
+        </Alert>
+      </div>
+    );
+  }
   if (!pkg || !ctx) {
     return (
       <div className="flex flex-col gap-6">

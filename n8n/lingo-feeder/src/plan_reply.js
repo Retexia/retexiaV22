@@ -45,6 +45,7 @@ for (const p of [ctx.product, ctx.quoted, ...(ctx.matches || [])]) if (p && p.en
 let prod = ctx.product && ctx.product.enabled !== false ? ctx.product : null;
 let pid = prod ? Number(prod.id) : 0, switched = false, want = 0;
 for (const t of u.taps) if (/^P_\d+$/.test(t)) want = Number(t.slice(2));
+if (!want && intent === 'form' && Number(c.product_id) && byId[Number(c.product_id)]) want = Number(c.product_id);
 if (!want && ctx.quoted && Number(ctx.quoted.id) !== pid) want = Number(ctx.quoted.id);
 if (!want && aiFrom && Number(c.product_id) && byId[Number(c.product_id)]) want = Number(c.product_id);
 if (!want && !pid) {
@@ -117,7 +118,26 @@ const askQty = () => {
     rows: [1, 2, 3, 4, 5].map(n => ({ id: 'QTY_' + n, title: title(T('qty_row', { qty: n })), description: clip(T('qty_desc', { total: totalFor(prod, n) }), 72) })) });
   awaitingOut = 'qty'; orderingNow = true; log.push('[asked how many]');
 };
-const askDetails = () => { step({ kind: 'text', text: T('ask_details', V()) }); awaitingOut = 'details'; log.push('[asked name, address, phone]'); };
+const flowId = seller.flow_id || null;
+const flowCfg = seller.flow || {};
+/** The order form (WhatsApp Flow): prefilled with what we know, quantities with their totals. */
+const askForm = () => {
+  const d = draft || {};
+  step({ kind: 'flow', text: T('ask_form', V()), cta: T('btn_form'), flow_id: flowId, version: String(flowCfg.message_version || '3'),
+    token: `lf-${pid}-${Date.now().toString(36)}`,
+    data: {
+      product: clip(prod.name, 80), pid: String(pid),
+      price_line: clip(`Rs. ${money(prod.price)} + delivery Rs. ${money(prod.delivery_fee)} · Cash on delivery`, 120),
+      name: clip(d.name || saved.name || firstName(chat.profile_name) || '', 80), phone: d.phone1 || saved.phone || waPhone || '',
+      qty: String(d.qty || 1),
+      qty_options: [1, 2, 3, 4, 5].map(n => ({ id: String(n), title: clip(`${n} · Rs. ${totalFor(prod, n)}`, 30) })),
+    } });
+  awaitingOut = 'details'; orderingNow = true; log.push('[sent the order form]');
+};
+const askDetails = () => {
+  if (flowId && prod) return askForm();
+  step({ kind: 'text', text: T('ask_details', V()) }); awaitingOut = 'details'; log.push('[asked name, address, phone]');
+};
 const askMissing = () => {
   const words = missingOf(draft).map(k => T('f_' + k));
   const list = words.length < 2 ? words.join('') : words.slice(0, -1).join(', ') + T('and') + words[words.length - 1];
@@ -144,7 +164,7 @@ const startOrder = (qty, viaTap) => {
   if (!missingOf(draft).length && anyDetail(draft)) return summary();
   if (anyDetail(draft)) return nextStep();
   if (savedFull) return sameDetails();
-  if (!qty && viaTap) return askQty();
+  if (!qty && viaTap && !flowId) return askQty();
   return askDetails();
 };
 const confirmOrder = () => {
@@ -235,7 +255,7 @@ if (intent === 'spam') {
   if (intent === 'call_me') { needsCall = true; callReason = 'Asked for a call'; }
   if (intent === 'complaint') { needsCall = true; callReason = `Complaint: "${cut(u.now, 100)}"`; pause = true; }
 } else {
-  const needIntro = !seen.includes(pid) && !['CONFIRM', 'CANCEL', 'CHANGE', 'SAME', 'NEW'].includes(tap) && !/^(QTY|CH)_/.test(tap);
+  const needIntro = !seen.includes(pid) && !['CONFIRM', 'CANCEL', 'CHANGE', 'SAME', 'NEW'].includes(tap) && !/^(QTY|CH)_|^FORM/.test(tap);
   if (needIntro) intro(prod);
   if (switched && draft && draft.status === 'draft') draft.product_id = pid;
 
@@ -243,7 +263,11 @@ if (intent === 'spam') {
   const chTap = /^CH_(NAME|ADDRESS|PHONE|QTY)$/.exec(tap);
   const det = ['details', 'field', 'qty'].includes(intent) || (aiFrom && (has(c.name) || has(c.address) || has(c.phone)));
 
-  if (qtyTap || intent === 'qty' || (intent === 'field' && chat.awaiting === 'field_qty')) {
+  if (intent === 'form') {
+    applyDetails({ name: c.name, address: c.address, phone: c.phone, phone2: c.phone2, qty: c.qty }, { replace: true });
+    if (c.phone2 === '') draft.phone2 = '';
+    nextStep();
+  } else if (qtyTap || intent === 'qty' || (intent === 'field' && chat.awaiting === 'field_qty')) {
     ensureDraft(); draft.qty = qtyTap ? Number(qtyTap[1]) : Number(c.qty) || 1; orderingNow = true;
     if (anyDetail(draft)) nextStep(); else if (savedFull) sameDetails(); else askDetails();
   } else if (tap === 'ORDER' || intent === 'want_order' || rule('how_order')) {

@@ -5,7 +5,7 @@
 import { createHmac } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { createHarness, migration, seed } from "./lib/harness.mjs";
-import { createPipeline } from "./lib/lingo-feeder-pipeline.mjs";
+import { createPipeline, node, run } from "./lib/lingo-feeder-pipeline.mjs";
 
 const { db, ok, expectError, as, summary } = await createHarness();
 await db.exec(migration);
@@ -17,6 +17,7 @@ const rpc = async (fn, p) => (await as("service_role", null, `select lingo_feede
 // Package rows need the Feeder product: add it and run 0039 again (it must be safe to re-run).
 await q(`insert into public.products (slug, code, name, short_name, status) values ('feeder', 'FDR', 'Retexia Feeder', 'Feeder', 'live') on conflict (slug) do nothing`);
 await db.exec(readFileSync(new URL("../supabase/migrations/0039_lingo_feeder.sql", import.meta.url), "utf8"));
+await db.exec(readFileSync(new URL("../supabase/migrations/0041_lingo_feeder_order_form.sql", import.meta.url), "utf8"));
 // Follow-ups at any hour in tests.
 await q(`update lingo_feeder.settings set value = value || '{"followup_from": 0, "followup_to": 24}' where key = 'timing'`);
 
@@ -287,6 +288,37 @@ const search = (await as("service_role", null, `select lingo_feeder.panel_chats(
 ok(search.length === 1 && search[0].phone === C3, "search by name");
 ok(sentToWa.every((b) => b.messaging_product === "whatsapp" && (b.type !== "interactive" || b.interactive.body.text.length <= 1024)), "every WhatsApp message is valid (bodies within limits)");
 ok(sentToWa.filter((b) => b.type === "interactive" && b.interactive.type === "button").every((b) => b.interactive.action.buttons.every((x) => Array.from(x.reply.title).length <= 20)), "button titles fit WhatsApp's 20 characters");
+
+console.log("Lingo Feeder: the order form (WhatsApp Flow)");
+await q(`update lingo_feeder.numbers set flow_id = '7770001', flow_status = 'published' where user_id = $1`, [A]);
+const C8 = "94770000008";
+await wh(A, C8, text("Hello! Can I get more info on this?"), "Chamari", AD);
+r = await wh(A, C8, tap("ORDER", "🛒 ඕඩර් කරන්න"));
+const fmsg = r.outs[0].body.interactive;
+const fp = fmsg.action.parameters;
+ok(fmsg.type === "flow" && fp.flow_id === "7770001" && fp.flow_action === "navigate" && fp.flow_action_payload.screen === "ORDER" && fp.flow_cta === "📝 ඕඩර් form එක",
+  "Order → the order form opens inside WhatsApp (instead of the typed form)");
+const fdata = fp.flow_action_payload.data;
+ok(fdata.phone === "0770000008" && fdata.name === "Chamari" && fdata.pid === String(GASTRIC) && fdata.qty_options[1].title === "2 · Rs. 3,130", "…prefilled with their name and number, quantities with totals");
+r = await wh(A, C8, { type: "interactive", interactive: { type: "nfm_reply", nfm_reply: { name: "flow", body: "Sent",
+  response_json: JSON.stringify({ name: "Chamari Silva", address: "No 4, Lake Road, Kurunegala", phone: "071 111 2222", phone2: "", qty: "2", pid: String(GASTRIC), flow_token: fp.flow_token }) } } });
+ok(r.calls.openai === 0 && r.outs.length === 1 && r.outs[0].text.includes("Chamari Silva") && r.outs[0].text.includes("Kurunegala") && r.outs[0].text.includes("0711112222") && r.outs[0].text.includes("× 2") && r.outs[0].text.includes("3,130"),
+  "the filled form → the order summary with Confirm (no AI)");
+ok((await one(`select content from lingo_feeder.messages where phone = $1 and role = 'c' order by id desc limit 1`, [C8])).content.startsWith("📝 Order form: Chamari Silva"), "the chat shows what they filled in");
+r = await wh(A, C8, tap("CONFIRM"));
+const fo = await one(`select qty, total::int t, phone1, status from lingo_feeder.orders where phone = $1`, [C8]);
+ok(fo.status === "confirmed" && fo.qty === 2 && fo.t === 3130 && fo.phone1 === "0711112222", "…Confirm → the order (2 × Gastric Care, Rs. 3,130)");
+const [bf] = await run("build_flow.js", {}, { Seller: node({ ok: true, token: "EAAtok", waba_id: "2220001", seller: { flow: { json_version: "7.0" } } }), Config: node({ GRAPH_VERSION: "v25.0" }) });
+const fj = JSON.parse(bf.body.flow_json);
+const scr = fj.screens[0];
+ok(bf.url.endsWith("/v25.0/2220001/flows") && bf.body.publish === true && fj.version === "7.0" && scr.terminal === true, "Create order form: made and published in the seller's own WhatsApp account");
+const usedData = [...bf.body.flow_json.matchAll(/\$\{data\.(\w+)\}/g)].map((m) => m[1]);
+ok(usedData.every((k) => k in scr.data) && Object.keys(scr.data).every((k) => k in fdata), "every field the form shows is declared and sent with it");
+ok(scr.layout.children.filter((x) => x.label).every((x) => Array.from(x.label).length <= 30) && Array.from(fp.flow_cta).length <= 20, "labels fit WhatsApp's limits");
+await q(`update lingo_feeder.numbers set flow_status = 'failed' where user_id = $1`, [A]);
+await wh(A, "94770000009", text("Hello! Can I get more info on this?"), "Pradeep", AD);
+r = await wh(A, "94770000009", tap("ORDER"));
+ok(r.outs[0].kind === "list", "a form that isn't published → the quantity list and typed details, as before");
 
 console.log("Lingo Feeder: profit report");
 const pkgId = (await one(`select k.id from public.packages k join public.products p on p.id = k.product_id where p.slug = 'feeder' and k.slug = 'lingo-feeder'`)).id;

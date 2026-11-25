@@ -108,8 +108,10 @@ const TIMING = `(${MSG}.seller.timing || {})`;
 // MAIN WORKFLOW
 // =====================================================================
 const mainNodes = [
-  webhook("WhatsApp Webhook", [X(0), A], { httpMethod: "POST", path: "lingo-feeder", options: { rawBody: true } }, "Meta → here (answers 200 at once)"),
-  code("Read Webhook", "read_webhook.js", [X(1), A]),
+  webhook("WhatsApp Webhook", [X(0), A], { httpMethod: "POST", path: "lingo-feeder", responseMode: "responseNode", options: { rawBody: true } }, "Meta → here"),
+  code("Read Webhook", "read_webhook.js", [X(1), A - 120]),
+  respond("Respond: OK to Meta", [X(1), A + 60], { respondWith: "noData", options: { responseCode: 200 } }),
+  iff("WhatsApp Event?", "={{ !!$('Read Webhook').first().json.phone_number_id }}", [X(1) + 120, A + 160]),
   webhook("Meta Verify (GET)", [X(0), A - 260], { path: "lingo-feeder", responseMode: "responseNode" }, "Meta's webhook check"),
   webhook("Panel: Lingo Feeder", [X(0), A + 260], { httpMethod: "POST", path: "lingo-feeder-panel", authentication: "headerAuth", responseMode: "responseNode" },
     "Credential: Header Auth “Retexia key (Lingo Feeder)” (X-Retexia-Key)"),
@@ -148,6 +150,15 @@ const mainNodes = [
     url: graph("{{ $('Seller').first().json.phone_number_id }}/messages"),
     headers: bearer("$('Seller').first().json.token"),
     body: "={{ JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: $('Panel Action').first().json.to, type: 'text', text: { body: $('Panel Action').first().json.text, preview_url: false } }) }}",
+  }),
+  iff("Form Setup?", "={{ $('Panel Action').first().json.action === 'flow_setup' && $('Seller').first().json.ok === true }}", [X(9), A - 140]),
+  code("Build Flow", "build_flow.js", [X(10), A - 100], "The order form (WhatsApp Flow)"),
+  iff("Can Create?", "={{ $json.ok === true }}", [X(11), A - 100]),
+  http("WA: Create Flow", [X(12), A - 60], {
+    url: "={{ $('Build Flow').first().json.url }}",
+    headers: bearer("$('Seller').first().json.token"),
+    body: "={{ JSON.stringify($('Build Flow').first().json.body) }}",
+    text: "Create + publish in the seller's WABA",
   }),
   code("Panel Reply", "panel_reply.js", [X(12), A - 300]),
   respond("Respond: Panel", [X(13), A - 300], { respondWith: "json", responseBody: "={{ JSON.stringify($json.reply) }}" }),
@@ -231,14 +242,16 @@ const mainNotes = [
 ];
 
 const mainConns = connect([
-  ["WhatsApp Webhook", "Read Webhook"], ["Read Webhook", "Config"], ["Meta Verify (GET)", "Config"], ["Panel: Lingo Feeder", "Config"],
+  ["WhatsApp Webhook", "Read Webhook"], ["Read Webhook", "Respond: OK to Meta"], ["Respond: OK to Meta", "WhatsApp Event?"], ["WhatsApp Event?", "Config", 0], ["Meta Verify (GET)", "Config"], ["Panel: Lingo Feeder", "Config"],
   ["Config", "From WhatsApp?"],
   ["From WhatsApp?", "Number", 0], ["From WhatsApp?", "Meta Check?", 1],
   ["Meta Check?", "Check Verify Token", 0], ["Meta Check?", "Panel Action", 1],
   ["Check Verify Token", "Answer Meta Check"],
   ["Panel Action", "Seller"], ["Seller", "Test Bot?"],
   ["Test Bot?", "Message", 0], ["Test Bot?", "Check?", 1],
-  ["Check?", "WA: Number Info", 0], ["Check?", "Panel Send?", 1],
+  ["Check?", "WA: Number Info", 0], ["Check?", "Form Setup?", 1],
+  ["Form Setup?", "Build Flow", 0], ["Form Setup?", "Panel Send?", 1],
+  ["Build Flow", "Can Create?"], ["Can Create?", "WA: Create Flow", 0], ["Can Create?", "Panel Reply", 1], ["WA: Create Flow", "Panel Reply"],
   ["WA: Number Info", "Has WABA?"], ["Has WABA?", "WA: Subscribed Apps", 0], ["Has WABA?", "Panel Reply", 1], ["WA: Subscribed Apps", "Panel Reply"],
   ["Panel Send?", "WA: Send Reply", 0], ["Panel Send?", "Panel Reply", 1], ["WA: Send Reply", "Panel Reply"],
   ["Panel Reply", "Respond: Panel"],

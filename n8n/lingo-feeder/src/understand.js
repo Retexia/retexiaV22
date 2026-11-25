@@ -134,6 +134,14 @@ const opener = typed && (PREFILL.test(bareText) || OPENER.test(norm)) && Array.f
 let c = null, source = 'none', rule = '';
 const C = (intent, extra = {}) => ({ intent, product_id: 0, name: '', address: '', phone: '', phone2: '', qty: 0, reply: '', needs_human: false, lang: '', memo: '', ...extra });
 if (spam) { c = C('spam'); source = 'rule'; rule = 'spam'; }
+else if (taps.some(t => String(t).startsWith('FORM'))) {
+  // the order form (WhatsApp Flow) was filled in: name, address, phones, quantity, product
+  let f = {};
+  try { f = JSON.parse(taps.find(t => String(t).startsWith('FORM')).slice(4)); } catch (e) { f = {}; }
+  c = C('form', { name: String(f.name || ''), address: String(f.address || ''), phone: localPhone(f.phone) || String(f.phone || ''), phone2: localPhone(f.phone2) || '',
+                  qty: Math.min(20, Math.max(1, Number(f.qty) || 1)), product_id: Number(f.pid) || 0 });
+  source = 'tap'; rule = 'form';
+}
 else if (!typed && taps.length) { c = C('tap'); source = 'tap'; }
 else if (typed && awaiting.startsWith('field_') && !/[?？]/.test(bareText) && Array.from(norm).length <= 300 && !RULES.slice(4).some(([, re]) => re.test(probe))) {
   const f = awaiting.slice(6);

@@ -11,6 +11,17 @@ const body = r => (r && r.body !== undefined ? r.body : r) || {};
 if (!s.ok) return [{ json: { reply: { ok: false, error: s.why || 'unknown seller' } } }];
 if (!s.token || !s.phone_number_id) return [{ json: { reply: { ok: false, error: 'No WhatsApp number or token saved yet.' } } }];
 
+if (a.action === 'flow_setup') {
+  const b = $('Build Flow').first().json;
+  if (!b.ok) return [{ json: { reply: { ok: false, error: b.why || 'Not ready' } } }];
+  const r = $('WA: Create Flow').first().json;
+  const e = err(r);
+  const res = body(r);
+  const v = (res.validation_errors || []).map(x => `${x.error || ''} ${x.message || ''} ${x.line_start ? '(line ' + x.line_start + ')' : ''}`.trim()).slice(0, 5);
+  return [{ json: { reply: { ok: !e && !!res.id && !v.length, flow_id: res.id || null, published: !e && !!res.id && !v.length,
+    error: e || (v.length ? 'WhatsApp found problems in the form: ' + v.join('; ') : (res.id ? null : 'WhatsApp did not create the form')) } } }];
+}
+
 if (a.action === 'check') {
   const info = $('WA: Number Info').first().json;
   const apps = $('WA: Subscribed Apps').isExecuted ? $('WA: Subscribed Apps').first().json : null;
