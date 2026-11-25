@@ -122,42 +122,6 @@ export async function removeNumber() {
   });
 }
 
-/** The order form (a WhatsApp Flow): created and published in the seller's own WhatsApp Business Account. */
-export async function setupOrderForm() {
-  return run(async () => {
-    const { userId } = await actor();
-    const db = lfDb();
-    const { data: n } = await db.from("numbers").select("status, waba_id").eq("user_id", userId).maybeSingle();
-    if (!n) return { ok: false, message: "Connect your WhatsApp number first." };
-    if (!n.waba_id) return { ok: false, message: "Add your WhatsApp Business Account ID above first (the form is made in that account)." };
-    if (n.status !== "connected") return { ok: false, message: "Press Test connection first." };
-    const r = await engine<{ ok: boolean; flow_id?: string | null; published?: boolean; error?: string | null }>("flow_setup", userId, {}, 45_000);
-    if (!r.ok) return { ok: false, message: r.error };
-    const a = r.data;
-    const now = new Date().toISOString();
-    await db.from("numbers").update(
-      a.ok && a.flow_id
-        ? { flow_id: a.flow_id, flow_status: "published", flow_error: null, flow_at: now }
-        : { flow_status: "failed", flow_error: (a.error ?? "WhatsApp didn't create the form").slice(0, 500), flow_at: now },
-    ).eq("user_id", userId);
-    await event(userId, a.ok ? "order_form_ready" : "order_form_failed", { flow_id: a.flow_id ?? null, error: a.error ?? null });
-    revalidatePath("/lingo-feeder", "layout");
-    return a.ok ? { ok: true, message: "The order form is ready. Customers get it when they tap 🛒 Order." } : { ok: false, message: a.error ?? "WhatsApp didn't create the form." };
-  });
-}
-
-export async function setOrderFormOn(on: boolean) {
-  return run(async () => {
-    const { userId } = await actor();
-    const db = lfDb();
-    const { data: n } = await db.from("numbers").select("flow_id").eq("user_id", userId).maybeSingle();
-    if (on && !n?.flow_id) return { ok: false, message: "Create the order form first." };
-    const { error } = await db.from("numbers").update({ flow_status: on ? "published" : "draft" }).eq("user_id", userId);
-    if (error) return { ok: false, message: dbMessage(error) };
-    return done(on ? "Customers get the order form again." : "The order form is off: customers type their details.");
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Chats
 // ---------------------------------------------------------------------------

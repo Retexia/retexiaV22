@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { resetTry, tryLingo, type TryReply } from "@/app/feeder/(app)/lingo-feeder/actions";
 import { statusOf } from "@/lib/feeder/lingo-feeder/labels";
 import { BodyBubble, Bubble } from "./common";
-import { FlowBubble, isFlow } from "./flow-bubble";
 
 type Item =
   | { kind: "customer"; text: string }
@@ -66,7 +65,6 @@ export function TryLingo({ products, initial, ready }: { products: { id: number;
             if (it.kind === "customer") return <Bubble key={i} side="in" tone="customer" text={it.text} />;
             if (it.kind === "note") return <p key={i} className="self-center rounded-full bg-surface-raised px-3 py-1 text-center type-small text-ink-muted">{it.text}</p>;
             const m = it.meta;
-            if (isFlow(it.body)) return <FlowBubble key={i} body={it.body} disabled={!it.last || busy} onSubmit={(t) => send({ tap: t })} />;
             return (
               <BodyBubble
                 key={i}

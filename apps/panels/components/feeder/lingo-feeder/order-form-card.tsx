@@ -31,7 +31,22 @@ export function OrderFormCard({ number }: { number: WaNumber | null }) {
       </div>
       <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_220px]">
         <div className="flex flex-col gap-3">
-          {number?.flow_status === "failed" && number.flow_error ? <Alert tone="danger" title="WhatsApp didn't accept the form">{number.flow_error}</Alert> : null}
+          {number?.flow_status === "failed" && number.flow_error ? (
+            /integrity|139002|139000/i.test(number.flow_error) ? (
+              <Alert tone="warning" title="Meta needs your business verified first">
+                <p>Meta lets a WhatsApp account publish forms only after its business is verified (and the number&apos;s display name is approved). Until then Lingo asks customers to type their details, so nothing is lost.</p>
+                <ol className="mt-2 flex list-decimal flex-col gap-1 pl-5">
+                  <li>business.facebook.com → <strong>Settings → Security Center → Business verification → Start verification</strong>.</li>
+                  <li>Enter the legal name, address and phone exactly as on your Business Registration (BR), and upload the BR certificate. Meta usually answers within 1–3 days.</li>
+                  <li>WhatsApp Manager → <strong>Phone numbers</strong>: check the display name says <strong>Approved</strong> (it should match your business).</li>
+                  <li>Then come back and press <strong>Create the order form</strong> again.</li>
+                </ol>
+                <p className="mt-2 type-small opacity-80">Meta said: {number.flow_error}</p>
+              </Alert>
+            ) : (
+              <Alert tone="danger" title="WhatsApp didn't accept the form">{number.flow_error}</Alert>
+            )
+          ) : null}
           <ul className="flex list-disc flex-col gap-1 pl-5 type-small text-ink-muted">
             <li>It is created in your own WhatsApp Business Account, so your number needs to be connected and its WhatsApp Business Account ID saved below.</li>
             <li>Customers who prefer typing can still send their details as a message.</li>

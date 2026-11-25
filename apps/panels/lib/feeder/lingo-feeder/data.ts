@@ -30,14 +30,10 @@ export type WaNumber = {
   problem: string | null;
   last_webhook_at: string | null;
   last_check_at: string | null;
-  flow_id: string | null;
-  flow_status: "published" | "draft" | "failed" | null;
-  flow_error: string | null;
-  flow_at: string | null;
 };
 
 const SELLER_COLS = "user_id, business_name, phone, location, address, delivery_days, call_hours, about, ads_only, status";
-const NUMBER_COLS = "phone_number_id, waba_id, display_phone, verified_name, status, quality_rating, verify_token, token_last4, problem, last_webhook_at, last_check_at, flow_id, flow_status, flow_error, flow_at";
+const NUMBER_COLS = "phone_number_id, waba_id, display_phone, verified_name, status, quality_rating, verify_token, token_last4, problem, last_webhook_at, last_check_at";
 
 async function load(userId: string, name: string) {
   const db = lfDb();
@@ -59,15 +55,9 @@ async function load(userId: string, name: string) {
 export const lingoFeederContext = cache(async (path = "/lingo-feeder") => {
   const feeder = await requireFeederPage(path);
   const pkg = feeder.packages.find((p) => p.slug === LINGO_FEEDER_SLUG) ?? null;
-  if (!pkg?.owned) return { feeder, pkg, ctx: null, error: null };
-  try {
-    const { seller, number } = await load(feeder.user.id, feeder.user.name);
-    return { feeder, pkg, ctx: { userId: feeder.user.id, seller, number }, error: null };
-  } catch (e) {
-    // Database not ready (migration not run, schema not exposed): the layout explains it instead of crashing.
-    console.error("[lingo-feeder]", e);
-    return { feeder, pkg, ctx: null, error: e instanceof Error ? e.message.slice(0, 200) : "unknown error" };
-  }
+  if (!pkg?.owned) return { feeder, pkg, ctx: null };
+  const { seller, number } = await load(feeder.user.id, feeder.user.name);
+  return { feeder, pkg, ctx: { userId: feeder.user.id, seller, number } };
 });
 export type LfCtx = NonNullable<Awaited<ReturnType<typeof lingoFeederContext>>["ctx"]>;
 

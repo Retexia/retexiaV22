@@ -60,19 +60,7 @@ LINGO_FEEDER_WEBHOOK_URL=<the "WhatsApp Webhook" production URL>
 
 The old `FEEDER_LINGO_*` names still work. Redeploy **panels** and **admin**.
 
-## 5. The order form (WhatsApp Flows)
-
-1. Run `0041_lingo_feeder_order_form.sql` in Supabase. If you ever run 0039 again, run 0041 after it.
-2. Re-import `n8n/lingo-feeder.json`. It adds the nodes *Form Setup?*, *Build Flow*, *Can Create?* and *WA: Create Flow*. Give WA: Create Flow no credential: it uses the seller's own token.
-3. Panel → WhatsApp → **WhatsApp order form** → **Create the order form**. It is created and published in the seller's own WhatsApp Business Account, so the WhatsApp Business Account ID must be saved and the token needs `whatsapp_business_management`.
-4. From then on, 🛒 Order opens the form inside WhatsApp:
-   - name and phone are already filled in
-   - the customer adds the address, a second number if they want, and picks the quantity (with totals)
-   - after "Send order", Lingo sends the summary to confirm
-5. Customers can still type their details. If WhatsApp rejects the form, the panel shows its message and Lingo keeps using the typed details.
-6. The Flow JSON version is in `lingo_feeder.settings` → `flow` (`json_version` 7.0). If WhatsApp says the version is not supported, change it there and press Create again.
-
-## 6. Check
+## 5. Check
 
 1. Admin → Lingo Feeder:
    - Set "1 US$ in rupees", your monthly fixed costs (n8n server, Supabase share) and the payment fee.
