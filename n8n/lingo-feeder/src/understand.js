@@ -54,6 +54,8 @@ const LABELS = [
   ['phone', /^(?:📞\s*|☎️?\s*|📱\s*)?(?:දුරකථන අංකය|දුරකථන අංක|දු\.?\s*අ\.?|අංකය|phone(?:\s+number)?(?:\s+eka)?|mobile(?:\s+number)?|tel|tp|contact(?:\s+number)?|number|whatsapp(?:\s+number)?)\s*[:：=-]\s*(.*)$/i],
 ];
 const phonesIn = s => [...String(s || '').matchAll(PHONE_RE)].map(x => localPhone(x[0])).filter(Boolean);
+/** Digits that look like an attempt at a phone number but aren't a full Sri Lankan number. */
+const badDigits = s => { const d = String(s || '').replace(/[^\d+]/g, ''); return d.replace(/\D/g, '').length >= 5 && !localPhone(d) ? clip(d, 20) : ''; };
 function parseForm(text) {
   const out = {}; let found = 0, cur = '';
   const lines = String(text || '')
@@ -69,7 +71,12 @@ function parseForm(text) {
       if (!r) continue;
       hit = true; found++; cur = k;
       const v = r[1].trim();
-      if (k === 'phone') { const ps = phonesIn(v); if (ps[0]) out.phone = out.phone || ps[0]; if (ps[1]) out.phone2 = ps[1]; }
+      if (k === 'phone') {
+        const ps = phonesIn(v);
+        if (ps[0]) out.phone = out.phone || ps[0];
+        if (ps[1]) out.phone2 = ps[1];
+        if (!ps[0] && badDigits(v)) out.phone_bad = badDigits(v);                       // "077 12345": not a full number
+      }
       else if (v) out[k] = v;
       break;
     }
@@ -139,18 +146,29 @@ else if (typed && awaiting.startsWith('field_') && !/[?？]/.test(bareText) && A
   const f = awaiting.slice(6);
   const v = f === 'qty' ? qtyOf(bareText) : f === 'phone' ? (phonesIn(bareText)[0] || '') : bareText.replace(/\s+/g, ' ').trim();
   if (v) { c = C('field', { [f === 'qty' ? 'qty' : f]: v, phone2: f === 'phone' ? (phonesIn(bareText)[1] || '') : '' }); source = 'rule'; rule = 'field'; }
+  else if (f === 'phone' && badDigits(bareText)) { c = C('field', { phone_bad: badDigits(bareText) }); source = 'rule'; rule = 'field'; }
 } else if (typed && awaiting === 'qty' && qtyOf(bareText)) { c = C('qty', { qty: qtyOf(bareText) }); source = 'rule'; rule = 'qty'; }
 if (!c && lead && !/\S/.test(rest)) { c = C('details', { ...lead }); source = 'lead'; }
-if (!c && form && (form.name || form.address || form.phone)) {
+if (!c && form && (form.name || form.address || form.phone || form.phone_bad)) {
   c = C('details', { ...(lead || {}), ...Object.fromEntries(Object.entries(form).filter(([, v]) => v)) });
   source = lead ? 'lead' : 'form';
 }
-if (!c && typed && /^\+?\d{9,12}$/.test(compact) && localPhone(compact)) { c = C('details', { phone: localPhone(compact) }); source = 'rule'; rule = 'phone'; }
+// only a phone number (or a number that is too short / too long: Lingo says so)
+if (!c && typed && /^\+?\d{7,13}$/.test(compact)) {
+  c = localPhone(compact) ? C('details', { phone: localPhone(compact) }) : C('details', { phone_bad: compact });
+  source = 'rule'; rule = 'phone';
+}
+// "use the details I gave before" (kalin dunna details walata · ekatama · ඒකටම)
+const saved = chat.details || {};
+const SAME_RE = /(kalin|kalim|issella|isella|parana|purana|pereda|kalinma)\s*(dunna|dila|dhunna|dapu|dunnu)?\s*(details?|address|lipinaya|wisthara|eka|ekata|ekatama|walatama|walata|wlt|wlta)|(^|\s)(ekatama|ektama|ekatma|ekama address|same (address|details|eka))(\s|$)|කලින් දුන්න|කලින් (විස්තර|ලිපිනය)|ඒකටම|පරණ ලිපිනය|ඒ ලිපිනයටම/i;
+if (!c && typed && has(saved.name) && has(saved.address) && ['details', 'same', ''].includes(awaiting) && Array.from(norm).length <= 60 && SAME_RE.test(norm)) {
+  c = C('same_details'); source = 'rule'; rule = 'same_details';
+}
 if (!c && typed && opener && (firstContact || chat.status === 'new')) { c = C('opener'); source = 'rule'; rule = 'opener'; }
 if (!c && typed) {
   for (const [name, re] of RULES) {
     if (!re.test(probe)) continue;
-    if ((name === 'yes' || name === 'no') && !['confirm', 'same'].includes(awaiting)) continue;   // "ow" means something only after a question
+    if ((name === 'yes' || name === 'no') && !['confirm', 'same', 'phone'].includes(awaiting)) continue;   // "ow" means something only after a question
     rule = name; source = 'rule';
     c = name === 'want' ? C('want_order', { qty: qtyOf(probe) }) : C(name);
     if (lead) Object.assign(c, lead, { intent: 'details' });
@@ -179,7 +197,12 @@ else if (needAi) {
     p.long_description ? `Description (already sent with the photo): ${fill(p.long_description).replace(/[*_]/g, '').replace(/\n+/g, ' / ')}` : '',
     ...(Array.isArray(p.faqs) ? p.faqs.slice(0, 15).map(f => (f && f.q && f.a ? `FAQ: ${f.q} → ${f.a}` : '')) : []),
   ].filter(Boolean).join('\n');
-  const productBlock = prod ? facts(prod) : 'PRODUCT: not known yet (they have not said which product they want).';
+  const catalog = Array.isArray(ctx.catalog) ? ctx.catalog : [];
+  const productBlock = prod ? facts(prod)
+    : 'PRODUCT: not known yet (they have not said which product they want).' + (catalog.length
+      ? '\nOUR PRODUCTS (id: name · what it is for). If they describe a need or a product (also in a voice note), put the best matching id in product_id; if several could fit or none, product_id 0.\n'
+        + catalog.map(p => `${p.id}: ${p.name}${p.k ? ' · ' + p.k : ''}`).join('\n')
+      : '');
   const others = matches.filter(p => !prod || p.id !== prod.id).slice(0, 4);
   const o = order;
   const lo = ctx.last_order;
@@ -188,7 +211,7 @@ else if (needAi) {
         ? `waiting for their confirmation: ${o.qty} × ${o.product_name}, ${o.name}, ${o.address}, ${o.phone1}`
         : `being filled in: ${o.qty} × ${o.product_name}; have ${['name', 'address', 'phone1'].filter(k => has(o[k])).map(k => k.replace('1', '')).join(', ') || 'nothing yet'}`)
     : 'none in progress';
-  const asked = { details: 'their name, address and phone number', qty: 'how many they want', confirm: 'to confirm the order summary', same: 'if we should use their last order details',
+  const asked = { details: 'their name, address and phone number', qty: 'how many they want', confirm: 'to confirm the order summary', same: 'if we should use their last order details', phone: 'if we may use their WhatsApp number for the order',
     field_name: 'their new name', field_address: 'their new address', field_phone: 'their new phone number', field_qty: 'the new quantity', product: 'which product they want' }[awaiting] || 'nothing';
   const langName = { si: 'Sinhala script', sg: 'Singlish', en: 'English' }[chat.lang] || 'Sinhala script';
   const label = r => (r === 'c' ? 'Customer: ' : r === 's' ? 'Shop staff: ' : 'Lingo: ');
@@ -205,7 +228,7 @@ else if (needAi) {
     `NEW MESSAGE: ${cut(bareText || now, 1200)}`,
   ].filter(Boolean).join('\n');
   const props = {
-    intent: { type: 'string', enum: ['question', 'details', 'want_order', 'confirm', 'change', 'cancel', 'other_product', 'call_me', 'complaint', 'not_interested', 'chat', 'unclear'] },
+    intent: { type: 'string', enum: ['question', 'details', 'same_details', 'want_order', 'confirm', 'change', 'cancel', 'other_product', 'call_me', 'complaint', 'not_interested', 'chat', 'unclear'] },
     product_id: { type: 'integer' }, name: { type: 'string' }, address: { type: 'string' }, phone: { type: 'string' }, phone2: { type: 'string' },
     qty: { type: 'integer' }, reply: { type: 'string' }, needs_human: { type: 'boolean' }, lang: { type: 'string', enum: ['si', 'sg', 'en'] }, memo: { type: 'string' },
   };

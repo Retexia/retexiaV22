@@ -48,13 +48,32 @@ const greetKey = (d = new Date()) => {
   return h >= 4 && h < 12 ? 'greet_morning' : h >= 12 && h < 16 ? 'greet_afternoon' : h >= 16 && h < 20 ? 'greet_evening' : 'greet_night';
 };
 
-/** One text in the customer's style (Singlish → Sinhala text if no Singlish one), placeholders filled. */
-const makeText = (texts, lang) => (key, vals = {}) => {
+/** One text in the customer's style (Singlish → Sinhala text if no Singlish one), placeholders filled.
+ *  With variants (settings.variants) a different wording is picked from turn to turn (seed). */
+const hashOf = s => { let h = 2166136261; for (const ch of String(s)) { h ^= ch.codePointAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
+const makeText = (texts, lang, variants = {}, seed = '') => (key, vals = {}) => {
   const t = texts[key] || {};
-  const raw = String(t[lang] || (lang === 'sg' ? t.si : '') || t.si || t.en || '');
+  const main = String(t[lang] || (lang === 'sg' ? t.si : '') || t.si || t.en || '');
+  const v = (variants || {})[key] || {};
+  const more = Array.isArray(v[lang]) ? v[lang] : [];
+  const pool = [main, ...more.filter(x => x && x !== main)].filter(Boolean);
+  const raw = pool.length > 1 && seed ? pool[hashOf(seed + '|' + key) % pool.length] : main;
   return raw.replace(/\{(\w+)\}/g, (x, k) => (k in vals ? String(vals[k] == null ? '' : vals[k]) : x))
     .replace(/[ \t]{2,}/g, ' ').replace(/ +([!?.,😊🙏👇])/g, ' $1').replace(/^ +| +$/gm, '').replace(/ ([!?.,])/g, '$1')
     .replace(/\n{3,}/g, '\n\n').trim();
+};
+
+/** A long chat reply → 2-3 short WhatsApp messages, split at sentence ends (like people text). */
+const splitReply = r => {
+  const t = String(r || '').trim();
+  if (Array.from(t).length < 110) return [t];
+  const parts = t.split(/(?<=[.!?。])\s+|\n+/).map(x => x.trim()).filter(Boolean);
+  const out = [];
+  for (const x of parts) {
+    if (out.length && (Array.from(out[out.length - 1]).length < 35 || out.length >= 3 || /^\p{Extended_Pictographic}+$/u.test(x))) out[out.length - 1] += ' ' + x;
+    else out.push(x);
+  }
+  return out.length ? out : [t];
 };
 
 /** The Click-to-WhatsApp pre-filled text ("Hello! Can I get more info on this?") and other openers. */

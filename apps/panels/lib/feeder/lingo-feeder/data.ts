@@ -55,9 +55,15 @@ async function load(userId: string, name: string) {
 export const lingoFeederContext = cache(async (path = "/lingo-feeder") => {
   const feeder = await requireFeederPage(path);
   const pkg = feeder.packages.find((p) => p.slug === LINGO_FEEDER_SLUG) ?? null;
-  if (!pkg?.owned) return { feeder, pkg, ctx: null };
-  const { seller, number } = await load(feeder.user.id, feeder.user.name);
-  return { feeder, pkg, ctx: { userId: feeder.user.id, seller, number } };
+  if (!pkg?.owned) return { feeder, pkg, ctx: null, error: null };
+  try {
+    const { seller, number } = await load(feeder.user.id, feeder.user.name);
+    return { feeder, pkg, ctx: { userId: feeder.user.id, seller, number }, error: null };
+  } catch (e) {
+    // Database not ready (migration not run, schema not exposed): the layout explains it instead of crashing.
+    console.error("[lingo-feeder]", e);
+    return { feeder, pkg, ctx: null, error: e instanceof Error ? e.message.slice(0, 200) : "unknown error" };
+  }
 });
 export type LfCtx = NonNullable<Awaited<ReturnType<typeof lingoFeederContext>>["ctx"]>;
 
@@ -99,7 +105,7 @@ export type Chat = {
   call_reason: string | null; awaiting: string | null; details: { name?: string; address?: string; phone?: string; phone2?: string };
   memo: string | null; paused_until: string | null; last_in_at: string | null; last_msg_at: string | null; created_at: string; ad_id: string | null;
 };
-export type Message = { id: number; role: "c" | "b" | "s"; kind: string; content: string; meta: { image?: string; buttons?: string[]; list?: string; rows?: string[] } | null; status: string | null; route: string | null; created_at: string };
+export type Message = { id: number; role: "c" | "b" | "s"; kind: string; content: string; meta: { image?: string; buttons?: string[]; list?: string; rows?: string[]; reaction?: string; quote?: boolean } | null; status: string | null; route: string | null; created_at: string };
 export type Order = {
   id: number; phone: string; product_id: number | null; product_name: string | null; qty: number; name: string | null; address: string | null;
   phone1: string | null; phone2: string | null; unit_price: number; delivery_fee: number; total: number; status: "draft" | "confirmed" | "cancelled";

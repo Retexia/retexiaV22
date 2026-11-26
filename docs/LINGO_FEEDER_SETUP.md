@@ -4,7 +4,7 @@ Lingo Feeder (feeder.retexia.com/lingo-feeder) is the WhatsApp sales assistant f
 
 | Part | Where |
 |---|---|
-| Database | `supabase/migrations/0039_lingo_feeder.sql` (tables, functions, settings, texts) and `0040_lingo_feeder_catalog.sql` (170 products) |
+| Database | `supabase/migrations/0039_lingo_feeder.sql` (tables, functions, settings, texts), `0040_lingo_feeder_catalog.sql` (170 products), `0042_lingo_feeder_details_voice.sql` (detail checks, voice notes) |
 | Engine | n8n: `n8n/lingo-feeder.json` (chats) and `n8n/lingo-feeder-followups.json` (follow-ups, number health) |
 | Seller panel | feeder.retexia.com/lingo-feeder: Home · Chats · Orders · Products · Business details · WhatsApp · Try Lingo |
 | Admin | admin.retexia.com → Products → Feeder → **Lingo Feeder**: profit, price check, models, AI prices, catalogue |
@@ -17,7 +17,9 @@ Lingo Feeder (feeder.retexia.com/lingo-feeder) is the WhatsApp sales assistant f
    - It deletes the test version's chats, orders, FAQs and quick rules.
    - It renames the package to **Lingo Feeder** (slug `lingo-feeder`, LKR 5,900 a month / 59,000 a year, 7 days free).
 2. Run `0040_lingo_feeder_catalog.sql` (the product catalogue). If the SQL editor says the file is too big, skip it and upload the CSV instead in admin → Lingo Feeder → Product catalogue.
-3. Settings → Data API → **Exposed schemas**: add `lingo_feeder`.
+3. Run `0042_lingo_feeder_details_voice.sql`: checks of the order details (full address, valid phone, "use this WhatsApp number?"), Gemini 3.5 Flash for voice notes, and the product list when Lingo doesn't know the product yet.
+   Then `0043_lingo_feeder_human.sql`: English greetings, different wording each time (settings.variants) and the related product for the after-order suggestion.
+4. Settings → Data API → **Exposed schemas**: add `lingo_feeder`.
 
 ## 2. n8n
 

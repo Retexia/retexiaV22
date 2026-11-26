@@ -149,7 +149,8 @@ type GraphBody = {
 };
 /** A Graph API message body (as Lingo sends it) → a bubble. */
 export function BodyBubble({ body, meta, onTap }: { body: Record<string, unknown>; meta?: ReactNode; onTap?: (t: { id: string; title: string }) => void }) {
-  const b = body as GraphBody;
+  const b = body as GraphBody & { reaction?: { emoji?: string } };
+  if (b.type === "reaction") return <p className="self-start px-2 type-small text-ink-muted">Lingo reacted {b.reaction?.emoji} to the message</p>;
   if (b.type === "image") return <Bubble image={b.image?.link} text={b.image?.caption} meta={meta} />;
   if (b.type === "interactive") {
     const a = b.interactive?.action;

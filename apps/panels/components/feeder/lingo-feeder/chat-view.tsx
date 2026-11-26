@@ -34,6 +34,9 @@ export function ChatView({ chat, messages, orders, product }: { chat: Chat; mess
           <div className="flex max-h-[65vh] flex-1 flex-col gap-3 overflow-y-auto bg-surface-sunk p-4">
             {messages.map((m) => {
               const meta = m.meta ?? {};
+              if (meta.reaction) {
+                return <p key={m.id} className="self-start px-2 type-small text-ink-muted">Lingo reacted {meta.reaction} to their message</p>;
+              }
               const side = m.role === "c" ? "in" : "out";
               const who = m.role === "c" ? null : m.role === "s" ? "You" : "Lingo";
               return (

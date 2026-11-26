@@ -59,14 +59,6 @@ if (msgs.length) {
         const it = x.interactive || {};
         const r = it.button_reply || it.list_reply;
         if (r) { tap = tap || { id: r.id, title: r.title }; texts.push(`[tapped: ${r.title}]`); }
-        if (it.type === 'nfm_reply' && it.nfm_reply) {
-          // The order form (WhatsApp Flow) was sent: its answers come as JSON.
-          let f = {};
-          try { f = JSON.parse(it.nfm_reply.response_json || '{}'); } catch (e) { f = {}; }
-          const form = { name: cut(f.name, 80), address: cut(f.address, 300), phone: cut(f.phone, 20), phone2: cut(f.phone2, 20), qty: Number(f.qty) || 1, pid: Number(f.pid) || 0 };
-          tap = { id: 'FORM' + JSON.stringify(form), title: '📝 Order form' };
-          texts.push(`📝 Order form: ${[form.name, form.address, form.phone, form.phone2, 'qty ' + form.qty].filter(Boolean).join(' · ')}`);
-        }
         break;
       }
       case 'button': tap = tap || { id: x.button.payload, title: x.button.text }; texts.push(`[tapped: ${x.button.text}]`); break;

@@ -12,7 +12,7 @@
           ]
         }
       },
-      "id": "89b55f3b-8301-401e-a89d-4061efeff05a",
+      "id": "027cf40c-261c-4436-98d2-7a6710edc418",
       "name": "Every 15 Minutes",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -32,7 +32,7 @@
           ]
         }
       },
-      "id": "1629fe6f-6379-4785-89b1-0f90e9aa63c3",
+      "id": "15749c3c-72f5-4745-96c8-c1a3c7610062",
       "name": "Every 6 Hours",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -48,13 +48,13 @@
         "assignments": {
           "assignments": [
             {
-              "id": "240a90be-3d49-4d8e-b761-5f022222031b",
+              "id": "dcbfcae6-35fb-4869-962e-f4e0cb62927a",
               "name": "SUPABASE_URL",
-              "value": "EDIT: https://YOUR-PROJECT.supabase.co",
+              "value": "https://axommwxevnfpljroejmc.supabase.co",
               "type": "string"
             },
             {
-              "id": "38044d31-db48-477e-a589-e8e8d0e934d6",
+              "id": "cee94e32-7d9f-4971-af31-972ee7bd1e04",
               "name": "GRAPH_VERSION",
               "value": "v25.0",
               "type": "string"
@@ -64,7 +64,7 @@
         "includeOtherFields": true,
         "options": {}
       },
-      "id": "f15f7376-9011-4c9b-a80a-6c6dfa512a9e",
+      "id": "60f64d58-5cf8-4478-9d31-6bd79b3eb71b",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -85,7 +85,7 @@
           },
           "conditions": [
             {
-              "id": "cb7c4042-bee3-48a6-8be4-aebb199fb1ce",
+              "id": "0bd53786-60fb-47a3-ae77-0c49202191d3",
               "leftValue": "={{ $('Every 15 Minutes').isExecuted }}",
               "rightValue": "",
               "operator": {
@@ -99,7 +99,7 @@
         },
         "options": {}
       },
-      "id": "94bf0ff2-fd7c-4b7c-aba5-fcfed26f9a99",
+      "id": "b96e883a-5c08-467e-bbb7-81b479f61f65",
       "name": "Follow-ups?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -130,7 +130,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ p: { limit: 100 } }) }}"
       },
-      "id": "1e06ec79-e4db-4508-8275-c9cbade9f021",
+      "id": "52ef02a9-8a0b-403c-a94d-5071295dc1f1",
       "name": "Due Follow-ups",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -140,8 +140,8 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "SET_ME_supabase",
-          "name": "Supabase service key (Lingo Feeder)"
+          "id": "xvQ5StLBnNSq7MY2",
+          "name": "Supabase service key"
         }
       },
       "retryOnFail": true,
@@ -154,7 +154,7 @@
       "parameters": {
         "jsCode": "// Follow-ups (texts filled in and saved by bot_due_followups): one WhatsApp message each with a\n// 🛒 Order button, sent with that seller's own token.\nconst cfg = $('Config').first().json;\nconst res = $input.first().json || {};\nconst items = [];\nfor (const it of res.items || []) {\n  if (!it.text || !it.token || !it.phone_number_id) continue;\n  const body = { messaging_product: 'whatsapp', recipient_type: 'individual', to: String(it.to), type: 'interactive',\n    interactive: { type: 'button', body: { text: Array.from(it.text).slice(0, 1024).join('') },\n      action: { buttons: [{ type: 'reply', reply: { id: 'ORDER', title: Array.from(it.button || 'Order').slice(0, 20).join('') } }] } } };\n  items.push({ json: { msg_id: it.msg_id, auth: 'Bearer ' + it.token, url: `https://graph.facebook.com/${cfg.GRAPH_VERSION}/${it.phone_number_id}/messages`, body } });\n}\nreturn items;\n"
       },
-      "id": "7541f514-ad70-47e5-b0c8-a9a1f88586f7",
+      "id": "74dd58d3-dc29-4085-9ef6-c1ee02abb55f",
       "name": "Build Follow-ups",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -194,7 +194,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.body) }}"
       },
-      "id": "6740ad5c-4612-4803-8555-e324549db682",
+      "id": "933561cf-58ce-4ba1-a69f-594edca0e66e",
       "name": "Send Follow-up",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -208,7 +208,7 @@
       "parameters": {
         "jsCode": "// WhatsApp message ids of the follow-ups just sent → saved with each message (for delivery statuses).\nconst sent = $('Build Follow-ups').all();\nconst items = $input.all().map((r, i) => {\n  const j = r.json || {};\n  const id = ((j.messages || [])[0] || {}).id || null;\n  const e = j.error ? (typeof j.error === 'string' ? j.error : `${j.error.code || ''} ${j.error.message || ''}`.trim()) : null;\n  return { msg_id: sent[i] ? sent[i].json.msg_id : null, wa_id: id, error: e || (id ? null : 'no message id') };\n}).filter(x => x.msg_id);\nreturn [{ json: { p: { items } } }];\n"
       },
-      "id": "50c95e69-fb25-4bd2-8890-b095592a9eec",
+      "id": "b420af2c-dd2c-4be7-ac47-d2e48d5fd27c",
       "name": "Collect Ids",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -239,7 +239,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ p: $json.p }) }}"
       },
-      "id": "40ae53bc-31ab-4780-9a88-2ac0d747550c",
+      "id": "7b05301a-07ca-49d4-929c-b0414ca73523",
       "name": "Save Ids",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -249,8 +249,8 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "SET_ME_supabase",
-          "name": "Supabase service key (Lingo Feeder)"
+          "id": "xvQ5StLBnNSq7MY2",
+          "name": "Supabase service key"
         }
       },
       "retryOnFail": true,
@@ -279,7 +279,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ p: {} }) }}"
       },
-      "id": "12fe3133-9e92-4eff-b43e-a5f13a959352",
+      "id": "f7680916-76f6-444b-902e-33d5b973fd78",
       "name": "Numbers To Check",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -289,8 +289,8 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "SET_ME_supabase",
-          "name": "Supabase service key (Lingo Feeder)"
+          "id": "xvQ5StLBnNSq7MY2",
+          "name": "Supabase service key"
         }
       },
       "retryOnFail": true,
@@ -301,7 +301,7 @@
       "parameters": {
         "jsCode": "// Every connected WhatsApp number → one health check each (token valid, number status, quality rating).\nconst cfg = $('Config').first().json;\nconst list = Array.isArray($input.first().json) ? $input.first().json : ($input.first().json || {}).items || $input.all().map(i => i.json);\nreturn (list || []).filter(n => n && n.token && n.phone_number_id).map(n => ({ json: {\n  phone_number_id: n.phone_number_id,\n  auth: 'Bearer ' + n.token,\n  url: `https://graph.facebook.com/${cfg.GRAPH_VERSION}/${n.phone_number_id}`,\n  qs: { fields: 'display_phone_number,verified_name,quality_rating,code_verification_status,name_status,platform_type' },\n} }));\n"
       },
-      "id": "b4541c72-0124-48e8-ba31-5758485b89a9",
+      "id": "0ae4b944-8bbf-4b49-b81d-02a592342aea",
       "name": "Split Numbers",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -341,7 +341,7 @@
         "specifyQuery": "json",
         "jsonQuery": "={{ JSON.stringify($json.qs) }}"
       },
-      "id": "52a62ddf-24c6-41d4-9b30-950cef7f6cc3",
+      "id": "2b5e4711-e830-426d-b4d2-215967381144",
       "name": "WA: Number Info",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -355,7 +355,7 @@
       "parameters": {
         "jsCode": "// Health answer per number → bot_save_check (problems show as a banner in the seller's Lingo Feeder and in admin).\nconst asked = $('Split Numbers').all();\nreturn $input.all().map((r, i) => {\n  const j = r.json || {};\n  const b = j.body !== undefined ? j.body : j;\n  const e = (b && b.error) || null;\n  const err = e ? `${e.code ? '(' + e.code + ') ' : ''}${e.error_user_msg || e.message || 'error'}`.slice(0, 300) : null;\n  return { json: { p: {\n    phone_number_id: asked[i] ? asked[i].json.phone_number_id : null,\n    ok: !err && !!(b && b.id),\n    error: err || (b && b.id ? null : 'WhatsApp did not answer'),\n    info: err ? {} : { display_phone_number: b.display_phone_number || '', verified_name: b.verified_name || '', quality_rating: b.quality_rating || '',\n                        code_verification_status: b.code_verification_status || '', name_status: b.name_status || '' },\n  } } };\n}).filter(x => x.json.p.phone_number_id);\n"
       },
-      "id": "62359daa-83dc-445c-ab4e-584aa6b015b0",
+      "id": "d3fa0faa-293a-4d4d-8000-f7c55ffa3672",
       "name": "Health Result",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -386,7 +386,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ p: $json.p }) }}"
       },
-      "id": "adf7867d-62d8-40e7-9b58-77e4e44580c1",
+      "id": "572ce186-a024-4a77-930c-fc2036ba63c9",
       "name": "Save Check",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -396,8 +396,8 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "SET_ME_supabase",
-          "name": "Supabase service key (Lingo Feeder)"
+          "id": "xvQ5StLBnNSq7MY2",
+          "name": "Supabase service key"
         }
       },
       "retryOnFail": true,
@@ -413,8 +413,8 @@
         "width": 1000,
         "color": 6
       },
-      "id": "78f07f19-95a5-4306-bcbd-4c6612ec38df",
-      "name": "Note c2d55e",
+      "id": "d0543034-e259-4d86-994c-e53a815da950",
+      "name": "Note 1fe8dd",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [

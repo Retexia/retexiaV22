@@ -27,17 +27,12 @@ for (const b of src.blocks || []) {
     if (len(join(pend, b.text)) > 4096) flush();
     pend = join(pend, b.text);
     if (b.pid) pendPid = b.pid;
+  } else if (b.kind === 'reaction') {
+    flush();
+    push(null, { ...base, type: 'reaction', reaction: { message_id: b.to, emoji: b.emoji } }, b.emoji, 'reaction', { reaction: b.emoji });
   } else if (b.kind === 'image') {
     flush();
     push(b.pid, { ...base, type: 'image', image: { link: b.image, caption: clip(b.caption, 1024) } }, clip(b.caption, 1024), 'image', { image: b.image });
-  } else if (b.kind === 'flow') {
-    let text = join(pend, b.text);
-    if (len(text) > 1024) { flush(); text = b.text; }
-    const pid = pendPid; pend = ''; pendPid = null;
-    push(pid, { ...base, type: 'interactive', interactive: { type: 'flow', body: { text: clip(text, 1024) }, action: { name: 'flow', parameters: {
-      flow_message_version: b.version || '3', flow_token: b.token, flow_id: b.flow_id, flow_cta: clip(b.cta, 20),
-      flow_action: 'navigate', flow_action_payload: { screen: 'ORDER', data: b.data } } } } },
-      clip(text, 1024) + '\n[' + clip(b.cta, 20) + ']', 'buttons', { buttons: [clip(b.cta, 20)], form: true });
   } else if (b.kind === 'buttons' || b.kind === 'list') {
     let text = join(pend, b.text);
     if (len(text) > 1024) { flush(); text = b.text; }
@@ -52,4 +47,8 @@ for (const b of src.blocks || []) {
   }
 }
 flush();
+// The first message quotes the customer's message (WhatsApp "reply"), like a person answering it.
+const first = out.find(o => o.json.kind !== 'reaction');
+if (first && src.quote && !/^test\./.test(src.quote)) first.json.body = { ...first.json.body, context: { message_id: src.quote } };
+if (first && src.quote) first.json.meta = { ...(first.json.meta || {}), quote: true };
 return out.length ? out : [{ json: { skip: true } }];

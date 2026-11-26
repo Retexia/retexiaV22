@@ -6,10 +6,9 @@ import "server-only";
  *   test_bot  run one message through the real pipeline in test mode (nothing sent to WhatsApp)
  *   check     test the seller's number and token (Test connection)
  *   send      send the seller's own reply on their number
- *   flow_setup  create + publish the order form (WhatsApp Flow) in the seller's WABA
  * WhatsApp tokens never come here: n8n reads them from Supabase Vault. Never throws.
  */
-export type EngineAction = "test_bot" | "check" | "send" | "flow_setup";
+export type EngineAction = "test_bot" | "check" | "send";
 
 const env = (name: string) => process.env[`LINGO_FEEDER_${name}`]?.trim() || process.env[`FEEDER_LINGO_${name}`]?.trim() || "";
 export const engineReady = () => Boolean(env("N8N_URL") && env("N8N_KEY"));

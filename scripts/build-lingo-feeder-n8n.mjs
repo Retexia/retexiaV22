@@ -15,9 +15,10 @@ const id = () => randomUUID();
 const CFG = "$('Config').first().json";
 const MSG = "$('Message').first().json";
 const CREDS = {
-  supabase: { httpHeaderAuth: { id: "SET_ME_supabase", name: "Supabase service key (Lingo Feeder)" } },
-  openai: { httpHeaderAuth: { id: "SET_ME_openai", name: "OpenAI API key (Lingo Feeder)" } },
-  gemini: { httpHeaderAuth: { id: "SET_ME_gemini", name: "Gemini API key" } },
+  // The credentials already in Retexia's n8n (same ids as the live workflow), so a re-import needs no changes.
+  supabase: { httpHeaderAuth: { id: "xvQ5StLBnNSq7MY2", name: "Supabase service key" } },
+  openai: { httpHeaderAuth: { id: "cMxYC6mCkl35yJv1", name: "OpenAI API key" } },
+  gemini: { httpHeaderAuth: { id: "r8afphn4iXLEMMAE", name: "geminiAPI" } },
 };
 const NEVER_ERROR = { response: { response: { neverError: true } }, timeout: 60000 };
 
@@ -113,10 +114,10 @@ const mainNodes = [
   respond("Respond: OK to Meta", [X(1), A + 60], { respondWith: "noData", options: { responseCode: 200 } }),
   iff("WhatsApp Event?", "={{ !!$('Read Webhook').first().json.phone_number_id }}", [X(1) + 120, A + 160]),
   webhook("Meta Verify (GET)", [X(0), A - 260], { path: "lingo-feeder", responseMode: "responseNode" }, "Meta's webhook check"),
-  webhook("Panel: Lingo Feeder", [X(0), A + 260], { httpMethod: "POST", path: "lingo-feeder-panel", authentication: "headerAuth", responseMode: "responseNode" },
-    "Credential: Header Auth “Retexia key (Lingo Feeder)” (X-Retexia-Key)"),
+  webhook("Panel: Lingo Feeder", [X(0), A + 260], { httpMethod: "POST", path: "lingo-feeder-panel", responseMode: "responseNode" },
+    "Like the live workflow: no Header Auth (to protect it, add a Header Auth credential X-Retexia-Key = LINGO_FEEDER_N8N_KEY)"),
   config([X(2), A], [
-    ["SUPABASE_URL", "EDIT: https://YOUR-PROJECT.supabase.co"],
+    ["SUPABASE_URL", "https://axommwxevnfpljroejmc.supabase.co"],
     ["GRAPH_VERSION", "v25.0"],
     ["RETEXIA_APP_SECRET", "EDIT: only for Embedded Signup (later)"],
   ]),
@@ -226,7 +227,7 @@ const mainNodes = [
 ];
 
 const mainNotes = [
-  sticky("## Retexia — Lingo Feeder (WhatsApp bot)\n**Setup** (once):\n1. Credentials (Header Auth): **Supabase service key (Lingo Feeder)** → name `apikey`, value = Supabase service_role / secret key. **OpenAI API key (Lingo Feeder)** → name `Authorization`, value `Bearer sk-…`. **Gemini API key** → `x-goog-api-key`. **Retexia key (Lingo Feeder)** → `X-Retexia-Key`, value = `LINGO_FEEDER_N8N_KEY` on Vercel.\n2. **Config** → SUPABASE_URL.\n3. Activate. Sellers paste the **Production URL** of *WhatsApp Webhook* (the panel shows it) in their Meta app.\nWhatsApp tokens are per seller, in Supabase Vault — never in n8n. Models, texts and timings: Supabase → lingo_feeder.settings.",
+  sticky("## Retexia — Lingo Feeder (WhatsApp bot)\n**Setup** (once):\n1. Credentials (Header Auth, already set): **Supabase service key** (`apikey`), **OpenAI API key** (`Authorization: Bearer sk-…`), **geminiAPI** (`x-goog-api-key`).\n2. **Config** → SUPABASE_URL (set).\n3. Activate. Sellers paste the **Production URL** of *WhatsApp Webhook* (the panel shows it) in their Meta app.\nWhatsApp tokens are per seller, in Supabase Vault — never in n8n. Models, texts and timings: Supabase → lingo_feeder.settings.",
     [X(0) - 40, A - 960], 780, 460, 6),
   sticky("## Cost ladder\n0 · code: taps, forms, lead forms, quick answers, the whole order flow\n1 · OpenAI brain (reads + answers in ONE call, only this chat's product, cached instructions)\n2 · Gemini when OpenAI fails; Gemini for voice notes and photos\nEvery call is saved in lingo_feeder.ai_usage with its cost (admin → profit).",
     [X(8) - 40, B - 520], 620, 240, 4),
@@ -276,7 +277,7 @@ const main = { name: "Retexia — Lingo Feeder (WhatsApp bot)", nodes: [...mainN
 const fuNodes = [
   { parameters: { rule: { interval: [{ field: "minutes", minutesInterval: 15 }] } }, id: id(), name: "Every 15 Minutes", type: "n8n-nodes-base.scheduleTrigger", typeVersion: 1.2, position: [0, 200] },
   { parameters: { rule: { interval: [{ field: "hours", hoursInterval: 6 }] } }, id: id(), name: "Every 6 Hours", type: "n8n-nodes-base.scheduleTrigger", typeVersion: 1.2, position: [0, 480] },
-  config([240, 340], [["SUPABASE_URL", "EDIT: https://YOUR-PROJECT.supabase.co"], ["GRAPH_VERSION", "v25.0"]]),
+  config([240, 340], [["SUPABASE_URL", "https://axommwxevnfpljroejmc.supabase.co"], ["GRAPH_VERSION", "v25.0"]]),
   iff("Follow-ups?", "={{ $('Every 15 Minutes').isExecuted }}", [480, 340]),
   rpc("Due Follow-ups", "bot_due_followups", "={{ JSON.stringify({ p: { limit: 100 } }) }}", [720, 200], "Statuses · one follow-up · inside 24 h"),
   code("Build Follow-ups", "build_followups.js", [960, 200]),

@@ -17,6 +17,8 @@ const rpc = async (fn, p) => (await as("service_role", null, `select lingo_feede
 // Package rows need the Feeder product: add it and run 0039 again (it must be safe to re-run).
 await q(`insert into public.products (slug, code, name, short_name, status) values ('feeder', 'FDR', 'Retexia Feeder', 'Feeder', 'live') on conflict (slug) do nothing`);
 await db.exec(readFileSync(new URL("../supabase/migrations/0039_lingo_feeder.sql", import.meta.url), "utf8"));
+await db.exec(readFileSync(new URL("../supabase/migrations/0042_lingo_feeder_details_voice.sql", import.meta.url), "utf8"));
+await db.exec(readFileSync(new URL("../supabase/migrations/0043_lingo_feeder_human.sql", import.meta.url), "utf8"));
 // Follow-ups at any hour in tests.
 await q(`update lingo_feeder.settings set value = value || '{"followup_from": 0, "followup_to": 24}' where key = 'timing'`);
 
@@ -111,9 +113,10 @@ let r = await wh(A, C1, text("Hello! Can I get more info on this?"), "Saman Pere
 ok(r.calls.openai === 0 && r.calls.ad === 0, "the ad's own words name the product: no AI at all");
 ok((await one(`select product_id, matched_by from lingo_feeder.ads where ad_id = 'ad-gastric-1'`)).matched_by === "text", "the ad is saved as the Gastric Care ad (found from its text)");
 ok(r.outs.length === 2 && r.outs[0].text.includes("1,340") && !r.outs[0].text.includes("{price}"), "message 1: the full description with the seller's price");
-ok(r.outs[1].kind === "buttons" && /Saman 😊 මම Lingo, Amaya Herbals එකෙන්/.test(r.outs[1].text) && r.outs[1].text.includes("1,790") && r.outs[1].text.includes("👤 නම"),
+ok(r.outs[1].kind === "buttons" && /Saman/.test(r.outs[1].text) && /Lingo/.test(r.outs[1].text) && r.outs[1].text.includes("Amaya Herbals") && r.outs[1].text.includes("1,790") && r.outs[1].text.includes("👤 නම"),
   "message 2: greeting with their name, Lingo, the shop, the total and the details form");
-ok(/^(සුභ|ආයුබෝවන්)/.test(r.outs[1].text), "…starting with good morning / afternoon / evening (Sri Lanka time)");
+ok(/^(Good (morning|afternoon|evening)|Hi) Saman/.test(r.outs[1].text), "…starting with Good morning / afternoon / evening in English, like Sri Lankans greet");
+ok(!r.outs.some((o) => o.body.context), "the ad's pre-filled first message isn't quoted");
 ok(JSON.stringify(r.outs[1].body.interactive.action.buttons.map((b) => b.reply.id)) === '["ORDER","USAGE","CALL"]', "…with 🛒 Order · 📖 How to use · 📞 Call me buttons");
 let c = await chatRow(A, C1);
 ok(c.status === "new" && c.awaiting === "details" && c.product_id === GASTRIC, "status: only clicked the ad (said nothing yet)");
@@ -121,13 +124,18 @@ ok(c.status === "new" && c.awaiting === "details" && c.product_id === GASTRIC, "
 console.log("Lingo Feeder: details → summary → confirm → thank-you + how to use");
 r = await wh(A, C1, text("👤 නම : Saman Perera\n🏠 ලිපිනය : 23, Galle Road,\nMatara\n📞 දුරකථන අංකය : 077 123 4567 / 0712223344"));
 ok(r.calls.openai === 0, "our filled-in form is read in code (no AI)");
-ok(r.outs.length === 1 && r.outs[0].kind === "buttons" && r.outs[0].text.includes("23, Galle Road, Matara") && r.outs[0].text.includes("0771234567 / 0712223344"), "the summary: address on several lines, both phone numbers");
+ok(r.outs[0].kind === "buttons" && r.outs[0].text.includes("23, Galle Road, Matara") && r.outs[0].text.includes("0771234567 / 0712223344"), "the summary: address on several lines, both phone numbers");
 ok(JSON.stringify(r.outs[0].body.interactive.action.buttons.map((b) => b.reply.id)) === '["CONFIRM","CHANGE","CANCEL"]', "…with ✅ Confirm · ✏️ Change · ❌ Cancel");
+ok(r.outs[0].body.context?.message_id?.startsWith("wamid.IN"), "…as a reply quoting the customer's message");
+ok(r.outs.at(-1).kind === "reaction" && r.outs.at(-1).body.reaction.emoji === "👍", "…and a 👍 reaction on their details");
 const draft = await one(`select * from lingo_feeder.orders where user_id = $1 and phone = $2`, [A, C1]);
 ok(draft.status === "draft" && Number(draft.total) === 1790 && draft.product_name.includes("Gastric"), "a draft order, total from the database (not the AI)");
 ok((await chatRow(A, C1)).status === "ordering", "status: giving order details");
 r = await wh(A, C1, tap("CONFIRM", "✅ Confirm"));
-ok(r.outs.length === 2 && r.outs[0].text.includes("බොහොම ස්තූතියි Saman") && r.outs[0].text.includes("2-3"), "thank-you with their first name and delivery days");
+ok(r.outs[0].text.includes("Saman") && r.outs[0].text.includes("2-3") && r.outs[0].text.startsWith("❤️"), "thank-you with their first name and delivery days");
+ok(r.outs.at(-1).kind === "reaction" && r.outs.at(-1).body.reaction.emoji === "❤️" && !r.outs.some((o) => o.body.reaction?.emoji === "🙏"), "…a ❤️ reaction on the confirmation (never 🙏)");
+const sug = r.outs.find((o) => /ගැනත් විස්තර/.test(o.text));
+ok(r.claim.related ? sug && !sug.body.interactive && Array.from(sug.text).length < 120 : !sug, "…a short, no-button suggestion only when a related product exists");
 ok(r.outs[1].text.includes("භාවිතා කරන හැටි") && r.outs[1].text.includes("⚠️"), "…then how to use the product (+ precautions) as its own message");
 c = await chatRow(A, C1);
 ok(c.status === "ordered" && c.details.address === "23, Galle Road, Matara", "status: ordered; their details are kept for the next order");
@@ -205,7 +213,7 @@ ok(c.status === "cancelled" && (await one(`select status from lingo_feeder.order
 console.log("Lingo Feeder: lead forms, call me, complaints, spam");
 const C3 = "94770000003";
 r = await wh(A, C3, text("Hello! I filled out your form. Here's my information:\n\nStreet address: 12/3, Main Street, Galle\nFull name: Kamala Jayasinghe\nPhone number: +94 77 888 9999"), "Kamala", AD);
-ok(r.calls.openai === 0 && r.outs.length === 2 && r.outs[1].text.includes("Kamala") && r.outs[1].text.includes("12/3, Main Street, Galle") && r.outs[1].text.includes("Confirm"),
+ok(r.calls.openai === 0 && r.outs.filter((o) => o.kind !== "reaction").length === 2 && r.outs[1].text.includes("Kamala") && r.outs[1].text.includes("12/3, Main Street, Galle") && r.outs[1].text.includes("Confirm"),
   "a lead form: photo, then hello + summary in one message (no AI)");
 ok((await chatRow(A, C3)).status === "ordering", "…status: giving details");
 r = await wh(A, C3, tap("CALL", "📞 Mata call karanna"));
@@ -236,9 +244,72 @@ brainNext = [{ intent: "question", reply: "ඔව් 😊 දිනකට පෙ
 r = await wh(A, C1, { type: "audio", audio: { id: "media-1", mime_type: "audio/ogg; codecs=opus" } });
 ok(r.calls.media === 1 && r.claim.msgs[0].t.startsWith("[voice]") && r.outs[0].text.startsWith("ඔව්"), "a voice note → Gemini writes it down → Lingo answers it");
 const mediaReq = seenReq.find((x) => x.task === "media");
-ok(mediaReq.req.generationConfig.thinkingConfig.thinkingLevel === "minimal" && mediaReq.model === "gemini-3.5-flash-lite", "Gemini with minimal thinking (no runaway thinking tokens)");
+ok(mediaReq.req.generationConfig.thinkingConfig.thinkingLevel === "minimal" && mediaReq.model === "gemini-3.5-flash" && mediaReq.req.generationConfig.temperature === 0,
+  "voice notes: Gemini 3.5 Flash (clearer Sinhala), minimal thinking, no guessing");
+ok(/English letters/.test(mediaReq.req.systemInstruction.parts[0].text) && mediaReq.req.systemInstruction.parts[0].text.includes("The chat is about this product: Ayora"),
+  "…told to write English words (diabetes, order) in English letters, with the chat's product as a hint");
 const mu = await one(`select provider, tokens_audio from lingo_feeder.ai_usage where task = 'media'`);
 ok(mu.provider === "gemini" && mu.tokens_audio === 640, "the voice note's audio tokens are logged and priced");
+
+console.log("Lingo Feeder: checking the order details (phone, address), never asking twice");
+const D1 = "94770000011";
+await wh(A, D1, text("Hello! Can I get more info on this?"), "Chamari", AD);
+r = await wh(A, D1, text("👤 නම : Chamari Silva\n🏠 ලිපිනය : 45/2, Lake Road, Kurunegala"));
+ok(r.outs[0].kind === "buttons" && r.outs[0].text.includes("077 000 0011") && r.outs[0].body.interactive.action.buttons.map((b) => b.reply.id).join() === "USE_WA,OTHER_PHONE",
+  "no phone number → \"shall I use this WhatsApp number (077 000 0011)?\" with Yes / Another number");
+ok((await chatRow(A, D1)).awaiting === "phone" && !(await one(`select phone1 from lingo_feeder.orders where phone = $1`, [D1])).phone1, "…the WhatsApp number isn't used without asking");
+r = await wh(A, D1, text("ow"));
+ok(r.outs[0].text.includes("0770000011") && r.outs[0].text.includes("Confirm"), "\"ow\" → that number goes in the summary");
+const D2 = "94770000012";
+await wh(A, D2, text("Hello! Can I get more info on this?"), "Pradeep", AD);
+r = await wh(A, D2, text("👤 නම : Pradeep\n🏠 ලිපිනය : 12, Station Road, Gampaha"));
+r = await wh(A, D2, tap("OTHER_PHONE", "📞 වෙන number එකක්"));
+ok(r.outs[0].text.includes("phone number") && (await chatRow(A, D2)).awaiting === "field_phone", "Another number → asks for it");
+r = await wh(A, D2, text("077 12345"));
+ok(r.calls.openai === 0 && r.outs[0].text.includes("07712345") && r.outs[0].text.includes("10"), "a number that's too short → Lingo says it isn't a full number (no AI)");
+r = await wh(A, D2, text("0712345678"));
+ok(r.outs[0].text.includes("0712345678") && r.outs[0].text.includes("Confirm"), "…then the right one → summary");
+const D3 = "94770000013";
+await wh(A, D3, text("Hello! Can I get more info on this?"), "Nuwan", AD);
+r = await wh(A, D3, text("👤 නම : Nuwan Perera\n🏠 ලිපිනය : Matara\n📞 දුරකථන අංකය : 0771239876"));
+ok(r.outs[0].text.includes("\"Matara\"") && r.outs[0].text.includes("ලිපිනය") && (await chatRow(A, D3)).awaiting === "field_address", "only a town as the address → asks for the full home or work address");
+r = await wh(A, D3, text("No 8, Beach Road, Matara"));
+ok(r.outs[0].text.includes("No 8, Beach Road, Matara") && r.outs[0].text.includes("Confirm"), "…the full address → summary");
+brainNext = [{ intent: "details", reply: "", lang: "sg" }, { intent: "details", reply: "", lang: "sg" }];
+const D4 = "94770000014";
+await wh(A, D4, text("Hello! Can I get more info on this?"), "Ruwani", AD);
+r = await wh(A, D4, tap("ORDER"));
+r = await wh(A, D4, listTap("QTY_1", "එකක්"));
+const firstAsk = r.outs[0].text;
+r = await wh(A, D4, text("hari mama ewannam"));
+ok(r.outs[0].text !== firstAsk, "an empty \"details\" reading from the AI never re-sends the same request");
+r = await wh(A, D4, text("👤 නම :"));
+r = await wh(A, D4, text("👤 නම :"));
+ok((await chatRow(A, D4)).needs_call || r.outs.some((o) => /call/i.test(o.text)), "asked for the same details again and again → Lingo offers a call, then the chat goes to Call them");
+const D5 = "94771234567";   // C1: has an order with saved details
+r = await wh(A, D5, tap("ORDER"));
+r = await wh(A, D5, tap("NEW", "📝 Aluth details"));
+r = await wh(A, D5, text("na ektama danna"));
+ok(r.outs[0].text.includes("23, Galle Road, Matara") && r.outs[0].text.includes("Confirm"), "\"na ektama danna\" / \"kalin dunna details walatama\" → the saved details, straight to the summary");
+r = await wh(A, D5, tap("CANCEL"));
+
+brainNext = [{ intent: "question", reply: "ඔව් ඩිabetes තියෙන අයට පුළුවන් 😊", lang: "si" }];
+r = await wh(A, "94770000011", text("ඥායබෙටීස් තියෙන අයට පුළුවන්ද"));
+ok(!r.outs.some((o) => o.text.includes("ඩිabetes")), "an AI answer with Sinhala and English letters mixed in one word is never sent");
+
+brainNext = [{ intent: "question", lang: "sg", reply: "Ow dr, meka hama dawasema kaala passe bonna puluwan 😊 Pethi 1-2k ganna one, wathura ekka. Mulin doctor kenekgen ahala balanna eka hodai, wena beheth bonawa nam." }];
+r = await wh(A, "94770000011", text("meka bonne kohomada kiyala kiyannako"));
+const parts = r.outs.filter((o) => o.kind === "text" || o.kind === "buttons");
+ok(parts.length >= 2 && parts.every((o) => Array.from(o.text).length < 140), "a long AI answer goes as 2-3 short messages, like people text");
+ok(parts[0].body.context?.message_id && !parts[1].body.context, "…the first one replies to (quotes) the customer's message");
+
+console.log("Lingo Feeder: a product named only in words (no ad)");
+const DIAB = (await one(`select product_id from lingo_feeder.products where name ilike '%diabetic%' order by product_id limit 1`)).product_id;
+brainNext = [{ intent: "question", product_id: DIAB, reply: "Ow dr, sugar ekata ape Diabetic Care Tablet eka thiyenawa 😊", lang: "sg" }];
+r = await wh(A, "94770000015", text("sugar walata beheth thiyenawada oyala gawa"), "Sunil");
+const catReq = seenReq.filter((x) => x.task === "brain").pop().req;
+ok(catReq.messages[1].content.includes("OUR PRODUCTS") && catReq.messages[1].content.includes(`${DIAB}: `), "no ad, no product yet → the AI gets the short product list");
+ok(r.outs.some((o) => o.kind === "image" || o.text.includes("Diabetic")) && (await chatRow(A, "94770000015")).product_id === DIAB, "…picks the diabetes product → its photo + description");
 
 console.log("Lingo Feeder: AI allowance → lighter model → fixed texts only");
 await q(`insert into lingo_feeder.ai_usage (user_id, task, provider, model, cost_usd) values ($1, 'brain', 'openai', 'gpt-5.4-mini', 1)`, [A]);
