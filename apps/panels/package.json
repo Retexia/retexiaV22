@@ -11,6 +11,7 @@
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
+    "@retexia/shared": "workspace:*",
     "@retexia/supabase": "workspace:*",
     "@retexia/ui": "workspace:*",
     "@supabase/supabase-js": "^2.117.0",

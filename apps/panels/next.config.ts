@@ -26,7 +26,7 @@ const csp = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@retexia/ui", "@retexia/supabase"],
+  transpilePackages: ["@retexia/ui", "@retexia/shared", "@retexia/supabase"],
   poweredByHeader: false,
   images: { unoptimized: true },
   // Photos are resized in the browser (max 2048 px) before upload; this leaves room.

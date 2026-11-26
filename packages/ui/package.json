@@ -25,6 +25,7 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@retexia/shared": "workspace:*",
     "@tanstack/react-table": "^8.21.3",
     "cmdk": "^1.1.1",
     "lucide-react": "^1.0.0",

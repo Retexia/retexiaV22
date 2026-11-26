@@ -44,7 +44,7 @@ export default async function CustomerPage({ params, searchParams }: { params: P
   if (!c?.id) notFound();
 
   const email = c.email ?? "";
-  const [orders, payments, messages, waitlist, notes, team, audit, settings, panelProducts] = await Promise.all([
+  const [orders, payments, messages, waitlist, notes, team, audit, settings, panelProducts, deletion] = await Promise.all([
     supabase.from("staff_orders").select("id, ref, status, status_label, status_tone, product_slug, product_short_name, package_name, price_amount, currency, billing_cycle, created_at, renews_at").eq("user_id", id).order("created_at", { ascending: false }),
     supabase.from("staff_payments").select("id, order_ref, kind, signed_amount, currency, status, paid_at, created_at, receipt_number").eq("user_id", id).order("created_at", { ascending: false }),
     email
@@ -58,6 +58,7 @@ export default async function CustomerPage({ params, searchParams }: { params: P
     canAdmin ? supabase.from("audit_logs").select("*").eq("record_id", id).order("created_at", { ascending: false }).limit(100) : Promise.resolve({ data: [] as AuditEntry[] }),
     supabase.from("site_settings").select("currency_code").eq("id", 1).maybeSingle(),
     supabase.from("products").select("slug, name, panel_url, panel_live, sort_order").order("sort_order"),
+    supabase.from("account_deletion_requests").select("created_at, source, reason").eq("user_id", id).eq("status", "pending").maybeSingle(),
   ]);
   const people = Object.fromEntries((team.data ?? []).map((p) => [p.id, p.full_name || p.email || "Team member"]));
   const currency = settings.data?.currency_code ?? "LKR";
@@ -109,6 +110,12 @@ export default async function CustomerPage({ params, searchParams }: { params: P
       />
 
       {supportProblem ? <Alert tone="warning" title="Support mode didn't start">{supportProblem}</Alert> : null}
+      {deletion.data ? (
+        <Alert tone="danger" title="Asked to delete their account">
+          On {formatDate(deletion.data.created_at)}, from the {deletion.data.source === "app" ? "app" : "website"}.
+          {deletion.data.reason ? ` Reason: ${deletion.data.reason}` : ""} Delete everything below (Account actions); the request then shows as done.
+        </Alert>
+      ) : null}
 
       {tab === "overview" ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">

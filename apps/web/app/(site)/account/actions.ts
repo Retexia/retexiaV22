@@ -196,3 +196,24 @@ export async function choosePaymentMethod(input: { orderId: string; method: stri
   revalidatePath("/account", "layout");
   return { ok: true, message: t("order.method.changed", "Payment method changed.") };
 }
+
+/** "Delete my account": asks the Retexia team to delete the account and everything in it (migration 0044). */
+export async function requestAccountDeletion(input: { reason?: string }): Promise<AccountResult> {
+  const t = await getT();
+  const parsed = z.object({ reason: z.string().trim().max(1000).optional() }).safeParse(input);
+  if (!parsed.success) return { ok: false, message: t("form.error.generic", "Something went wrong. Please try again, or message us on WhatsApp.") };
+  const supabase = await createServerClient();
+  const { error } = await supabase.rpc("request_account_deletion", { p_reason: parsed.data.reason || undefined, p_source: "web" });
+  if (error) return { ok: false, message: t("auth.error.generic", "Something went wrong. Please try again.") };
+  revalidatePath("/account/security");
+  return { ok: true, message: t("account.delete.requested", "We got your request. We'll delete your account and email you when it's done.") };
+}
+
+export async function cancelAccountDeletion(): Promise<AccountResult> {
+  const t = await getT();
+  const supabase = await createServerClient();
+  const { error } = await supabase.rpc("cancel_account_deletion");
+  if (error) return { ok: false, message: t("auth.error.generic", "Something went wrong. Please try again.") };
+  revalidatePath("/account/security");
+  return { ok: true, message: t("account.delete.cancelled", "Your account stays. The deletion request is cancelled.") };
+}

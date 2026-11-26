@@ -12,11 +12,12 @@ import { adminUrl } from "@/lib/env";
 import { requireRole } from "@/lib/auth";
 import { postSigned, type N8nReply } from "@/lib/n8n";
 import { dispatchOutbox } from "@/lib/outbox";
+import { dispatchPush } from "@/lib/push";
 
 const uuid = z.uuid();
 
 /** Emails queued by the database (status changes, payments) go out right after the response. */
-const sendQueuedEmails = () => after(() => dispatchOutbox().then(() => undefined, () => undefined));
+const sendQueuedEmails = () => after(() => Promise.all([dispatchOutbox(), dispatchPush()]).then(() => undefined, () => undefined));
 
 function refresh(ref?: string) {
   revalidatePath("/requests");

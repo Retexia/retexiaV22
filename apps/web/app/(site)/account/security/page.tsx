@@ -1,5 +1,6 @@
 import { Alert } from "@retexia/ui";
 import type { Metadata } from "next";
+import { DeleteAccount } from "@/components/account/delete-account";
 import { ChangeEmailForm, ChangePasswordForm, SignOutEverywhere } from "@/components/account/security-forms";
 import { requireUser } from "@/lib/auth";
 import { getT } from "@/lib/strings.server";
@@ -10,7 +11,8 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function SecurityPage({ searchParams }: PageProps<"/account/security">) {
-  const [{ user }, t, sp] = await Promise.all([requireUser("/account/security"), getT(), searchParams]);
+  const [{ user, supabase }, t, sp] = await Promise.all([requireUser("/account/security"), getT(), searchParams]);
+  const { data: deletion } = await supabase.from("account_deletion_requests").select("created_at").eq("user_id", user.id).eq("status", "pending").maybeSingle();
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-2">
@@ -21,6 +23,7 @@ export default async function SecurityPage({ searchParams }: PageProps<"/account
       <ChangeEmailForm currentEmail={user.email ?? ""} />
       <ChangePasswordForm />
       <SignOutEverywhere />
+      <DeleteAccount requestedAt={deletion?.created_at ?? null} />
     </div>
   );
 }

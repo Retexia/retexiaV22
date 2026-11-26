@@ -1,0 +1,51 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "base": {
+      "node": "22.20.0",
+      "pnpm": "12.8.1",
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://axommwxevnfpljroejmc.supabase.co",
+        "EXPO_PUBLIC_API_URL": "https://feeder.retexia.com",
+        "EXPO_PUBLIC_WEB_URL": "https://www.retexia.com",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4b21td3hldm5mcGxqcm9lam1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzMjMwMTEsImV4cCI6MjEwNjg5OTAxMX0.G0I4vSfrSwyrFlani_pPxQ2915ywWdwbDCIA2ALB-xY"
+      }
+    },
+    "development": {
+      "extends": "base",
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "development",
+      "environment": "development"
+    },
+    "preview": {
+      "extends": "base",
+      "distribution": "internal",
+      "channel": "preview",
+      "android": {
+        "buildType": "apk"
+      },
+      "environment": "preview"
+    },
+    "production": {
+      "extends": "base",
+      "channel": "production",
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "environment": "production"
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft"
+      }
+    }
+  }
+}

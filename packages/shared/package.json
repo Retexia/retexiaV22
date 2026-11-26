@@ -1,0 +1,22 @@
+{
+  "name": "@retexia/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens": "./src/tokens.ts",
+    "./lingo-feeder": "./src/lingo-feeder.ts",
+    "./app-api": "./src/app-api.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@retexia/config": "workspace:*",
+    "eslint": "^9.39.0",
+    "typescript": "^5.9.3"
+  }
+}

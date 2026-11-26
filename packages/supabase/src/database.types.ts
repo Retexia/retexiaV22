@@ -18,6 +18,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_deletion_requests: {
+        Row: {
+          created_at: string
+          email: string | null
+          handled_at: string | null
+          id: string
+          reason: string | null
+          source: string
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          handled_at?: string | null
+          id?: string
+          reason?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          handled_at?: string | null
+          id?: string
+          reason?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       action_runs: {
         Row: {
           action_id: string | null
@@ -551,6 +587,33 @@ export type Database = {
           signed_in_label?: string | null
           sort_order?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      notification_prefs: {
+        Row: {
+          created_at: string
+          inbox_seen_at: string | null
+          muted: string[]
+          push: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          inbox_seen_at?: string | null
+          muted?: string[]
+          push?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          inbox_seen_at?: string | null
+          muted?: string[]
+          push?: boolean
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -1649,6 +1712,48 @@ export type Database = {
         }
         Relationships: []
       }
+      push_tokens: {
+        Row: {
+          app_version: string | null
+          created_at: string
+          device_name: string | null
+          disabled: boolean
+          disabled_reason: string | null
+          expo_token: string
+          id: string
+          last_seen_at: string
+          platform: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          app_version?: string | null
+          created_at?: string
+          device_name?: string | null
+          disabled?: boolean
+          disabled_reason?: string | null
+          expo_token: string
+          id?: string
+          last_seen_at?: string
+          platform: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          app_version?: string | null
+          created_at?: string
+          device_name?: string | null
+          disabled?: boolean
+          disabled_reason?: string | null
+          expo_token?: string
+          id?: string
+          last_seen_at?: string
+          platform?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       receipt_counters: {
         Row: {
           last_value: number
@@ -2133,6 +2238,7 @@ export type Database = {
       admin_set_service_data: { Args: { p_order_id: string; p_values: Json }; Returns: Json }
       admin_start_action_run: { Args: { p_order_id: string; p_action_id: string }; Returns: Json }
       admin_update_order: { Args: { p_order_id: string; p_changes: Json; p_reason?: string }; Returns: Json }
+      cancel_account_deletion: { Args: never; Returns: boolean }
       cancel_order: { Args: { p_order_id: string; p_reason?: string }; Returns: string }
       customer_cancelled_subscription: { Args: { p_order_id: string }; Returns: undefined }
       customer_order_service_fields: { Args: { p_order_id: string }; Returns: Json }
@@ -2142,6 +2248,10 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       is_privileged: { Args: never; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
+      kick_push_dispatch: { Args: never; Returns: undefined }
+      queue_push: { Args: { p_user: string; p_event: string; p_title: string; p_body: string; p_url?: string; p_data?: Json; p_order_id?: string }; Returns: boolean }
+      register_push_token: { Args: { p_token: string; p_platform: string; p_device?: string; p_version?: string }; Returns: undefined }
+      request_account_deletion: { Args: { p_reason?: string; p_source?: string }; Returns: Json }
       request_role: { Args: never; Returns: string }
       run_trials: { Args: never; Returns: Json }
       set_default_payment_method: { Args: { p_key: string }; Returns: undefined }
@@ -2155,6 +2265,7 @@ export type Database = {
       svc_get_order_secrets: { Args: { p_order_id: string; p_keys: string[] }; Returns: Json }
       svc_payhere_payment: { Args: { p: Json }; Returns: Json }
       svc_payhere_subscription: { Args: { p: Json }; Returns: Json }
+      unregister_push_token: { Args: { p_token: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

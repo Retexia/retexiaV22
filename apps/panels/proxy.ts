@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { webUrl } from "@/lib/env";
 import { panelForHost } from "@/lib/panel";
 
-const OWN_PATHS = /^\/(auth|api\/health|api\/post|api\/meta|api\/feeder|api\/plan)(\/|$)/;
+const OWN_PATHS = /^\/(auth|api\/health|api\/post|api\/meta|api\/feeder|api\/plan|api\/push)(\/|$)/;
 const WEB_PATHS = /^\/(account|login|signup|forgot-password|reset-password|logout|pricing|contact)(\/|$)/;
 
 /**
@@ -14,8 +14,24 @@ const WEB_PATHS = /^\/(account|login|signup|forgot-password|reset-password|logou
  * check the subscription again.
  */
 export async function proxy(request: NextRequest) {
-  const { response, claims } = await updateSession(request);
   const { pathname, search } = request.nextUrl;
+
+  // The Retexia app's API (Bearer token, no cookies): no session refresh. In development only, the
+  // app's web preview (expo start --web, another port) may call it from the browser (CORS).
+  if (/^\/api\/app(\/|$)/.test(pathname)) {
+    if (process.env.NODE_ENV === "production") return NextResponse.next();
+    const cors = {
+      "access-control-allow-origin": request.headers.get("origin") ?? "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "authorization, content-type, accept",
+      "access-control-expose-headers": "content-disposition, x-lingo-orders",
+      "access-control-max-age": "600",
+    };
+    if (request.method === "OPTIONS") return new NextResponse(null, { status: 204, headers: cors });
+    return NextResponse.next({ headers: cors });
+  }
+
+  const { response, claims } = await updateSession(request);
   if (pathname === "/robots.txt") return response;
 
   const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");

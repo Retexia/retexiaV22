@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { Database } from "@retexia/supabase/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { ACCESS_STATUSES, actingUser, opensPanel } from "../customer";
@@ -30,8 +32,16 @@ export type FeederPackage = {
  */
 export const getFeeder = cache(async () => {
   // The customer's own session (RLS), or the customer a Retexia admin opened in support mode.
-  const { userId, email, sb: supabase } = await actingUser();
+  const { userId, email, sb } = await actingUser();
   if (!userId) return null;
+  return loadFeeder(sb, userId, email);
+});
+
+/**
+ * The same as getFeeder() for any Supabase client that acts as the person (their cookie session in
+ * the panels, their access token in the app's /api/app routes). One rule for both.
+ */
+export async function loadFeeder(supabase: SupabaseClient<Database>, userId: string, email: string | null) {
   const { data: product } = await supabase.from("products").select("id, name, page_slug").eq("slug", feederSlug()).maybeSingle();
   const [{ data: profile }, { data: packages }, { data: orders }] = await Promise.all([
     supabase.from("profiles").select("full_name, email").eq("id", userId).maybeSingle(),
@@ -60,11 +70,12 @@ export const getFeeder = cache(async () => {
   return {
     user: { id: userId, email: profile?.email ?? email ?? "", name: profile?.full_name ?? "" },
     productName: product?.name ?? "Retexia Feeder",
-    /** Where a locked package is bought on retexia.com. */
+    /** Where a locked package is bought on retexia.com (web panel only: the app never links to it). */
     buyUrl: (slug: string) => `${webUrl()}/${product?.page_slug || feederSlug()}/get-started?package=${encodeURIComponent(slug)}`,
     packages: shown,
   };
-});
+}
+export type Feeder = Awaited<ReturnType<typeof loadFeeder>>;
 
 /** For pages: signed in and owns at least one Feeder package, or redirect. */
 export async function requireFeederPage(path = "/") {

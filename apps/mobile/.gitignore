@@ -1,0 +1,21 @@
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+.metro-health-check*
+.env*.local
+*.tsbuildinfo
+# generated native folders (EAS Build makes them)
+/ios
+/android
+# Firebase config (uploaded to EAS as the file variable GOOGLE_SERVICES_JSON)
+google-services.json

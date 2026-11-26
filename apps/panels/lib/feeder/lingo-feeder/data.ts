@@ -2,6 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 import { getFeeder, requireFeederPage } from "../access";
+import type { LfChat, LfChatItem, LfMessage, LfOrder, LfStats } from "@retexia/shared/app-api";
 import { lfDb } from "./db";
 
 export const LINGO_FEEDER_SLUG = "lingo-feeder";
@@ -79,38 +80,23 @@ export async function lingoFeederActor() {
 // ---------------------------------------------------------------------------
 // Reads (always filtered by the seller's user id)
 // ---------------------------------------------------------------------------
-export type Home = {
-  chats_today: number; orders_today: number; sales_today: number; chats_month: number; orders_month: number; sales_month: number;
-  to_export: number; call: number; unmatched_ads: number; statuses: Record<string, number>;
-};
+export type Home = LfStats;
 export async function home(userId: string): Promise<Home> {
   const { data, error } = await lfDb().rpc("panel_home", { p_user: userId });
   if (error) throw new Error(`Lingo Feeder home: ${error.message}`);
   return data as Home;
 }
 
-export type ChatItem = {
-  phone: string; name: string | null; status: string; status_at: string; needs_call: boolean; call_reason: string | null; paused_until: string | null;
-  last_msg_at: string | null; last_in_at: string | null; product: string | null; orders: number;
-  last: { role: string; content: string; at: string } | null;
-};
+export type ChatItem = LfChatItem;
 export async function chats(userId: string, status: string, q: string | null, limit = 150): Promise<ChatItem[]> {
   const { data, error } = await lfDb().rpc("panel_chats", { p_user: userId, p_status: status, p_q: q, p_limit: limit });
   if (error) throw new Error(`Lingo Feeder chats: ${error.message}`);
   return (data ?? []) as ChatItem[];
 }
 
-export type Chat = {
-  phone: string; profile_name: string | null; lang: string; product_id: number | null; status: string; status_at: string; needs_call: boolean;
-  call_reason: string | null; awaiting: string | null; details: { name?: string; address?: string; phone?: string; phone2?: string };
-  memo: string | null; paused_until: string | null; last_in_at: string | null; last_msg_at: string | null; created_at: string; ad_id: string | null;
-};
-export type Message = { id: number; role: "c" | "b" | "s"; kind: string; content: string; meta: { image?: string; buttons?: string[]; list?: string; rows?: string[]; reaction?: string; quote?: boolean } | null; status: string | null; route: string | null; created_at: string };
-export type Order = {
-  id: number; phone: string; product_id: number | null; product_name: string | null; qty: number; name: string | null; address: string | null;
-  phone1: string | null; phone2: string | null; unit_price: number; delivery_fee: number; total: number; status: "draft" | "confirmed" | "cancelled";
-  exported_at: string | null; confirmed_at: string | null; created_at: string;
-};
+export type Chat = LfChat;
+export type Message = LfMessage;
+export type Order = LfOrder;
 const ORDER_COLS = "id, phone, product_id, product_name, qty, name, address, phone1, phone2, unit_price, delivery_fee, total, status, exported_at, confirmed_at, created_at";
 
 export async function chat(userId: string, phone: string) {

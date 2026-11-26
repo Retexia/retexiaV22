@@ -1,6 +1,8 @@
 import "server-only";
 
 import { createServerClient } from "@retexia/supabase/server";
+import type { Database } from "@retexia/supabase/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
@@ -32,6 +34,15 @@ export type PayingCustomer = Customer & { order: NonNullable<Customer["order"]> 
 export const getCustomer = cache(async (productSlug: string): Promise<Customer | null> => {
   const { userId, email, sb, support } = await actingUser();
   if (!userId) return null;
+  const customer = await loadCustomer(sb, userId, email, productSlug);
+  return support ? { ...customer, support: { staffName: support.staffName, expiresAt: support.expiresAt } } : customer;
+});
+
+/**
+ * The same as getCustomer() for any Supabase client that acts as the person (their cookie session in
+ * the panels, their access token in the app's /api/app routes). One access rule for both.
+ */
+export async function loadCustomer(sb: SupabaseClient<Database>, userId: string, email: string | null, productSlug: string): Promise<Customer> {
   const [{ data: profile }, { data: product }] = await Promise.all([
     sb.from("profiles").select("full_name, email, phone, whatsapp").eq("id", userId).maybeSingle(),
     sb.from("products").select("id").eq("slug", productSlug).maybeSingle(),
@@ -56,9 +67,8 @@ export const getCustomer = cache(async (productSlug: string): Promise<Customer |
     name: profile?.full_name ?? "",
     phone: profile?.whatsapp ?? profile?.phone ?? null,
     order,
-    ...(support ? { support: { staffName: support.staffName, expiresAt: support.expiresAt } } : {}),
   };
-});
+}
 
 /**
  * Who the panels act for: the signed-in customer (their own session, RLS), or

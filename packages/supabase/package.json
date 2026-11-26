@@ -12,7 +12,8 @@
     "./redirect": "./src/redirect.ts",
     "./types": "./src/database.types.ts",
     "./admin": "./src/admin.ts",
-    "./roles": "./src/roles.ts"
+    "./roles": "./src/roles.ts",
+    "./push": "./src/push.ts"
   },
   "scripts": {
     "lint": "eslint .",

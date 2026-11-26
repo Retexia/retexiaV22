@@ -37,7 +37,7 @@ function isProtected(pathname: string) {
   return pathname === "/account" || pathname.startsWith("/account/") || /^\/[^/]+\/get-started\/?$/.test(pathname);
 }
 
-const MAINTENANCE_EXEMPT = /^\/(maintenance|login|auth|api|forgot-password|reset-password)(\/|$)/;
+const MAINTENANCE_EXEMPT = /^\/(maintenance|login|auth|api|forgot-password|reset-password|delete-account|app-auth|\.well-known)(\/|$)/;
 
 export async function proxy(request: NextRequest) {
   const { response, claims, supabase } = await updateSession(request);

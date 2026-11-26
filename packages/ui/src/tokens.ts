@@ -1,5 +1,6 @@
 /**
- * Retexia design tokens: the single source of truth.
+ * Retexia design tokens as CSS. The values are in @retexia/shared/tokens (the single source of
+ * truth, also read by the app).
  *
  * Every token becomes a CSS variable `--rx-<name>` (light values on `:root`,
  * dark values on `.dark`). Tailwind utilities read those variables (see
@@ -10,61 +11,10 @@
  * so apps that do not render <ThemeStyle /> still get the defaults.
  */
 
-export type ThemedValue = { light: string; dark: string };
+import { colorTokens, lengthTokens, shadowTokens } from "@retexia/shared/tokens";
 
-export const colorTokens = {
-  surface: { light: "#ffffff", dark: "#0c1322" },
-  "surface-raised": { light: "#ffffff", dark: "#131c30" },
-  "surface-sunk": { light: "#f4f7fc", dark: "#090e1a" },
-  line: { light: "#e4ebf5", dark: "#232f48" },
-  "line-strong": { light: "#7d8dab", dark: "#6e7d9c" },
-  ink: { light: "#16264a", dark: "#e7edf9" },
-  "ink-muted": { light: "#5a6884", dark: "#9daac3" },
-  brand: { light: "#2a68d9", dark: "#7aaeff" },
-  "brand-hover": { light: "#1f55b8", dark: "#a1c5ff" },
-  "brand-soft": { light: "#eaf1fd", dark: "#14254a" },
-  "brand-halo": { light: "#dbe7fb", dark: "#16274a" },
-  "on-brand": { light: "#ffffff", dark: "#0c1322" },
-  link: { light: "#2a68d9", dark: "#7aaeff" },
-  success: { light: "#1d7338", dark: "#5fd38a" },
-  "success-soft": { light: "#dcf2e3", dark: "#11301c" },
-  warning: { light: "#855600", dark: "#f2c14e" },
-  "warning-soft": { light: "#fbebc8", dark: "#33270a" },
-  danger: { light: "#b42318", dark: "#ff8a80" },
-  "danger-soft": { light: "#fde2df", dark: "#3b1512" },
-  "on-danger": { light: "#ffffff", dark: "#0c1322" },
-} satisfies Record<string, ThemedValue>;
-
-export const shadowTokens = {
-  "shadow-sm": {
-    light: "0 1px 2px #16264a0a, 0 10px 30px -12px #2a68d926",
-    dark: "0 1px 2px #00000066, 0 10px 30px -12px #00000099",
-  },
-  "shadow-lg": {
-    light: "0 30px 60px -20px #2a68d940, 0 6px 16px -6px #16264a14",
-    dark: "0 30px 60px -20px #000000cc, 0 6px 16px -6px #00000080",
-  },
-  "focus-ring": {
-    light: "0 0 0 2px #ffffff, 0 0 0 4px #2a68d9",
-    dark: "0 0 0 2px #0c1322, 0 0 0 4px #7aaeff",
-  },
-} satisfies Record<string, ThemedValue>;
-
-export const lengthTokens = {
-  "radius-sm": "6px",
-  "radius-md": "12px",
-  "radius-lg": "20px",
-  container: "1040px",
-  /** Admin and product panels only: wider work area. */
-  "container-wide": "1280px",
-  content: "720px",
-  measure: "480px",
-  gutter: "24px",
-} satisfies Record<string, string>;
-
-export type ColorToken = keyof typeof colorTokens;
-export type LengthToken = keyof typeof lengthTokens;
-export type TokenName = ColorToken | keyof typeof shadowTokens | LengthToken;
+// The values live in @retexia/shared (shared with the Retexia app); this file makes CSS of them.
+export { colorTokens, lengthTokens, shadowTokens, type ColorToken, type LengthToken, type ThemedValue, type TokenName } from "@retexia/shared/tokens";
 
 export const cssVar = (name: string) => `--rx-${name}`;
 

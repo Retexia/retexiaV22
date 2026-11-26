@@ -60,6 +60,10 @@ export function notificationLink(payload: Record<string, unknown>, audience: "cu
   if (typeof payload.url === "string" && /^https:\/\/([a-z0-9-]+\.)*retexia\.com(\/|$)/i.test(payload.url)) {
     return { label: typeof payload.button === "string" && payload.button ? payload.button.slice(0, 40) : "Open", href: payload.url };
   }
+  // An admin page for the team (e.g. an account deletion request: /customers/<id>).
+  if (audience === "staff" && typeof payload.url === "string" && /^\/[a-z0-9/_-]{1,200}$/i.test(payload.url)) {
+    return { label: "Open in admin", href: `${adminUrl()}${payload.url}` };
+  }
   const ref = typeof payload.ref === "string" ? payload.ref : null;
   if (audience === "staff") return ref ? { label: "Open in admin", href: `${adminUrl()}/requests/${encodeURIComponent(ref)}` } : { label: "Open admin", href: adminUrl() };
   return ref ? { label: "View your request", href: `${webUrl()}/account/products/${encodeURIComponent(ref)}` } : { label: "Open my account", href: `${webUrl()}/account` };

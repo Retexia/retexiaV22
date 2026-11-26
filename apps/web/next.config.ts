@@ -20,7 +20,7 @@ const adminOrigin = (() => {
 const nextConfig: NextConfig = {
   // Next.js 16 caching model: "use cache" + cacheTag/cacheLife (see lib/content.ts).
   cacheComponents: true,
-  transpilePackages: ["@retexia/ui", "@retexia/supabase", "@retexia/content", "@retexia/forms"],
+  transpilePackages: ["@retexia/ui", "@retexia/shared", "@retexia/supabase", "@retexia/content", "@retexia/forms"],
   poweredByHeader: false,
   // Payment proofs are uploaded through a server action (checked there, max 5 MB).
   experimental: { serverActions: { bodySizeLimit: "6mb" } },

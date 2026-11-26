@@ -27,7 +27,7 @@ const csp = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@retexia/ui", "@retexia/supabase", "@retexia/content", "@retexia/forms"],
+  transpilePackages: ["@retexia/ui", "@retexia/shared", "@retexia/supabase", "@retexia/content", "@retexia/forms"],
   poweredByHeader: false,
   images: { unoptimized: true },
   // Media uploads go through a server action (checked there): allow images up to 5 MB.
