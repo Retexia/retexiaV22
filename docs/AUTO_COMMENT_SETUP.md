@@ -26,31 +26,35 @@ With their own token, Autopublish is connected straight away (no confirmation in
 
 Sellers set up the older way (shared with Retexia's business) keep working as before.
 
-## 2. n8n
+## 2. n8n (no credentials)
 
-1. If an older "Retexia — Feeder Autopublish (gateway)" is there, **deactivate** it (two active workflows can't share the webhook path).
-2. **Import** `n8n/feeder-autopublish.json` (Workflows → Import from file). It has the comment calls and the new **OpenAI (Auto comment)** step.
-3. Credentials (all Header Auth):
-   - Webhook: **"Retexia key (Autopublish)"**: Name `X-Retexia-Key`, Value = a long random text (the same as `FEEDER_ADS_N8N_KEY` on Vercel).
-   - Every Meta node (Meta GET / POST, Page token, Meta POST image): **"Meta System User (Autopublish)"**: only needed for sellers on the older partner way (Retexia's own System User token). Sellers with their own portfolio don't go through n8n for Facebook.
-   - **OpenAI (Auto comment)**: **"OpenAI API key"** (the one Lingo Feeder uses; it is picked already if it's the same n8n).
-4. **Activate** the workflow. Copy the Webhook node's **Production URL**.
+The workflow holds **no credentials**. feeder.retexia.com sends each call the one key it needs; the keys are entered once in **admin.retexia.com → Settings → Integrations → Feeder tools** and kept in Supabase Vault. Execution data isn't saved, so n8n keeps no keys either.
+
+1. Deactivate / delete an older copy of "Retexia — Feeder Autopublish (gateway)" (two can't share the webhook path).
+2. **Import** `n8n/feeder-autopublish.json` and press **Publish**. Nothing to fill in.
+3. Copy the **Webhook: Autopublish** node's **Production URL**.
+
+Admin → Settings → Integrations → **Feeder tools (n8n gateway)** (owner):
+- **OpenAI API key**: Auto comment's AI.
+- **Retexia's Meta System User token**: only for sellers on the older partner way.
+- **TikTok access token**, **Evolution URL / instance / key**: only if you use TikTok ads or WhatsApp launch notices.
 
 ## 3. Vercel (apps/panels)
 
 ```
 FEEDER_ADS_N8N_URL=<the Production URL of the webhook>
-FEEDER_ADS_N8N_KEY=<the same value as the n8n Retexia key>
+# FEEDER_ADS_N8N_KEY is optional now (only if you put Header Auth back on the webhook)
 RETEXIA_META_BUSINESS_ID=<your business ID>
 ```
 Redeploy **panels**.
 
 ## 4. Supabase
 
-SQL editor, in order (all safe to run again):
+SQL editor, in order (all safe to run again; 0049: the gateway keys in Vault):
 1. `supabase/migrations/0046_feeder_auto_comment.sql`: the free **Auto comment** package, its tables and the every-minute clock.
 2. `supabase/migrations/0047_feeder_shared_and_ai_comments.sql`: shared business details and prices, and Auto comment's AI settings.
 3. `supabase/migrations/0048_feeder_meta_connection.sql`: each seller's own Business portfolio (token in Vault), its ad accounts and Pages.
+4. `supabase/migrations/0049_feeder_gateway_keys.sql`: the gateway's keys (admin → Settings → Integrations).
 
 ## 5. Check (in this order)
 

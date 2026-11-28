@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Retexia — Feeder Autopublish (gateway)\n\nfeeder.retexia.com/autopublish builds and watches ads; this workflow is its only door to **Meta**, **TikTok** and **WhatsApp**.\n\n* One request = one allowed call. Paths not in the allow-list (Config) are refused.\n* Tokens live in **n8n credentials** (Header Auth) — see Config. Nothing secret is in this file.\n* Every answer: `{ ok, status, body, usage }` (TikTok `code != 0` = not ok).\n* The panel retries, waits for rate limits and turns errors into plain messages (feeder.ad_error_catalog).\n\nSet in Vercel (panels): `FEEDER_ADS_N8N_URL` = this webhook's production URL, `FEEDER_ADS_N8N_KEY` = the Header Auth value.\n\nAPI docs used: Marketing API (campaign, adset, adcreative, ad, advideos, adimages, page/leadgen_forms, search?type=adinterest); TikTok Business API v1.3 (campaign/adgroup/ad create + status/update, file/video/ad/upload, file/image/ad/upload, page/get, ad/get, ad/review_info, advertiser/info, identity/get).\n\n**Auto comment** (feeder.retexia.com/auto-comment) uses `meta_page` too: read posts / ads with comments, reply, hide, and private replies, all with the Page's own token.\n\nAction `ai`: one OpenAI call for Auto comment (credential **OpenAI API key**, the same one Lingo Feeder uses).",
+        "content": "## Retexia — Feeder Autopublish (gateway)\n\nfeeder.retexia.com/autopublish builds and watches ads; this workflow is its only door to **Meta**, **TikTok** and **WhatsApp**.\n\n* One request = one allowed call. Paths not in the allow-list (Config) are refused.\n* **No credentials** in this workflow: feeder.retexia.com sends the one key each call needs (admin → Settings → Integrations, Supabase Vault). Execution data isn't saved, so keys aren't kept.\n* Every answer: `{ ok, status, body, usage }` (TikTok `code != 0` = not ok).\n* The panel retries, waits for rate limits and turns errors into plain messages (feeder.ad_error_catalog).\n\nSet in Vercel (panels): `FEEDER_ADS_N8N_URL` = this webhook's production URL, `FEEDER_ADS_N8N_KEY` = the Header Auth value.\n\nAPI docs used: Marketing API (campaign, adset, adcreative, ad, advideos, adimages, page/leadgen_forms, search?type=adinterest); TikTok Business API v1.3 (campaign/adgroup/ad create + status/update, file/video/ad/upload, file/image/ad/upload, page/get, ad/get, ad/review_info, advertiser/info, identity/get).\n\n**Auto comment** (feeder.retexia.com/auto-comment) uses `meta_page` too: read posts / ads with comments, reply, hide, and private replies, all with the Page's own token.\n\nAction `ai`: one OpenAI call for Auto comment (credential **OpenAI API key**, the same one Lingo Feeder uses).",
         "height": 520,
         "width": 520,
         "color": 5
@@ -21,7 +21,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "feeder-autopublish",
-        "authentication": "headerAuth",
+        "authentication": "none",
         "responseMode": "responseNode",
         "options": {}
       },
@@ -39,7 +39,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Retexia — Feeder Autopublish (gateway). The panel (feeder.retexia.com) decides everything;\n// this workflow only makes one allowed Meta / TikTok / WhatsApp call per request and answers\n// with the platform's status and body. Nothing waits here, nothing is stored here.\n//\n// EDIT only the values marked EDIT. Tokens live in n8n credentials (Header Auth), never here:\n//   \"Retexia key (Autopublish)\"      on the Webhook   Name: X-Retexia-Key  Value: = FEEDER_ADS_N8N_KEY (Vercel, panels)\n//   \"Meta System User (Autopublish)\" Meta nodes       Name: Authorization  Value: Bearer <System User token>\n//   \"TikTok Business (Autopublish)\"  TikTok nodes     Name: Access-Token   Value: <long-term access token>\n//   \"Evolution (Autopublish)\"        WA · Send        Name: apikey         Value: <Evolution API key>\n// Docs: developers.facebook.com/docs/marketing-api · business-api.tiktok.com/portal/docs (v1.3)\nconst CONFIG = {\n  graphVersion: 'v26.0', // Meta Graph / Marketing API version (latest stable)\n  tiktokBase: 'https://business-api.tiktok.com/open_api/v1.3',\n  evolutionUrl: 'EDIT: https://your-evolution-server',\n  evolutionInstance: 'EDIT: the instance name, e.g. retexia-ads',\n  // Images n8n downloads for Meta (adimages) must come from Retexia's Supabase Storage (signed links).\n  storageLink: /^https:\\/\\/[a-z0-9-]+\\.supabase\\.co\\/storage\\/v1\\/object\\/sign\\/autopublish\\//,\n};\n\nconst body = $input.first().json.body || {};\nconst graph = 'https://graph.facebook.com/' + CONFIG.graphVersion;\nconst path = String(body.path ?? '').replace(/^\\/+/, '');\nconst refuse = (why) => [{ json: { kind: 'refused', refused: String(why).slice(0, 200) } }];\nconst enc = (v) => (v !== null && typeof v === 'object' ? JSON.stringify(v) : String(v));\nconst flat = (p) => Object.fromEntries(Object.entries(p || {}).filter(([, v]) => v !== undefined && v !== null).map(([k, v]) => [k, enc(v)]));\nconst form = (p) => Object.entries(flat(p)).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');\n\n// Allowed calls only (anything else is refused).\nconst META_GET = [/^$/, /^search$/, /^act_\\d+$/, /^act_\\d+\\/(campaigns|adsets|ads|adcreatives|advideos|adimages|insights)$/, /^\\d+$/, /^\\d+\\/(thumbnails|ads|insights)$/];\nconst META_POST = [/^act_\\d+\\/(campaigns|adsets|adcreatives|ads|advideos)$/, /^\\d+$/];\nconst TT_GET = ['advertiser/info/', 'identity/get/', 'file/video/ad/info/', 'campaign/get/', 'adgroup/get/', 'ad/get/', 'ad/review_info/', 'page/get/', 'tool/region/', 'report/integrated/get/'];\nconst TT_POST = ['campaign/create/', 'adgroup/create/', 'ad/create/', 'ad/update/', 'campaign/status/update/', 'adgroup/status/update/', 'ad/status/update/', 'file/video/ad/upload/', 'file/image/ad/upload/'];\n\nswitch (body.action) {\n  case 'meta': {\n    const m = body.method === 'POST' ? 'POST' : 'GET';\n    if (!(m === 'GET' ? META_GET : META_POST).some((re) => re.test(path))) return refuse('Meta ' + m + ' ' + path + ' is not allowed');\n    if (m === 'GET' && path === '' && !(body.params && body.params.ids)) return refuse('Meta: ids needed');\n    // On an existing object (ad, ad set, campaign, video) only these changes are allowed.\n    if (m === 'POST' && /^\\d+$/.test(path) && !Object.keys(body.params || {}).every((k) => ['status', 'creative'].includes(k))) return refuse('Meta: only status / creative changes on an object');\n    return [{ json: { kind: m === 'GET' ? 'meta_get' : 'meta_post', platform: 'meta', url: graph + '/' + path, qs: m === 'GET' ? flat(body.params) : {}, form: m === 'POST' ? form(body.params) : '' } }];\n  }\n  case 'meta_page': {\n    // Calls made with the Page's own token: Instant Forms (Autopublish) and comments (Auto comment).\n    const pid = String(body.page_id || '');\n    const m = body.method === 'POST' ? 'POST' : 'GET';\n    const p = body.params || {};\n    if (!/^\\d{5,25}$/.test(pid)) return refuse('Page call not allowed');\n    const isObj = /^\\d+_\\d+$/.test(path); // a post or a comment: {id}_{id}\n    const allowed =\n      path === pid + '/leadgen_forms' ||\n      // read the newest posts and ads with their comments\n      (m === 'GET' && (path === pid + '/posts' || path === pid + '/ads_posts' || path === pid || /^\\d+_\\d+\\/comments$/.test(path))) ||\n      // reply under a post or a comment (the Page's first comment, or a reply)\n      (m === 'POST' && /^\\d+_\\d+\\/comments$/.test(path) && Object.keys(p).every((k) => k === 'message')) ||\n      // hide / unhide a comment, nothing else\n      (m === 'POST' && isObj && Object.keys(p).length === 1 && 'is_hidden' in p) ||\n      // a private reply to a comment (never a message to anyone else)\n      (m === 'POST' && path === pid + '/messages' && p.recipient && typeof p.recipient === 'object' && Object.keys(p.recipient).join() === 'comment_id' &&\n        Object.keys(p).every((k) => ['recipient', 'message'].includes(k)));\n    if (!allowed) return refuse('Page ' + m + ' ' + path + ' is not allowed');\n    return [{ json: { kind: 'page', platform: 'meta', method: m, url: graph + '/' + path, tokenUrl: graph + '/' + pid, params: flat(p) } }];\n  }\n  case 'meta_image': {\n    const account = String(body.account || '');\n    if (!/^act_\\d{5,25}$/.test(account) || !CONFIG.storageLink.test(String(body.image_url || ''))) return refuse('image upload not allowed');\n    return [{ json: { kind: 'image', platform: 'meta', url: graph + '/' + account + '/adimages', image_url: String(body.image_url) } }];\n  }\n  case 'tiktok': {\n    const m = body.method === 'POST' ? 'POST' : 'GET';\n    if (!(m === 'GET' ? TT_GET : TT_POST).includes(path)) return refuse('TikTok ' + m + ' ' + path + ' is not allowed');\n    return [{ json: { kind: m === 'GET' ? 'tiktok_get' : 'tiktok_post', platform: 'tiktok', url: CONFIG.tiktokBase + '/' + path, qs: m === 'GET' ? flat(body.params) : {}, json: m === 'POST' ? body.params || {} : {} } }];\n  }\n  case 'ai': {\n    // One OpenAI call for Auto comment (strict JSON). Only these models, bounded size; the key stays in n8n.\n    const model = String(body.model || '');\n    const msgs = Array.isArray(body.messages) ? body.messages : [];\n    const size = JSON.stringify(msgs).length;\n    if (!['gpt-5.4-mini', 'gpt-5.4-nano'].includes(model)) return refuse('AI model not allowed');\n    if (!msgs.length || msgs.length > 4 || size > 80000 || !msgs.every((m) => ['system', 'user'].includes(m && m.role) && typeof m.content === 'string')) return refuse('AI request not allowed');\n    if (!body.schema || typeof body.schema !== 'object') return refuse('AI schema needed');\n    const req = {\n      model,\n      messages: msgs,\n      response_format: { type: 'json_schema', json_schema: { name: String(body.name || 'answer').replace(/[^a-z_]/gi, '').slice(0, 40) || 'answer', strict: true, schema: body.schema } },\n      max_completion_tokens: Math.min(Number(body.max_tokens) || 3000, 6000),\n      reasoning_effort: 'none',\n    };\n    return [{ json: { kind: 'ai', platform: 'openai', url: 'https://api.openai.com/v1/chat/completions', json: req } }];\n  }\n  case 'whatsapp': {\n    const to = String(body.to || '').replace(/\\D/g, '');\n    if (!/^\\d{9,15}$/.test(to) || !body.text) return refuse('WhatsApp: number and text needed');\n    if (String(CONFIG.evolutionUrl).startsWith('EDIT')) return refuse('WhatsApp is not set up (Config → evolutionUrl)');\n    return [{ json: { kind: 'whatsapp', platform: 'whatsapp', url: CONFIG.evolutionUrl.replace(/\\/+$/, '') + '/message/sendText/' + CONFIG.evolutionInstance, json: { number: to, text: String(body.text).slice(0, 1500), delay: 1200, linkPreview: false } } }];\n  }\n  default:\n    return refuse('unknown action');\n}"
+        "jsCode": "// Retexia — Feeder Autopublish (gateway). The panel (feeder.retexia.com) decides everything;\n// this workflow only makes one allowed Meta / TikTok / WhatsApp call per request and answers\n// with the platform's status and body. Nothing waits here, nothing is stored here.\n//\n// NO CREDENTIALS HERE OR IN ANY NODE. feeder.retexia.com sends the one key each call needs in\n// body.auth (entered once in admin.retexia.com → Settings → Integrations, kept in Supabase Vault):\n//   meta → Meta nodes and Page token · tiktok → TikTok nodes · openai → OpenAI (Auto comment)\n//   evolution_url / evolution_instance / evolution_key → WA · Send\n// The keys are never stored or answered back (execution data isn't saved; see workflow settings).\n// Docs: developers.facebook.com/docs/marketing-api · business-api.tiktok.com/portal/docs (v1.3)\nconst CONFIG = {\n  graphVersion: 'v26.0', // Meta Graph / Marketing API version (latest stable)\n  tiktokBase: 'https://business-api.tiktok.com/open_api/v1.3',\n  // Images n8n downloads for Meta (adimages) must come from Retexia's Supabase Storage (signed links).\n  storageLink: /^https:\\/\\/[a-z0-9-]+\\.supabase\\.co\\/storage\\/v1\\/object\\/sign\\/autopublish\\//,\n};\n\nconst body = $input.first().json.body || {};\n// The key(s) for this one call, from feeder.retexia.com.\nconst auth = body.auth && typeof body.auth === 'object' ? body.auth : {};\nconst graph = 'https://graph.facebook.com/' + CONFIG.graphVersion;\nconst path = String(body.path ?? '').replace(/^\\/+/, '');\nconst refuse = (why) => [{ json: { kind: 'refused', refused: String(why).slice(0, 200) } }];\nconst enc = (v) => (v !== null && typeof v === 'object' ? JSON.stringify(v) : String(v));\nconst flat = (p) => Object.fromEntries(Object.entries(p || {}).filter(([, v]) => v !== undefined && v !== null).map(([k, v]) => [k, enc(v)]));\nconst form = (p) => Object.entries(flat(p)).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');\n\n// Allowed calls only (anything else is refused).\nconst META_GET = [/^$/, /^search$/, /^act_\\d+$/, /^act_\\d+\\/(campaigns|adsets|ads|adcreatives|advideos|adimages|insights)$/, /^\\d+$/, /^\\d+\\/(thumbnails|ads|insights)$/];\nconst META_POST = [/^act_\\d+\\/(campaigns|adsets|adcreatives|ads|advideos)$/, /^\\d+$/];\nconst TT_GET = ['advertiser/info/', 'identity/get/', 'file/video/ad/info/', 'campaign/get/', 'adgroup/get/', 'ad/get/', 'ad/review_info/', 'page/get/', 'tool/region/', 'report/integrated/get/'];\nconst TT_POST = ['campaign/create/', 'adgroup/create/', 'ad/create/', 'ad/update/', 'campaign/status/update/', 'adgroup/status/update/', 'ad/status/update/', 'file/video/ad/upload/', 'file/image/ad/upload/'];\n\nconst route = () => {\nswitch (body.action) {\n  case 'meta': {\n    const m = body.method === 'POST' ? 'POST' : 'GET';\n    if (!(m === 'GET' ? META_GET : META_POST).some((re) => re.test(path))) return refuse('Meta ' + m + ' ' + path + ' is not allowed');\n    if (m === 'GET' && path === '' && !(body.params && body.params.ids)) return refuse('Meta: ids needed');\n    // On an existing object (ad, ad set, campaign, video) only these changes are allowed.\n    if (m === 'POST' && /^\\d+$/.test(path) && !Object.keys(body.params || {}).every((k) => ['status', 'creative'].includes(k))) return refuse('Meta: only status / creative changes on an object');\n    return [{ json: { kind: m === 'GET' ? 'meta_get' : 'meta_post', platform: 'meta', url: graph + '/' + path, qs: m === 'GET' ? flat(body.params) : {}, form: m === 'POST' ? form(body.params) : '' } }];\n  }\n  case 'meta_page': {\n    // Calls made with the Page's own token: Instant Forms (Autopublish) and comments (Auto comment).\n    const pid = String(body.page_id || '');\n    const m = body.method === 'POST' ? 'POST' : 'GET';\n    const p = body.params || {};\n    if (!/^\\d{5,25}$/.test(pid)) return refuse('Page call not allowed');\n    const isObj = /^\\d+_\\d+$/.test(path); // a post or a comment: {id}_{id}\n    const allowed =\n      path === pid + '/leadgen_forms' ||\n      // read the newest posts and ads with their comments\n      (m === 'GET' && (path === pid + '/posts' || path === pid + '/ads_posts' || path === pid || /^\\d+_\\d+\\/comments$/.test(path))) ||\n      // reply under a post or a comment (the Page's first comment, or a reply)\n      (m === 'POST' && /^\\d+_\\d+\\/comments$/.test(path) && Object.keys(p).every((k) => k === 'message')) ||\n      // hide / unhide a comment, nothing else\n      (m === 'POST' && isObj && Object.keys(p).length === 1 && 'is_hidden' in p) ||\n      // a private reply to a comment (never a message to anyone else)\n      (m === 'POST' && path === pid + '/messages' && p.recipient && typeof p.recipient === 'object' && Object.keys(p.recipient).join() === 'comment_id' &&\n        Object.keys(p).every((k) => ['recipient', 'message'].includes(k)));\n    if (!allowed) return refuse('Page ' + m + ' ' + path + ' is not allowed');\n    return [{ json: { kind: 'page', platform: 'meta', method: m, url: graph + '/' + path, tokenUrl: graph + '/' + pid, params: flat(p) } }];\n  }\n  case 'meta_image': {\n    const account = String(body.account || '');\n    if (!/^act_\\d{5,25}$/.test(account) || !CONFIG.storageLink.test(String(body.image_url || ''))) return refuse('image upload not allowed');\n    return [{ json: { kind: 'image', platform: 'meta', url: graph + '/' + account + '/adimages', image_url: String(body.image_url) } }];\n  }\n  case 'tiktok': {\n    const m = body.method === 'POST' ? 'POST' : 'GET';\n    if (!(m === 'GET' ? TT_GET : TT_POST).includes(path)) return refuse('TikTok ' + m + ' ' + path + ' is not allowed');\n    return [{ json: { kind: m === 'GET' ? 'tiktok_get' : 'tiktok_post', platform: 'tiktok', url: CONFIG.tiktokBase + '/' + path, qs: m === 'GET' ? flat(body.params) : {}, json: m === 'POST' ? body.params || {} : {} } }];\n  }\n  case 'ai': {\n    // One OpenAI call for Auto comment (strict JSON). Only these models, bounded size; the key stays in n8n.\n    const model = String(body.model || '');\n    const msgs = Array.isArray(body.messages) ? body.messages : [];\n    const size = JSON.stringify(msgs).length;\n    if (!['gpt-5.4-mini', 'gpt-5.4-nano'].includes(model)) return refuse('AI model not allowed');\n    if (!msgs.length || msgs.length > 4 || size > 80000 || !msgs.every((m) => ['system', 'user'].includes(m && m.role) && typeof m.content === 'string')) return refuse('AI request not allowed');\n    if (!body.schema || typeof body.schema !== 'object') return refuse('AI schema needed');\n    const req = {\n      model,\n      messages: msgs,\n      response_format: { type: 'json_schema', json_schema: { name: String(body.name || 'answer').replace(/[^a-z_]/gi, '').slice(0, 40) || 'answer', strict: true, schema: body.schema } },\n      max_completion_tokens: Math.min(Number(body.max_tokens) || 3000, 6000),\n      reasoning_effort: 'none',\n    };\n    return [{ json: { kind: 'ai', platform: 'openai', url: 'https://api.openai.com/v1/chat/completions', json: req } }];\n  }\n  case 'whatsapp': {\n    const to = String(body.to || '').replace(/\\D/g, '');\n    if (!/^\\d{9,15}$/.test(to) || !body.text) return refuse('WhatsApp: number and text needed');\n    if (!/^https:\\/\\/\\S+$/.test(String(auth.evolution_url || '')) || !auth.evolution_instance) return refuse('WhatsApp (Evolution) is not set up: admin → Settings → Integrations');\n    return [{ json: { kind: 'whatsapp', platform: 'whatsapp', url: String(auth.evolution_url).replace(/\\/+$/, '') + '/message/sendText/' + encodeURIComponent(String(auth.evolution_instance)), json: { number: to, text: String(body.text).slice(0, 1500), delay: 1200, linkPreview: false } } }];\n  }\n  default:\n    return refuse('unknown action');\n}\n};\nconst out = route();\n// Only this call's key goes on to the HTTP nodes (they read $('Config').first().json.auth).\nif (out[0].json.kind !== 'refused') out[0].json.auth = auth;\nreturn out;\n"
       },
       "id": "d45a902e-3ba8-40f7-ba9c-8a08f35265a0",
       "name": "Config",
@@ -78,11 +78,18 @@
           },
           "timeout": 120000
         },
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
         "sendQuery": true,
         "specifyQuery": "json",
-        "jsonQuery": "={{ JSON.stringify($json.qs) }}"
+        "jsonQuery": "={{ JSON.stringify($json.qs) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + ($('Config').first().json.auth.meta || '') }}"
+            }
+          ]
+        }
       },
       "id": "8625f681-6659-482e-ba64-fbe6fc64c537",
       "name": "Meta GET",
@@ -108,12 +115,19 @@
           },
           "timeout": 120000
         },
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/x-www-form-urlencoded",
-        "body": "={{ $json.form }}"
+        "body": "={{ $json.form }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + ($('Config').first().json.auth.meta || '') }}"
+            }
+          ]
+        }
       },
       "id": "9e43b461-b026-4bb0-864d-51a87e80f663",
       "name": "Meta POST",
@@ -139,11 +153,18 @@
           },
           "timeout": 30000
         },
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
         "sendQuery": true,
         "specifyQuery": "json",
-        "jsonQuery": "={{ JSON.stringify({ fields: 'access_token' }) }}"
+        "jsonQuery": "={{ JSON.stringify({ fields: 'access_token' }) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + ($('Config').first().json.auth.meta || '') }}"
+            }
+          ]
+        }
       },
       "id": "3d533e6d-774e-4564-a876-6d8cf0695766",
       "name": "Page token",
@@ -361,12 +382,19 @@
           },
           "timeout": 120000
         },
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/x-www-form-urlencoded",
-        "body": "={{ $json.form }}"
+        "body": "={{ $json.form }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + ($('Config').first().json.auth.meta || '') }}"
+            }
+          ]
+        }
       },
       "id": "c9754156-88d8-457e-9436-64d94f9ce02a",
       "name": "Meta POST image",
@@ -392,11 +420,18 @@
           },
           "timeout": 60000
         },
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
         "sendQuery": true,
         "specifyQuery": "json",
-        "jsonQuery": "={{ JSON.stringify($json.qs) }}"
+        "jsonQuery": "={{ JSON.stringify($json.qs) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Access-Token",
+              "value": "={{ $('Config').first().json.auth.tiktok || '' }}"
+            }
+          ]
+        }
       },
       "id": "10f3e88f-c1e3-4fc0-bb1b-99775b74b57e",
       "name": "TikTok GET",
@@ -422,11 +457,18 @@
           },
           "timeout": 120000
         },
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.json) }}"
+        "jsonBody": "={{ JSON.stringify($json.json) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Access-Token",
+              "value": "={{ $('Config').first().json.auth.tiktok || '' }}"
+            }
+          ]
+        }
       },
       "id": "ca03001e-9f65-436e-b676-57976a722840",
       "name": "TikTok POST",
@@ -452,11 +494,18 @@
           },
           "timeout": 30000
         },
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.json) }}"
+        "jsonBody": "={{ JSON.stringify($json.json) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Config').first().json.auth.evolution_key || '' }}"
+            }
+          ]
+        }
       },
       "id": "fb7fca3c-cb47-4048-90fb-0ac580b80d7a",
       "name": "WA · Send",
@@ -527,11 +576,18 @@
           },
           "timeout": 90000
         },
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.json) }}"
+        "jsonBody": "={{ JSON.stringify($json.json) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + ($('Config').first().json.auth.openai || '') }}"
+            }
+          ]
+        }
       },
       "id": "e32092da-f8c8-4207-89b6-808f31e87bb7",
       "name": "OpenAI (Auto comment)",
@@ -541,12 +597,6 @@
         740,
         1260
       ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "cMxYC6mCkl35yJv1",
-          "name": "OpenAI API key"
-        }
-      },
       "notes": "Auto comment: reads comments, decides hide / reply / private message",
       "notesInFlow": true
     }
@@ -865,7 +915,9 @@
   "settings": {
     "executionOrder": "v1",
     "saveDataSuccessExecution": "none",
-    "saveDataErrorExecution": "all"
+    "saveDataErrorExecution": "none",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": false
   },
   "pinData": {},
   "tags": []

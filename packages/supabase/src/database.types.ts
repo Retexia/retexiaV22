@@ -2215,6 +2215,7 @@ export type Database = {
       }
     }
     Functions: {
+      admin_gateway_keys: { Args: never; Returns: Json }
       admin_action_secret_status: { Args: { p_product_id: string }; Returns: Json }
       admin_anonymise_user: { Args: { p_user_id: string }; Returns: undefined }
       admin_assign_order: { Args: { p_order_id: string; p_user_id: string }; Returns: undefined }
@@ -2233,6 +2234,7 @@ export type Database = {
       admin_reveal_order_secret: { Args: { p_order_id: string; p_key: string }; Returns: string }
       admin_save_form: { Args: { p: Json }; Returns: number }
       admin_set_action_secret: { Args: { p_action_id: string; p_webhook_url?: string; p_signing_secret?: string }; Returns: undefined }
+      admin_set_gateway_key: { Args: { p_key: string; p_value: string }; Returns: undefined }
       admin_set_integration_settings: { Args: { p: Json }; Returns: undefined }
       admin_set_order_status: { Args: { p_order_id: string; p_to_status: string; p_reason: string; p_customer_note?: string; p_notify?: boolean }; Returns: Json }
       admin_set_service_data: { Args: { p_order_id: string; p_values: Json }; Returns: Json }

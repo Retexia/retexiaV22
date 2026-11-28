@@ -101,4 +101,24 @@ ok((await q(`select count(*)::int n from feeder.meta_assets where user_id = $1`,
 const a2 = (await q(`select meta_via, meta_status, meta_ad_account_id from feeder.ad_accounts where user_id = $1`, [amaya]))[0];
 ok(a2.meta_via === "partner" && a2.meta_status === "none" && a2.meta_ad_account_id === null, "Autopublish stops using the account");
 
+
+console.log("Gateway keys: entered in admin, kept in Vault, the workflow holds none (0049)");
+await db.exec(readFileSync(new URL("../supabase/migrations/0049_feeder_gateway_keys.sql", import.meta.url), "utf8"));
+const owner = await user("owner@retexia.test", "owner");
+const staffAdmin = await user("staff@retexia.test", "admin");
+await as("authenticated", owner, `select public.admin_set_gateway_key('openai', 'sk-test-1234567890abcdWXYZ')`);
+await as("authenticated", owner, `select public.admin_set_gateway_key('evolution_url', 'https://evo.example.com')`);
+const shown = (await as("authenticated", owner, `select public.admin_gateway_keys() k`)).rows[0].k;
+ok(shown.openai === "••••WXYZ" && shown.evolution_url === "https://evo.example.com", "the owner sees only the last 4 characters of a key (URLs in full)");
+ok((await q(`select feeder.gateway_keys() k`))[0].k.openai === "sk-test-1234567890abcdWXYZ", "feeder.retexia.com's server reads the key to send with a call");
+await expectError(() => as("authenticated", staffAdmin, `select public.admin_set_gateway_key('openai', 'sk-x')`), "only an owner changes them", /owner/);
+await expectError(() => as("authenticated", kasun, `select feeder.gateway_keys()`), "customers can't read them", /permission denied/);
+await expectError(() => as("authenticated", owner, `select public.admin_set_gateway_key('aws', 'x')`), "only the known keys", /Unknown key/);
+await expectError(() => as("authenticated", owner, `select public.admin_set_gateway_key('evolution_url', 'http://plain')`), "the Evolution URL must be https", /https/);
+ok((await q(`select count(*)::int n from public.audit_logs where table_name = 'feeder_gateway'`))[0].n >= 2, "every change is in the audit log");
+await as("authenticated", owner, `select public.admin_set_gateway_key('openai', '')`);
+ok(!("openai" in (await q(`select feeder.gateway_keys() k`))[0].k), "removing a key deletes it from Vault");
+const noCreds = wf.nodes.filter((n) => n.credentials || (n.parameters.authentication && n.parameters.authentication !== "none"));
+ok(noCreds.length === 0 && wf.settings.saveDataSuccessExecution === "none" && wf.settings.saveDataErrorExecution === "none", "the n8n workflow has no credentials and keeps no execution data");
+
 summary();
