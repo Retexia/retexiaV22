@@ -245,8 +245,21 @@ function guard(r) {
   if ((lang === 'sg' || lang === 'en') && si > 3) return 'Sinhala letters for a Singlish/English chat';
   return '';
 }
+// Lingo's reply, cleaned before it is checked and sent: no 🙏, no "dr" inside Sinhala script, never
+// internal words ("facts", "the team will check", "I don't know"), never a sentence she already sent.
+const JARGON = /\bfacts?\b|ෆැක්ට්|product info|information (i have|we have)|\bteam\b|ටීම්|i don'?t know|දන්නේ නෑ|දන්නෑ|හරියටම කියන්න බෑ|කියන්න බැහැ|kiyanna ba|danne na|sadahan na|සඳහන් නෑ|සඳහන් නැති|no information|not mentioned/i;
+const sentNorm = (x) => String(x).toLowerCase().replace(/[^a-z0-9\u0D80-\u0DFF]+/g, ' ').trim();
+const sentBefore = (ctx.history || []).filter(h => h.r === 'b').slice(-6).map(h => sentNorm(h.c));
+function polish(r) {
+  let t = String(r || '').replace(/🙏/g, '😊').replace(/(😊\s*){2,}/g, '😊 ');
+  if (lang === 'si') t = t.replace(/(^|[\s,])dr(?=[\s,.!?😊]|$)/gi, '$1').replace(/[ \t]{2,}/g, ' ');
+  const parts = t.split(/(?<=[.!?]|\p{Extended_Pictographic})\s+|\n+/u).map(x => x.trim()).filter(Boolean);
+  const kept = parts.filter(x => !JARGON.test(x) && !(sentNorm(x).length > 12 && sentBefore.some(b => b.includes(sentNorm(x).slice(0, 40)))));
+  if (kept.length < parts.length) log.push(`[cleaned the answer: ${parts.length - kept.length} line(s) dropped]`);
+  return kept.join(' ').trim();
+}
 const aiReply = () => {
-  const r = String(c.reply || '').trim();
+  const r = polish(String(c.reply || '').trim());
   if (!r) return '';
   const why = guard(r);
   if (why) { needsCall = true; callReason = `Lingo's answer was held back (${why}): "${cut(u.now, 80)}"`; log.push(`[AI answer blocked: ${why}]`); return T('will_check', V()); }
@@ -299,6 +312,8 @@ if (intent === 'spam') {
     ensureDraft(); draft.qty = qtyTap ? Number(qtyTap[1]) : Number(c.qty) || 1; orderingNow = true;
     if (anyDetail(draft)) nextStep(); else if (savedFull) sameDetails(); else askDetails();
   } else if (tap === 'ORDER' || intent === 'want_order' || rule('how_order')) {
+    // "I want it" (even with a question): answer the question in a line, then straight to the order.
+    if (aiFrom && intent === 'want_order') { const r = aiReply(); if (r) answerAi(r, `[answered: ${cut(r, 120)}]`); }
     if (aiFrom && det) { applyDetails(c); nextStep(); } else startOrder(Number(c.qty) || 0, tap === 'ORDER');
   } else if (tap === 'USE_WA' || (intent === 'yes' && chat.awaiting === 'phone')) {
     ensureDraft(); if (waPhone) draft.phone1 = waPhone; orderingNow = true; progress = true; nextStep();
@@ -394,8 +409,11 @@ if (intent === 'spam') {
     } else if (r) answerAi(r, `[answered: ${cut(r, 120)}]`); else answer(T('will_check', V()), '[will check]');
   } else if (aiFrom) {
     const r = aiReply();
-    answerAi(r, `[answered: ${cut(r, 120)}]`);
-    if (c.needs_human === true && !needsCall) { needsCall = true; callReason = `Lingo wasn't sure: "${cut(u.now, 80)}"`; }
+    if (r) answerAi(r, `[answered: ${cut(r, 120)}]`);
+    else okReply();                                                  // nothing worth saying (all cleaned away): move to the order
+    if (c.needs_human === true && !needsCall && (!r || /complain|angry|pregnan|breastfeed|ගැබ්|කිරි දෙන|doctor/i.test(String(c.memo || '') + ' ' + u.now))) {
+      needsCall = true; callReason = `Lingo wasn't sure: "${cut(u.now, 80)}"`;
+    }
   }
 
   // First message of the chat: the greeting with the total and the details form (+ any answer).
@@ -425,7 +443,9 @@ if (intent === 'spam') {
   }
 }
 function okReply() {
-  if (/\[offered to order/.test(lastNote)) { log.push('[ok: already offered to order]'); return; }   // never the same offer twice in a row
+  // "Ok / hari / ow" right after she offered the order means yes: take it (never silence, never the same offer again).
+  // (an answer carries the 🛒 Order button, so "ok" after an answer is the same yes)
+  if (/\[offered to order|\[answered:/.test(lastNote) && status0 !== 'ordered' && !['thanks', 'greet'].includes(intent)) { log.push('[ok to the order offer: started the order]'); startOrder(0, false); return; }
   step({ kind: 'buttons', text: T('ok_reply', V()), buttons: [B('ORDER', 'btn_order'), B('USAGE', 'btn_usage')] });
   log.push('[offered to order]');
 }

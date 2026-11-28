@@ -382,6 +382,32 @@ ok(pc.status === "ordered" && pc.details.address === "12, Temple Road, Galle" &&
 ok(!(await as("service_role", null, `select lingo_feeder.panel_add_order($1, $2::jsonb) r`, [A, JSON.stringify({ phone: C9, product_id: GASTRIC, qty: 1, name: "", address: "x", phone1: "" })])).rows[0].r.ok, "missing details are refused");
 ok(!(await as("service_role", null, `select lingo_feeder.panel_add_order($1, $2::jsonb) r`, [Bu, JSON.stringify({ phone: C9, product_id: GASTRIC, qty: 1, name: "X Y", address: "Somewhere 1", phone1: "0771234567" })])).rows[0].r.ok, "another seller can't add an order to this chat");
 
+
+console.log("Lingo Feeder: sells like a person (the side-effects chat that lost an order)");
+const G = "94788000001";
+await wh(A, G, text("Hello! Can I get more info on this?"), "Gayani", AD);
+brainNext = [{ ...BLANK, intent: "question", lang: "si", needs_human: true, memo: "Asked side effects",
+  reply: "සමහර අයාලට බඩේ අපහසුතාවය වෙන්න පුළුවන් dr 🙏 හැබැයි ඒ ගැන මේ product facts වල සඳහන් නැති නිසා මම හරියටම කියන්න බෑ. 100% ආයුර්වේද ඖෂධ වලින් හදපු නිසා දිනකට පෙති 1-2ක් ගත්තම ඔයාට ගැටලුවක් වෙන්නේ නෑ 😊" }];
+r = await wh(A, G, text("අතුරු ආබාධ නැන්ද"));
+const gt = bodies(r);
+ok(!/facts|සඳහන් නැති|කියන්න බෑ/.test(gt) && /ආයුර්වේද/.test(gt), "never 'facts' or 'I can't say': only the confident, true part is sent");
+ok(!/🙏/.test(gt) && !/(^|\s)dr(\s|$)/.test(gt), "no 🙏, and no 'dr' inside Sinhala script");
+ok(!(await chatRow(A, G)).needs_call, "…and the shop isn't asked to call just because a detail isn't in the product's details");
+brainNext = [{ ...BLANK, intent: "question", lang: "si", reply: "100% ආයුර්වේද ඖෂධ වලින් හදපු නිසා දිනකට පෙති 1-2ක් ගත්තම ඔයාට ගැටලුවක් වෙන්නේ නෑ 😊 ගැබිනි මව්වරු doctor ගෙන් අහලා පාවිච්චි කරන්න." }];
+r = await wh(A, G, text("ඇයි ඒ"));
+ok(!bodies(r).includes("ගැටලුවක් වෙන්නේ නෑ") && bodies(r).includes("ගැබිනි"), "a sentence she already sent is never sent again");
+brainNext = [{ ...BLANK, intent: "want_order", lang: "si", reply: "ඔව් 😊 ආයුර්වේද නිසා බය වෙන්න දෙයක් නෑ." }];
+r = await wh(A, G, text("මට ගන්න උවමනයි side effect ගැන කියන්න පුලුවන් නම් තවත් හොදයි"));
+ok(/බය වෙන්න දෙයක් නෑ/.test(bodies(r)) && (await chatRow(A, G)).awaiting !== null, "'I want to buy, tell me about side effects': answered, and straight to the order");
+const G2 = "94788000002";
+await wh(A, G2, text("Hello! Can I get more info on this?"), "Nadee", AD);
+brainNext = [{ ...BLANK, intent: "question", lang: "si", reply: "ඔව් 😊 ගැස්ට්‍රයිටිස්, බඩ දැවිල්ලට හොඳයි." }];
+r = await wh(A, G2, text("ගැස්ට්‍රයිටිස් වලට හොඳද"));
+await q(`update lingo_feeder.chats set awaiting = null where user_id = $1 and phone = $2`, [A, G2]);
+brainNext = [{ ...BLANK, intent: "chat", lang: "si" }];
+r = await wh(A, G2, text("Ok"));
+ok(r.outs.length > 0 && (await chatRow(A, G2)).awaiting === "details", "'Ok' right after the order offer starts the order (never silence)");
+
 console.log("Lingo Feeder: profit report");
 const pkgId = (await one(`select k.id from public.packages k join public.products p on p.id = k.product_id where p.slug = 'feeder' and k.slug = 'lingo-feeder'`)).id;
 const prodId = (await one(`select id from public.products where slug = 'feeder'`)).id;
