@@ -7,7 +7,7 @@ import { autoCommentUser } from "@/lib/feeder/auto-comment/data";
 import { askAi, sellerFacts } from "@/lib/feeder/auto-comment/ai";
 import { combine, type FinalDecision } from "@/lib/feeder/auto-comment/ai-prompt";
 import { decide, defaultSettings, LIMITS, readSettings } from "@/lib/feeder/auto-comment/rules";
-import { checkComments, type CheckCounts } from "@/lib/feeder/auto-comment/runner";
+import { checkComments, commentPages, type CheckCounts } from "@/lib/feeder/auto-comment/runner";
 import { feederDb } from "@/lib/feeder/db";
 
 async function user() {
@@ -73,9 +73,9 @@ export async function setAutoComment(on: boolean): Promise<ActionResult> {
     const u = await user();
     const enabled = z.boolean().parse(on);
     const db = feederDb();
-    const { data: account } = await db.from("ad_accounts").select("meta_page_id, meta_status").eq("user_id", u.id).maybeSingle();
-    if (enabled && (!account?.meta_page_id || account.meta_status !== "connected")) {
-      return { ok: false, message: "Connect your Facebook Page first (Autopublish → Accounts). Auto comment starts once Retexia confirms it." };
+    if (enabled) {
+      const { problem } = await commentPages(u.id);
+      if (problem) return { ok: false, message: problem };
     }
     const { data: existing } = await db.from("comment_settings").select("user_id").eq("user_id", u.id).maybeSingle();
     // The first time: start from the ready-made replies and rules.

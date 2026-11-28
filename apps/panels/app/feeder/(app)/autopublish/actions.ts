@@ -26,6 +26,8 @@ import { nameKey } from "@/lib/feeder/autopublish/step";
 import { tiktokCheck } from "@/lib/feeder/autopublish/tiktok";
 import type { AccountRow, LaunchRow, NodeRow, Snapshot } from "@/lib/feeder/autopublish/types";
 import { feederDb } from "@/lib/feeder/db";
+import { metaReachable } from "@/lib/feeder/meta-connection";
+import { refresh } from "@/lib/feeder/meta-portfolio";
 import { adsConnectionUser } from "@/lib/feeder/shared";
 import { addDays, localDate, zonedToUtc } from "@/lib/time";
 
@@ -109,6 +111,14 @@ export async function saveAccount(input: z.input<typeof accountInput>): Promise<
   return run(async () => {
     const u = await connectionUser();
     const d = accountInput.parse(input);
+    const own = (await getAccount(u.id))?.meta_via === "token";
+    if (own) {
+      // With their own Business portfolio, the ad account and Page are chosen in Connections → Facebook.
+      const cur = (await getAccount(u.id))!;
+      d.meta_ad_account_id = cur.meta_ad_account_id;
+      d.meta_page_id = cur.meta_page_id;
+      d.meta_instagram_id = cur.meta_instagram_id;
+    }
     if (d.meta_ad_account_id && !d.meta_page_id) return { ok: false, message: "Add the Facebook Page ID too.", fieldErrors: { meta_page_id: "Needed with the ad account" } };
     try {
       Intl.DateTimeFormat("en", { timeZone: d.timezone });
@@ -145,7 +155,7 @@ export async function saveAccount(input: z.input<typeof accountInput>): Promise<
     const out: { meta?: AccountRow["meta_info"]; tiktok?: AccountRow["tiktok_info"] } = {};
     const metaChanged = d.meta_ad_account_id && (!before || before.meta_ad_account_id !== d.meta_ad_account_id || before.meta_page_id !== d.meta_page_id || before.meta_instagram_id !== d.meta_instagram_id || before.meta_pixel_id !== d.meta_pixel_id || !before.meta_info?.checked_at);
     const ttChanged = d.tiktok_advertiser_id && (!before || before.tiktok_advertiser_id !== d.tiktok_advertiser_id || !before.tiktok_info?.checked_at);
-    if (gatewayReady()) {
+    if (await metaReachable(u.id, gatewayReady())) {
       if (metaChanged) out.meta = (await runCheck(u.id, "meta")).info;
       if (ttChanged) out.tiktok = (await runCheck(u.id, "tiktok")).info;
     }
@@ -159,6 +169,12 @@ export async function saveAccount(input: z.input<typeof accountInput>): Promise<
 async function runCheck(userId: string, platform: Platform) {
   const a = await getAccount(userId);
   if (!a) return { ok: false, info: { problems: ["Save your account first."] } };
+  if (platform === "meta" && a.meta_via === "token") {
+    // Their own Business portfolio: look it up again with their token.
+    await refresh(userId);
+    const after = await getAccount(userId);
+    return { ok: after?.meta_status === "connected", info: (after?.meta_info ?? {}) as Record<string, unknown> };
+  }
   const r = platform === "meta" ? await metaCheck(a) : await tiktokCheck(a.tiktok_advertiser_id);
   const patch: Record<string, unknown> = platform === "meta" ? { meta_info: r.info } : { tiktok_info: r.info };
   // The account's currency and time zone come from Meta (or TikTok) once known.
@@ -181,7 +197,7 @@ export async function checkAccount(input: { platform: Platform }): Promise<Actio
   return run(async () => {
     const u = await connectionUser();
     const platform = z.enum(["meta", "tiktok"]).parse(input.platform);
-    if (!gatewayReady()) return { ok: false, message: "Autopublish is being set up by Retexia. Try again later." };
+    if (!(await metaReachable(u.id, gatewayReady()))) return { ok: false, message: "Autopublish is being set up by Retexia. Try again later." };
     const r = await runCheck(u.id, platform);
     return done(r.ok ? "Everything Retexia needs is there" : "Some things still need doing", { ok: r.ok, info: r.info as Record<string, unknown> });
   });
@@ -190,9 +206,9 @@ export async function checkAccount(input: { platform: Platform }): Promise<Actio
 /** Meta interest search (real interest IDs, with audience sizes). */
 export async function searchInterests(input: { q: string }): Promise<ActionResult<{ id: string; name: string; size: number | null; path: string }[]>> {
   return run(async () => {
-    await user();
+    const u = await user();
     const q = z.string().trim().min(2, "Type at least 2 letters").max(60).parse(input.q);
-    if (!gatewayReady()) return { ok: false, message: "Interest search isn't available yet." };
+    if (!(await metaReachable(u.id, gatewayReady()))) return { ok: false, message: "Interest search isn't available yet." };
     return { ok: true, data: await metaInterests(q) };
   });
 }
@@ -326,6 +342,8 @@ const launchInput = z.object({
     .default({}),
   meta_form: formPick,
   tiktok_form: formPick,
+  /** One of the seller's portfolio ad accounts (Connections); empty = the default. */
+  meta_ad_account_id: z.string().regex(/^\d{5,25}$/).nullable().optional(),
 });
 
 const REF_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -372,7 +390,18 @@ export async function submitLaunch(input: z.input<typeof launchInput>): Promise<
       }
     }
     if (errors.length) return failWith(errors);
-    const a = account!;
+    let a = account!;
+
+    // Another ad account of their Business portfolio (own token only, ticked for Autopublish in Connections).
+    let pickedAccount: { id: string; name: string | null } | null = null;
+    if (d.meta_ad_account_id && t0.platforms.includes("meta") && d.meta_ad_account_id !== a.meta_ad_account_id) {
+      if (a.meta_via !== "token") return { ok: false, message: "Pick an ad account from Connections.", fieldErrors: { meta_ad_account_id: "Not available" } };
+      const { data: asset } = await feederDb().from("meta_assets").select("asset_id, name, info, status").eq("user_id", u.id).eq("kind", "ad_account").eq("asset_id", d.meta_ad_account_id).eq("for_autopublish", true).maybeSingle();
+      if (!asset || asset.status !== "ok") return { ok: false, message: "That ad account isn't ready (Connections → Check again).", fieldErrors: { meta_ad_account_id: "Not ready" } };
+      const info = (asset.info ?? {}) as { currency?: string | null; timezone?: string | null };
+      pickedAccount = { id: String(asset.asset_id), name: (asset.name as string | null) ?? null };
+      a = { ...a, meta_ad_account_id: pickedAccount.id, currency: info.currency && /^[A-Z]{3}$/.test(info.currency) ? info.currency : a.currency, timezone: info.timezone || a.timezone };
+    }
 
     // Forms picked at launch must be ones Retexia found on the account.
     const metaForm = d.meta_form ? (a.meta_info.forms ?? []).find((f) => f.id === d.meta_form!.id) : null;
@@ -435,6 +464,7 @@ export async function submitLaunch(input: z.input<typeof launchInput>): Promise<
       ...times,
       forms: { meta: metaForm ? { id: metaForm.id, name: metaForm.name } : null, tiktok: ttForm ? { id: ttForm.id, name: ttForm.name } : null },
       date: today,
+      meta_ad_account: pickedAccount,
     };
     const approval = template.require_approval ?? a.approval_required;
     const db = feederDb();

@@ -456,32 +456,35 @@ export async function metaInterests(q: string) {
 }
 
 /** Connection check: the ad account, the Page, Instagram and the Page's Instant Forms. */
-export async function metaCheck(a: { meta_ad_account_id: string | null; meta_page_id: string | null; meta_instagram_id: string | null; meta_pixel_id: string | null }) {
+export async function metaCheck(a: { meta_ad_account_id: string | null; meta_page_id: string | null; meta_instagram_id: string | null; meta_pixel_id: string | null }, via: "partner" | "token" = "partner") {
   const problems: string[] = [];
+  // Own token: access comes from the System User's assets; partner: from sharing with Retexia's business.
+  const give = (what: string, tasks: string) =>
+    via === "token" ? `Give your System User access to ${what}${tasks ? ` (${tasks})` : ""} in Business settings, then generate the token again.` : `Share ${what} with Retexia's business${tasks ? ` (with ${tasks})` : ""}.`;
   const info: Record<string, unknown> = { checked_at: new Date().toISOString() };
   if (!a.meta_ad_account_id || !a.meta_page_id) return { ok: false, info: { ...info, problems: ["Enter the ad account ID and the Page ID."] } };
   const acct = await meta("GET", `act_${a.meta_ad_account_id}`, { fields: "name,account_status,disable_reason,currency,timezone_name,business{id,name}" });
-  if (!acct.ok) problems.push(acct.network ? `Retexia couldn't reach Meta just now (${String(acct.body?.error?.message ?? "no answer").slice(0, 120)}). Try again in a minute.` : `Retexia can't open ad account ${a.meta_ad_account_id} yet. Share it with Retexia's business (steps above), then check again.`);
+  if (!acct.ok) problems.push(acct.network ? `Retexia couldn't reach Meta just now (${String(acct.body?.error?.message ?? "no answer").slice(0, 120)}). Try again in a minute.` : `Retexia can't open ad account ${a.meta_ad_account_id} yet. ${give("the ad account", "Manage campaigns")} Then check again.`);
   else {
     Object.assign(info, { account_name: acct.body.name, account_status: acct.body.account_status, currency: acct.body.currency, timezone: acct.body.timezone_name, business_name: acct.body.business?.name ?? null });
     if (acct.body.account_status !== 1) problems.push("Meta shows this ad account as not active (disabled, unpaid or under review). Open Meta Ads Manager → Account overview.");
   }
   const page = await meta("GET", a.meta_page_id, { fields: "name" });
-  if (!page.ok && !page.network) problems.push(`Retexia can't open Page ${a.meta_page_id} yet. Share the Page with Retexia's business (with "Create ads" and "Leads" access).`);
+  if (!page.ok && !page.network) problems.push(`Retexia can't open Page ${a.meta_page_id} yet. ${give("the Page", '"Create ads" and "Leads"')}`);
   else info.page_name = page.body.name;
   if (a.meta_instagram_id) {
     const ig = await meta("GET", a.meta_instagram_id, { fields: "username" });
-    if (!ig.ok) problems.push("Retexia can't use this Instagram account yet. Connect it to the Page and share it with Retexia's business.");
+    if (!ig.ok) problems.push(`Retexia can't use this Instagram account yet. Connect it to the Page. ${give("the Instagram account", "")}`);
     else info.instagram_name = ig.body.username;
   }
   if (a.meta_pixel_id) {
     const px = await meta("GET", a.meta_pixel_id, { fields: "name,last_fired_time" });
-    if (!px.ok) problems.push("Retexia can't use this Pixel yet. Share it with Retexia's business.");
+    if (!px.ok) problems.push(`Retexia can't use this Pixel yet. ${give("the Pixel", "")}`);
   }
   if (page.ok) {
     const forms = await metaPage("GET", a.meta_page_id, `${a.meta_page_id}/leadgen_forms`, { fields: "id,name,status", limit: 200 });
     if (forms.ok) info.forms = ((forms.body?.data ?? []) as { id: string; name: string; status?: string }[]).map((f) => ({ id: String(f.id), name: String(f.name), status: f.status }));
-    else problems.push("Retexia can't read your Page's Instant Forms yet: give Retexia's business \"Leads\" access to the Page.");
+    else problems.push(`Retexia can't read your Page's Instant Forms yet. ${give("the Page", '"Leads"')}`);
   }
   return { ok: problems.length === 0, info: { ...info, problems } };
 }

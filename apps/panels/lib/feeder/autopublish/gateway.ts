@@ -1,5 +1,7 @@
 import "server-only";
 
+import { metaDirect } from "../meta-connection";
+
 /**
  * The n8n workflow "Retexia — Feeder Autopublish" (n8n/feeder-autopublish.json)
  * is the only place that holds the Meta System User token, the TikTok token and
@@ -39,6 +41,9 @@ const url = () => process.env.FEEDER_ADS_N8N_URL?.trim() || "";
 export const gatewayReady = () => Boolean(url() && process.env.FEEDER_ADS_N8N_KEY?.trim());
 
 export async function gateway(call: GatewayCall, timeoutMs = 90_000): Promise<GatewayReply> {
+  // A seller who connected their own Business portfolio: Facebook calls go straight out with their token.
+  const direct = await metaDirect(call);
+  if (direct) return direct;
   if (!gatewayReady()) return { ok: false, status: 0, network: true, body: { error: { message: "gateway not connected: FEEDER_ADS_N8N_URL / FEEDER_ADS_N8N_KEY are not set" } } };
   try {
     const res = await fetch(url(), {

@@ -28,26 +28,38 @@ export type CommentStatus = {
   started_at: string | null;
   last_checked_at: string | null;
   problem: string | null;
-  page: { id: string | null; status: string; name: string | null };
+  /** The Pages comments are answered on, and whether they're ready. */
+  pages: { id: string; name: string | null }[];
+  connected: boolean;
+  /** "token" = the seller's own Business portfolio; "partner" = shared with Retexia (status: requested / connected …). */
+  via: "token" | "partner";
+  partnerStatus: string;
 };
 
 export async function getCommentStatus(userId: string): Promise<CommentStatus> {
   const db = feederDb();
-  const [{ data: row }, { data: account }] = await Promise.all([
+  const [{ data: row }, { data: account }, { data: conn }, { data: assets }] = await Promise.all([
     db.from("comment_settings").select("*").eq("user_id", userId).maybeSingle(),
-    db.from("ad_accounts").select("meta_page_id, meta_status, meta_info").eq("user_id", userId).maybeSingle(),
+    db.from("ad_accounts").select("meta_page_id, meta_status, meta_info, meta_via").eq("user_id", userId).maybeSingle(),
+    db.from("meta_connections").select("status").eq("user_id", userId).maybeSingle(),
+    db.from("meta_assets").select("asset_id, name").eq("user_id", userId).eq("kind", "page").eq("for_comments", true).neq("status", "gone").limit(2),
   ]);
+  const own = Boolean(conn);
+  const pages = own
+    ? (assets ?? []).map((a) => ({ id: String(a.asset_id), name: (a.name as string | null) ?? null }))
+    : account?.meta_page_id
+      ? [{ id: String(account.meta_page_id), name: ((account.meta_info as { page_name?: string } | null)?.page_name as string | undefined) ?? null }]
+      : [];
   return {
     settings: readSettings(row),
     saved: Boolean(row),
     started_at: (row?.started_at as string | null) ?? null,
     last_checked_at: (row?.last_checked_at as string | null) ?? null,
     problem: (row?.problem as string | null) ?? null,
-    page: {
-      id: (account?.meta_page_id as string | null) ?? null,
-      status: (account?.meta_status as string | null) ?? "none",
-      name: ((account?.meta_info as { page_name?: string } | null)?.page_name as string | undefined) ?? null,
-    },
+    pages,
+    connected: own ? conn?.status === "connected" && pages.length > 0 : account?.meta_status === "connected" && pages.length > 0,
+    via: own ? "token" : "partner",
+    partnerStatus: (account?.meta_status as string | null) ?? "none",
   };
 }
 

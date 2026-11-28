@@ -1,13 +1,20 @@
 import { LaunchStudio } from "@/components/feeder/autopublish/launch-studio";
 import { getAccount, launchProducts, listTemplates, requireAutopublishPage } from "@/lib/feeder/autopublish/data";
 import { accountReady } from "@/lib/feeder/autopublish/runner";
+import { feederDb } from "@/lib/feeder/db";
 
 export const metadata = { title: "Autopublish" };
 
 /** Launch: product + creatives + template → preview → Launch. */
 export default async function AutopublishPage({ searchParams }: { searchParams: Promise<{ template?: string }> }) {
   const { user } = await requireAutopublishPage("/autopublish");
-  const [{ template }, account, templates, products] = await Promise.all([searchParams, getAccount(user.id), listTemplates(user.id), launchProducts(user.id)]);
+  const [{ template }, account, templates, products, { data: ads }] = await Promise.all([
+    searchParams,
+    getAccount(user.id),
+    listTemplates(user.id),
+    launchProducts(user.id),
+    feederDb().from("meta_assets").select("asset_id, name, info, is_default").eq("user_id", user.id).eq("kind", "ad_account").eq("for_autopublish", true).eq("status", "ok"),
+  ]);
   return (
     <LaunchStudio
       initialTemplate={typeof template === "string" ? template : null}
@@ -22,6 +29,10 @@ export default async function AutopublishPage({ searchParams }: { searchParams: 
         metaForms: account?.meta_info?.forms ?? [],
         tiktokForms: (account?.tiktok_info?.forms ?? []).map((f) => ({ id: f.id, name: f.name })),
         privacy: Boolean(account?.privacy_policy_url),
+        adAccounts:
+          account?.meta_via === "token"
+            ? (ads ?? []).map((x) => ({ id: String(x.asset_id), name: (x.name as string | null) ?? `act_${x.asset_id}`, currency: ((x.info as { currency?: string | null }).currency ?? null), isDefault: Boolean(x.is_default) }))
+            : [],
       }}
     />
   );

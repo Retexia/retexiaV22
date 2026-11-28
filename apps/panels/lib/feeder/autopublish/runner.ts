@@ -1,3 +1,4 @@
+import { asSeller } from "../meta-connection";
 import "server-only";
 
 import { feederDb } from "../db";
@@ -54,7 +55,8 @@ export async function runTick(opts: { budgetMs?: number; ref?: string; worker?: 
       continue;
     }
     try {
-      done.push({ ref: l.ref, state: await processLaunch(l, deadline) });
+      // Each launch runs as its seller: their own Business portfolio token when they connected one.
+      done.push({ ref: l.ref, state: await asSeller(l.user_id, () => processLaunch(l, deadline)) });
     } catch (e) {
       console.error(`[autopublish] ${l.ref}:`, e);
       await db.from("ad_launches").update({ locked_until: null, locked_by: null, next_run_at: inSeconds(120) }).eq("ref", l.ref);
@@ -81,7 +83,8 @@ export async function loadCtx(launch: LaunchRow): Promise<AnyCtx> {
   return {
     launch,
     snap: launch.snapshot,
-    account: (account as AccountRow | null) ?? null,
+    // A launch made on another of the seller's ad accounts (Connections) runs there.
+    account: account && launch.snapshot?.meta_ad_account?.id ? ({ ...(account as AccountRow), meta_ad_account_id: launch.snapshot.meta_ad_account.id } as AccountRow) : ((account as AccountRow | null) ?? null),
     nodes: list,
     creatives: (creatives ?? []) as CreativeRow[],
     node: (p, k) => list.find((n) => n.platform === p && n.key === k),

@@ -12,6 +12,8 @@ export type AccountRow = {
   meta_pixel_id: string | null;
   meta_whatsapp: string | null;
   meta_status: ConnStatus;
+  /** partner = shared with Retexia's business; token = the seller's own Business portfolio (Connections). */
+  meta_via?: "partner" | "token";
   meta_info: MetaInfo;
   tiktok_advertiser_id: string | null;
   tiktok_identity_id: string | null;
@@ -84,6 +86,8 @@ export type Snapshot = {
   forms: { meta: { id: string; name: string } | null; tiktok: { id: string; name: string } | null };
   /** The launch date in the customer's time zone (names). */
   date: string;
+  /** The ad account this launch runs on, when the seller picked one of their portfolio's accounts (Connections). Missing = the default. */
+  meta_ad_account?: { id: string; name: string | null } | null;
 };
 
 export type LaunchRow = {

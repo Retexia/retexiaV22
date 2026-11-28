@@ -36,6 +36,8 @@ export type StudioAccount = {
   metaForms: { id: string; name: string; status?: string }[];
   tiktokForms: { id: string; name: string }[];
   privacy: boolean;
+  /** The seller's own Business portfolio ad accounts Autopublish may use (Connections); empty = the one account. */
+  adAccounts?: { id: string; name: string; currency: string | null; isDefault: boolean }[];
 };
 
 type Item = {
@@ -155,6 +157,9 @@ export function LaunchStudio({ templates, products, account, initialTemplate }: 
   const [o, setO] = useState<Overrides>({});
   const [metaForm, setMetaForm] = useState("");
   const [ttForm, setTtForm] = useState("");
+  const adAccounts = account.adAccounts ?? [];
+  const [adAccount, setAdAccount] = useState(adAccounts.find((a) => a.isDefault)?.id ?? adAccounts[0]?.id ?? "");
+  const pickedAd = adAccounts.find((a) => a.id === adAccount) ?? null;
   const [busy, setBusy] = useState(false);
   const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
   const [drag, setDrag] = useState(false);
@@ -243,6 +248,7 @@ export function LaunchStudio({ templates, products, account, initialTemplate }: 
       overrides: o,
       meta_form: pickedMeta ? { id: pickedMeta.id, name: pickedMeta.name } : null,
       tiktok_form: pickedTt ? { id: pickedTt.id, name: pickedTt.name } : null,
+      meta_ad_account_id: pickedAd?.id ?? null,
     });
     setBusy(false);
     if (!r.ok) {
@@ -297,6 +303,11 @@ export function LaunchStudio({ templates, products, account, initialTemplate }: 
             </Field>
           </div>
           <p className="type-small text-ink-muted">The lead form, campaign, ad sets and ads are named after the form name, so Bulk create puts every lead on this product.</p>
+          {adAccounts.length > 1 && tpl?.platforms.includes("meta") ? (
+            <Field label="Ad account (Facebook)" hint={pickedAd?.currency && pickedAd.currency !== account.currency ? `This account is in ${pickedAd.currency}: budgets are in ${pickedAd.currency}.` : "From your Business portfolio (Connections)."} error={fe("meta_ad_account_id")}>
+              <Select value={adAccount} onChange={(e) => setAdAccount(e.target.value)} options={adAccounts.map((a) => ({ value: a.id, label: `${a.name}${a.isDefault ? " (default)" : ""}` }))} />
+            </Field>
+          ) : null}
           {tpl?.objective === "leads" && tpl.platforms.includes("meta") && product ? (
             <div className="grid gap-4 sm:grid-cols-2">
               <Field

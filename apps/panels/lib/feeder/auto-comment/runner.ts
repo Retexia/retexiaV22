@@ -1,6 +1,7 @@
 import "server-only";
 
 import { gateway, gatewayReady, type GatewayReply } from "../autopublish/gateway";
+import { asSeller, sellerToken } from "../meta-connection";
 import { feederDb } from "../db";
 import { askAi, sellerFacts } from "./ai";
 import { combine, type AiResult } from "./ai-prompt";
@@ -58,16 +59,39 @@ async function call(page: string, method: "GET" | "POST", path: string, params: 
 const after = (iso: string | undefined, start: number) => (iso ? new Date(iso).getTime() >= start - 5_000 : false);
 
 /** One customer's check. Returns the problem to show (or null) and what was done. */
+/** The Pages a seller's comments are answered on: up to 2 from their own Business portfolio, else the one shared with Retexia. */
+export async function commentPages(userId: string): Promise<{ pages: string[]; problem: string | null }> {
+  const db = feederDb();
+  if (await sellerToken(userId)) {
+    const { data } = await db.from("meta_assets").select("asset_id").eq("user_id", userId).eq("kind", "page").eq("for_comments", true).neq("status", "gone").limit(2);
+    const pages = (data ?? []).map((r) => String(r.asset_id));
+    return { pages, problem: pages.length ? null : "Choose up to 2 Pages for Auto comment in Connections → Facebook." };
+  }
+  const { data: account } = await db.from("ad_accounts").select("meta_page_id, meta_status, meta_via").eq("user_id", userId).maybeSingle();
+  const page = account?.meta_page_id as string | null | undefined;
+  if (!page || account?.meta_status !== "connected" || account?.meta_via === "token") return { pages: [], problem: "Connect your Facebook Page first in Connections." };
+  if (!gatewayReady()) return { pages: [], problem: "Retexia's Facebook connection isn't set up on the server yet (FEEDER_ADS_N8N_URL / KEY)." };
+  return { pages: [page], problem: null };
+}
+
 async function checkOne(row: Record<string, unknown>, counts: CheckCounts): Promise<string | null> {
+  const userId = String(row.user_id);
+  const { pages, problem } = await commentPages(userId);
+  if (problem) return problem;
+  const problems: string[] = [];
+  for (const page of pages) {
+    const p = await checkPage(row, page, counts);
+    if (p) problems.push(pages.length > 1 ? `Page ${page}: ${p}` : p);
+  }
+  return problems.join(" ") || null;
+}
+
+/** One Page: read the newest ads and posts with their comments, then act. */
+async function checkPage(row: Record<string, unknown>, page: string, counts: CheckCounts): Promise<string | null> {
   const db = feederDb();
   const userId = String(row.user_id);
   const s: CommentSettings = readSettings(row as Partial<Record<keyof CommentSettings, unknown>>);
   const start = row.started_at ? new Date(String(row.started_at)).getTime() : Date.now();
-
-  const { data: account } = await db.from("ad_accounts").select("meta_page_id, meta_status").eq("user_id", userId).maybeSingle();
-  const page = account?.meta_page_id as string | null | undefined;
-  if (!page || account?.meta_status !== "connected") return "Connect your Facebook Page first: Autopublish → Accounts. Auto comment starts once Retexia confirms it.";
-  if (!gatewayReady()) return "Retexia's Facebook connection isn't set up on the server yet (FEEDER_ADS_N8N_URL / KEY).";
 
   const [ads, posts] = await Promise.all([
     call(page, "GET", `${page}/ads_posts`, { fields: POST_FIELDS, limit: 10, include_inline_create: true }),
@@ -229,7 +253,7 @@ export async function checkComments(opts: { budgetMs?: number; userId?: string }
     }
     let problem: string | null;
     try {
-      problem = await checkOne(row, counts);
+      problem = await asSeller(userId, () => checkOne(row, counts));
     } catch (e) {
       problem = e instanceof Unreachable ? "Retexia couldn't reach Facebook just now. It tries again in a minute." : "Something went wrong while checking the comments. It tries again in a minute.";
       if (!(e instanceof Unreachable)) console.error("[auto comment]", e);

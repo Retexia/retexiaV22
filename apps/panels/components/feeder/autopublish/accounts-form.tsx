@@ -94,6 +94,10 @@ export function AccountsForm({ account: a, metaBusinessId, tiktokBusinessCenterI
   const [busy, setBusy] = useState<string | null>(null);
   const set = (k: keyof typeof v) => (e: { target: { value: string } }) => setV((x) => ({ ...x, [k]: e.target.value }));
   const identities = a?.tiktok_info?.identities ?? [];
+  // Own Business portfolio (Connections → Facebook): the ad account and Page come from there.
+  const own = a?.meta_via === "token";
+  // The older way (shared with Retexia's business) only for sellers already set up like that.
+  const partner = !own && Boolean(a?.meta_ad_account_id);
 
   async function save() {
     setBusy("save");
@@ -130,7 +134,7 @@ export function AccountsForm({ account: a, metaBusinessId, tiktokBusinessCenterI
 
   return (
     <div className="flex flex-col gap-6">
-      {!ready ? (
+      {!ready && !own ? (
         <Alert tone="info" title="Autopublish is being switched on">
           You can fill this in now. Checking accounts and launching start as soon as Retexia finishes the setup.
         </Alert>
@@ -139,12 +143,17 @@ export function AccountsForm({ account: a, metaBusinessId, tiktokBusinessCenterI
       <Card className="flex flex-col gap-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-col gap-1">
-            <h2 className="type-h2 text-ink">Facebook &amp; Instagram (Meta)</h2>
-            <p className="type-small text-ink-muted">Your ads run on your own ad account and Page; Retexia only creates and watches them.</p>
+            <h2 className="type-h2 text-ink">Autopublish on Facebook &amp; Instagram</h2>
+            <p className="type-small text-ink-muted">
+              {own
+                ? `Ads go to ${a?.meta_info?.account_name ? String(a.meta_info.account_name) : "your default ad account"} (pick another per launch) from ${a?.meta_info?.page_name ? String(a.meta_info.page_name) : "the Page you chose"} above.`
+                : "Your ads run on your own ad account and Page; Retexia only creates and watches them."}
+            </p>
           </div>
           {status(a?.meta_status)}
         </div>
-        <Steps>
+        {!own && !partner ? <p className="type-small text-ink-muted">Connect your Business portfolio above first: your ad accounts and Pages come from there.</p> : null}
+        {partner ? <Steps>
           <li>
             Open <span className="text-ink">business.facebook.com → Settings → Accounts → Ad accounts</span>, pick your ad account → <span className="text-ink">Assign partner</span> → enter Retexia&apos;s Business ID{" "}
             <span className="type-code text-ink">{metaBusinessId ?? "(ask the Retexia team)"}</span> → give <span className="text-ink">Manage campaigns</span>.
@@ -153,17 +162,21 @@ export function AccountsForm({ account: a, metaBusinessId, tiktokBusinessCenterI
             Do the same for your <span className="text-ink">Page</span> (with &quot;Create ads&quot; and &quot;Leads&quot;), your Instagram account and your Pixel if you use one.
           </li>
           <li>Enter the IDs below and press Save. Retexia confirms the access, usually within a day.</li>
-        </Steps>
+        </Steps> : null}
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Ad account ID" hint="Ads Manager → the number after act=" error={errors.meta_ad_account_id} required>
-            <Input inputMode="numeric" value={v.meta_ad_account_id} onChange={set("meta_ad_account_id")} placeholder="e.g. 1234567890123456" />
-          </Field>
-          <Field label="Facebook Page ID" hint="Page → About → Page transparency → Page ID" error={errors.meta_page_id} required>
-            <Input inputMode="numeric" value={v.meta_page_id} onChange={set("meta_page_id")} />
-          </Field>
-          <Field label="Instagram account ID" hint="Business settings → Instagram accounts" error={errors.meta_instagram_id}>
-            <Input inputMode="numeric" value={v.meta_instagram_id} onChange={set("meta_instagram_id")} />
-          </Field>
+          {partner ? (
+            <>
+              <Field label="Ad account ID" hint="Ads Manager → the number after act=" error={errors.meta_ad_account_id} required>
+                <Input inputMode="numeric" value={v.meta_ad_account_id} onChange={set("meta_ad_account_id")} placeholder="e.g. 1234567890123456" />
+              </Field>
+              <Field label="Facebook Page ID" hint="Page → About → Page transparency → Page ID" error={errors.meta_page_id} required>
+                <Input inputMode="numeric" value={v.meta_page_id} onChange={set("meta_page_id")} />
+              </Field>
+              <Field label="Instagram account ID" hint="Business settings → Instagram accounts" error={errors.meta_instagram_id}>
+                <Input inputMode="numeric" value={v.meta_instagram_id} onChange={set("meta_instagram_id")} />
+              </Field>
+            </>
+          ) : null}
           <Field label="Pixel ID" hint="Only for website sales" error={errors.meta_pixel_id}>
             <Input inputMode="numeric" value={v.meta_pixel_id} onChange={set("meta_pixel_id")} />
           </Field>
@@ -182,7 +195,7 @@ export function AccountsForm({ account: a, metaBusinessId, tiktokBusinessCenterI
         {a?.meta_status === "requested" ? <p className="type-small text-ink-muted">Retexia is confirming access to this account. Launching opens as soon as it&apos;s connected.</p> : null}
         {a?.meta_ad_account_id ? (
           <div>
-            <Button variant="secondary" size="sm" onClick={() => check("meta")} loading={busy === "meta"} disabled={!ready || Boolean(busy)}>
+            <Button variant="secondary" size="sm" onClick={() => check("meta")} loading={busy === "meta"} disabled={(!ready && !own) || Boolean(busy)}>
               <RefreshCw aria-hidden size={14} strokeWidth={1.75} /> Check again
             </Button>
           </div>

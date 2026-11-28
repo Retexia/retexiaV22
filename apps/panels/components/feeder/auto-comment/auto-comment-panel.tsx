@@ -74,7 +74,7 @@ export function AutoCommentPanel({ status, log, stats }: { status: CommentStatus
       if (r.ok && r.data) setTrial(r.data);
       else if (!r.ok) toast.error(r.message);
     });
-  const connected = status.page.id && status.page.status === "connected";
+  const connected = status.connected;
   const on = status.settings.enabled;
 
   const save = async () => {
@@ -89,12 +89,12 @@ export function AutoCommentPanel({ status, log, stats }: { status: CommentStatus
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="type-h3 text-ink">Facebook Page</h2>
-              {connected ? <Badge tone="success">Connected</Badge> : status.page.status === "requested" ? <Badge tone="warning">Waiting for Retexia</Badge> : <Badge tone="neutral">Not connected</Badge>}
+              <h2 className="type-h3 text-ink">{status.pages.length > 1 ? "Facebook Pages" : "Facebook Page"}</h2>
+              {connected ? <Badge tone="success">Connected</Badge> : status.via === "partner" && status.partnerStatus === "requested" ? <Badge tone="warning">Waiting for Retexia</Badge> : <Badge tone="neutral">Not connected</Badge>}
               {on ? <Badge tone="brand">Answering comments</Badge> : null}
             </div>
             <p className="type-small text-ink-muted">
-              {status.page.id ? `${status.page.name ?? "Page"} · ID ${status.page.id}` : "Uses the Page from Connections."}
+              {status.pages.length ? status.pages.map((p) => p.name ?? `Page ${p.id}`).join(" · ") : "Choose up to 2 Pages in Connections."}
               {on ? ` · last check ${ago(status.last_checked_at)}` : ""}
             </p>
           </div>
@@ -110,8 +110,8 @@ export function AutoCommentPanel({ status, log, stats }: { status: CommentStatus
           </div>
         </div>
         {!connected ? (
-          <Alert tone="info" title="Connect your Facebook Page first" action={<Button size="sm" href="/connections">Open Connections</Button>}>
-            Auto comment uses the Page you share with Retexia in Connections (the same one Autopublish uses). It starts once Retexia confirms it.
+          <Alert tone="info" title="Connect your Facebook Pages first" action={<Button size="sm" href="/connections#facebook">Open Connections</Button>}>
+            Connect your Meta Business portfolio in Connections and tick up to 2 Pages for Auto comment. A token with only Page permissions is enough.
           </Alert>
         ) : null}
         {on && status.problem ? <Alert tone="warning" title="Needs attention">{status.problem}</Alert> : null}
