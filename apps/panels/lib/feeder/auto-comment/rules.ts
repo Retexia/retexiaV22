@@ -7,6 +7,12 @@ export type Rule = { words: string[]; reply: string; private?: string };
 
 export type CommentSettings = {
   enabled: boolean;
+  /** AI reads each comment and decides (hide / reply / private message); the keyword replies are the backup. */
+  ai_on: boolean;
+  /** The seller's own words: which comments to hide. */
+  hide_rules: string;
+  /** The seller's own words: how to reply. */
+  reply_style: string;
   reply_on: boolean;
   replies: string[];
   rules: Rule[];
@@ -33,12 +39,31 @@ export type Decision = {
   rule: string | null;
 };
 
-export const LIMITS = { replies: 5, rules: 15, words: 20, text: 1000, hideWords: 50 } as const;
+export const LIMITS = { replies: 5, rules: 15, words: 20, text: 1000, hideWords: 50, instructions: 1500 } as const;
+
+export const DEFAULT_HIDE_RULES = [
+  "Hide comments that:",
+  "- are rude, abusive, sexual or insulting",
+  "- say the product is fake or a scam just to put others off (no real question)",
+  "- advertise another shop, page or product",
+  "- are spam or have nothing to do with the post",
+  "Don't hide real questions or complaints from customers: answer them politely.",
+].join("\n");
+
+export const DEFAULT_REPLY_STYLE = [
+  "Short and friendly, like a real shop owner. Thank them by first name.",
+  "Use the language the customer used: Sinhala, Singlish or English.",
+  "Don't write the price in public: say we sent the details in a message.",
+  "In the private message give the price, cash on delivery and how to order.",
+].join("\n");
 
 /** Good starting settings for a Feeder reseller (Sinhala, Singlish and English questions). */
 export function defaultSettings(): CommentSettings {
   return {
     enabled: false,
+    ai_on: true,
+    hide_rules: DEFAULT_HIDE_RULES,
+    reply_style: DEFAULT_REPLY_STYLE,
     reply_on: true,
     replies: [
       "Thank you {name} 😊 We sent you the details in a message. Please check your inbox.",
@@ -95,6 +120,9 @@ export function readSettings(row: Partial<Record<keyof CommentSettings, unknown>
     .slice(0, LIMITS.rules);
   return {
     enabled: bool(row.enabled, d.enabled),
+    ai_on: bool(row.ai_on, d.ai_on),
+    hide_rules: typeof row.hide_rules === "string" ? clean(row.hide_rules, LIMITS.instructions) : d.hide_rules,
+    reply_style: typeof row.reply_style === "string" ? clean(row.reply_style, LIMITS.instructions) : d.reply_style,
     reply_on: bool(row.reply_on, d.reply_on),
     replies: Array.isArray(row.replies) ? list(row.replies, LIMITS.replies, LIMITS.text) : d.replies,
     rules,

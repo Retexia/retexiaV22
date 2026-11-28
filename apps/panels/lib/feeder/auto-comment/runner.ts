@@ -2,6 +2,8 @@ import "server-only";
 
 import { gateway, gatewayReady, type GatewayReply } from "../autopublish/gateway";
 import { feederDb } from "../db";
+import { askAi, sellerFacts } from "./ai";
+import { combine, type AiResult } from "./ai-prompt";
 import { decide, readSettings, type CommentSettings } from "./rules";
 
 /**
@@ -16,16 +18,18 @@ import { decide, readSettings, type CommentSettings } from "./rules";
  */
 
 type FbComment = { id: string; message?: string; created_time?: string; from?: { id?: string; name?: string }; is_hidden?: boolean; can_reply_privately?: boolean };
-type FbPost = { id: string; created_time?: string; comments?: { data?: FbComment[] } };
+type FbPost = { id: string; created_time?: string; message?: string; comments?: { data?: FbComment[] } };
 type Post = FbPost & { kind: "ad" | "post" };
 
 export type CheckCounts = { replied: number; private: number; hidden: number; first: number; failed: number };
 export type CheckResult = { users: number; counts: CheckCounts; problems: number };
 
 const COMMENT_FIELDS = "id,message,created_time,from{id,name},is_hidden,can_reply_privately";
-const POST_FIELDS = `id,created_time,comments.order(reverse_chronological).limit(25){${COMMENT_FIELDS}}`;
+const POST_FIELDS = `id,created_time,message,comments.order(reverse_chronological).limit(25){${COMMENT_FIELDS}}`;
 /** Facebook calls per customer per check, at most (a busy Page catches up over the next minutes). */
 const MAX_ACTIONS = 40;
+/** New comments handled per customer per check (the rest wait for the next minute). */
+const MAX_COMMENTS = 30;
 
 class Unreachable extends Error {}
 
@@ -126,15 +130,37 @@ async function checkOne(row: Record<string, unknown>, counts: CheckCounts): Prom
   // New comments, oldest first.
   const fresh = comments
     .filter(({ c }) => c.id && !done.has(c.id) && c.from?.id !== page && !c.is_hidden && after(c.created_time, start))
-    .sort((a, b) => String(a.c.created_time).localeCompare(String(b.c.created_time)));
+    .sort((a, b) => String(a.c.created_time).localeCompare(String(b.c.created_time)))
+    .slice(0, MAX_COMMENTS);
+
+  // The AI reads them all at once (with the seller's products and business details).
+  let aiError: string | null = null;
+  let aiTokens = 0;
+  let ai = new Map<string, AiResult>();
+  if (s.ai_on && fresh.length) {
+    const facts = await sellerFacts(userId);
+    const out = await askAi({
+      settings: s,
+      ...facts,
+      posts: unique.map((p) => ({ id: p.id, kind: p.kind, text: p.message ?? "" })),
+      comments: fresh.map(({ c, post }) => ({ id: c.id, post_id: post.id, name: (c.from?.name ?? "").split(/\s+/)[0] ?? "", text: c.message ?? "" })),
+    });
+    ai = out.results;
+    aiError = out.error;
+    aiTokens = out.tokens;
+  }
+
   for (const { c, post } of fresh) {
     if (actions >= MAX_ACTIONS) break;
-    const d = decide(s, { id: c.id, message: c.message, author: c.from?.name });
+    const d = combine(decide(s, { id: c.id, message: c.message, author: c.from?.name }), ai.get(c.id));
     const id = await claim({
       kind: "comment", dedupe: `c:${c.id}`, post_id: post.id, post_kind: post.kind, comment_id: c.id,
       author: c.from?.name?.slice(0, 120) ?? null, message: (c.message ?? "").slice(0, 2000), commented_at: c.created_time ?? null,
       rule: d.rule, reply: d.reply, private_text: d.private, hidden_why: d.hide,
+      ai: d.ai, product_id: d.product_id, ai_tokens: d.ai && aiTokens ? aiTokens : null,
     });
+    if (d.ai) aiTokens = 0; // the batch's tokens are noted once
+
     if (!id) continue;
     const did: string[] = [];
     const errors: string[] = [];
@@ -179,7 +205,8 @@ async function checkOne(row: Record<string, unknown>, counts: CheckCounts): Prom
     });
   }
 
-  // Reading worked; a failed half (ads or posts) is worth a word, not a stop.
+  // Reading worked; a failed half (ads or posts) or the AI is worth a word, not a stop.
+  if (aiError) return `${aiError} The backup replies answered instead.`;
   if (!ads.ok) return `Comments on ads couldn't be read: ${metaError(ads).message}`;
   if (!posts.ok) return `Comments on Page posts couldn't be read: ${metaError(posts).message}`;
   return null;

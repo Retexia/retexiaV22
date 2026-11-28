@@ -26,6 +26,7 @@ import { nameKey } from "@/lib/feeder/autopublish/step";
 import { tiktokCheck } from "@/lib/feeder/autopublish/tiktok";
 import type { AccountRow, LaunchRow, NodeRow, Snapshot } from "@/lib/feeder/autopublish/types";
 import { feederDb } from "@/lib/feeder/db";
+import { adsConnectionUser } from "@/lib/feeder/shared";
 import { addDays, localDate, zonedToUtc } from "@/lib/time";
 
 const done = <T,>(message: string, data?: T): ActionResult<T> => {
@@ -35,6 +36,13 @@ const done = <T,>(message: string, data?: T): ActionResult<T> => {
 
 async function user() {
   const u = await autopublishUser();
+  if (!u) throw new AccessError("Please sign in again.");
+  return u;
+}
+
+/** Ad accounts (Connections) are shared by Autopublish and Auto comment: owners of either may change them. */
+async function connectionUser() {
+  const u = await adsConnectionUser();
   if (!u) throw new AccessError("Please sign in again.");
   return u;
 }
@@ -99,7 +107,7 @@ const accountInput = z.object({
 /** Saves the ad account settings. New or changed IDs wait for Retexia to confirm the access (admin → Feeder → Ad accounts). */
 export async function saveAccount(input: z.input<typeof accountInput>): Promise<ActionResult<{ meta?: AccountRow["meta_info"]; tiktok?: AccountRow["tiktok_info"] }>> {
   return run(async () => {
-    const u = await user();
+    const u = await connectionUser();
     const d = accountInput.parse(input);
     if (d.meta_ad_account_id && !d.meta_page_id) return { ok: false, message: "Add the Facebook Page ID too.", fieldErrors: { meta_page_id: "Needed with the ad account" } };
     try {
@@ -171,7 +179,7 @@ async function runCheck(userId: string, platform: Platform) {
 /** "Check again": looks the account up on Meta or TikTok (pages, forms, identities) and saves what it found. */
 export async function checkAccount(input: { platform: Platform }): Promise<ActionResult<{ ok: boolean; info: Record<string, unknown> }>> {
   return run(async () => {
-    const u = await user();
+    const u = await connectionUser();
     const platform = z.enum(["meta", "tiktok"]).parse(input.platform);
     if (!gatewayReady()) return { ok: false, message: "Autopublish is being set up by Retexia. Try again later." };
     const r = await runCheck(u.id, platform);

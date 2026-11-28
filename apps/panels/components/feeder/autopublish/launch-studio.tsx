@@ -281,7 +281,7 @@ export function LaunchStudio({ templates, products, account, initialTemplate }: 
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
       <div className="flex min-w-0 flex-col gap-6">
         {!account.meta && !account.tiktok ? (
-          <Alert tone="info" title="Connect an ad account to launch" action={<Button href="/autopublish/accounts" size="sm" variant="secondary">Accounts</Button>}>
+          <Alert tone="info" title="Connect an ad account to launch" action={<Button href="/connections#facebook" size="sm" variant="secondary">Connections</Button>}>
             You can try the preview now. Launching opens once Retexia confirms access to your Meta or TikTok account.
           </Alert>
         ) : null}

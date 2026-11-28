@@ -1,10 +1,6 @@
-import { BusinessForm } from "@/components/feeder/lingo-feeder/business-form";
-import { lingoFeederContext } from "@/lib/feeder/lingo-feeder/data";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Business details · Lingo Feeder" };
-
-export default async function BusinessPage() {
-  const { ctx } = await lingoFeederContext("/lingo-feeder/business");
-  if (!ctx) return null;
-  return <BusinessForm seller={ctx.seller} />;
+/** Business details moved to /business (shared by every Feeder tool). */
+export default function BusinessPage() {
+  redirect("/business");
 }

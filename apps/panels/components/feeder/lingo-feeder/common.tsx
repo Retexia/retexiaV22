@@ -32,8 +32,6 @@ const TABS = [
   { href: "/lingo-feeder/chats", label: "Chats" },
   { href: "/lingo-feeder/orders", label: "Orders" },
   { href: "/lingo-feeder/products", label: "Products" },
-  { href: "/lingo-feeder/business", label: "Business details" },
-  { href: "/lingo-feeder/whatsapp", label: "WhatsApp" },
   { href: "/lingo-feeder/try", label: "Try Lingo" },
 ];
 

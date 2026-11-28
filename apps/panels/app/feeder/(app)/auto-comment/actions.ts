@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { AccessError, dbMessage, run, type ActionResult } from "@/lib/action";
 import { autoCommentUser } from "@/lib/feeder/auto-comment/data";
-import { defaultSettings, LIMITS } from "@/lib/feeder/auto-comment/rules";
+import { askAi, sellerFacts } from "@/lib/feeder/auto-comment/ai";
+import { combine, type FinalDecision } from "@/lib/feeder/auto-comment/ai-prompt";
+import { decide, defaultSettings, LIMITS, readSettings } from "@/lib/feeder/auto-comment/rules";
 import { checkComments, type CheckCounts } from "@/lib/feeder/auto-comment/runner";
 import { feederDb } from "@/lib/feeder/db";
 
@@ -21,8 +23,13 @@ const words = (max: number) =>
     .max(max)
     .transform((v) => [...new Set(v.filter(Boolean))]);
 
+const instructions = (label: string) => z.string().trim().max(LIMITS.instructions, `${label}: at most ${LIMITS.instructions} characters`);
+
 const settingsInput = z
   .object({
+    ai_on: z.boolean(),
+    hide_rules: instructions("What to hide"),
+    reply_style: instructions("How to reply"),
     reply_on: z.boolean(),
     replies: z.array(text("Reply")).max(LIMITS.replies).transform((v) => v.filter(Boolean)),
     rules: z
@@ -41,6 +48,7 @@ const settingsInput = z
     hide_words: words(LIMITS.hideWords),
   })
   .superRefine((v, ctx) => {
+    if (v.ai_on && v.hide_on && !v.hide_rules) ctx.addIssue({ code: "custom", path: ["hide_rules"], message: "Write what to hide, or switch hiding off." });
     if (v.reply_on && !v.replies.length) ctx.addIssue({ code: "custom", path: ["replies"], message: "Add at least one reply, or switch replies off." });
     if (v.private_on && !v.private_text) ctx.addIssue({ code: "custom", path: ["private_text"], message: "Write the private message, or switch it off." });
     if (v.first_on && !v.first_text) ctx.addIssue({ code: "custom", path: ["first_text"], message: "Write the first comment, or switch it off." });
@@ -100,5 +108,39 @@ export async function checkNow(): Promise<ActionResult<CheckCounts>> {
         ? `Done: ${[c.replied && `${c.replied} replied`, c.private && `${c.private} private messages`, c.hidden && `${c.hidden} hidden`, c.first && `${c.first} first comments`].filter(Boolean).join(", ")}.`
         : "Checked. No new comments since the last check.",
     };
+  });
+}
+
+const tryInput = z.object({
+  text: z.string().trim().min(1, "Write a comment to try").max(800),
+  name: z.string().trim().max(60).default(""),
+  post: z.string().trim().max(600).default(""),
+  // The settings on screen (saved or not); readSettings() cleans them.
+  settings: z.record(z.string(), z.unknown()),
+});
+
+export type TryResult = FinalDecision & { aiNote: string | null };
+
+/** "Try a comment": the same decision the checker makes (AI when it's available), nothing sent to Facebook. */
+export async function tryComment(input: z.input<typeof tryInput>): Promise<ActionResult<TryResult>> {
+  return run(async () => {
+    const u = await user();
+    const v = tryInput.parse(input);
+    const s = { ...readSettings(v.settings as Parameters<typeof readSettings>[0]), enabled: true };
+    const base = decide(s, { id: "try", message: v.text, author: v.name });
+    let aiNote: string | null = null;
+    let result: FinalDecision = combine(base, undefined);
+    if (s.ai_on) {
+      const facts = await sellerFacts(u.id);
+      const out = await askAi({
+        settings: s,
+        ...facts,
+        posts: [{ id: "try_post", kind: "ad", text: v.post }],
+        comments: [{ id: "try", post_id: "try_post", name: v.name.split(/\s+/)[0] ?? "", text: v.text }],
+      });
+      result = combine(base, out.results.get("try"));
+      if (!result.ai) aiNote = out.error ? `${out.error} This is the backup reply.` : "The AI didn't answer. This is the backup reply.";
+    }
+    return { ok: true, data: { ...result, aiNote } };
   });
 }

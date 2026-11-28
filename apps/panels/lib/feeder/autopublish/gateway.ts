@@ -10,6 +10,7 @@ import "server-only";
  *   meta_image  n8n downloads image_url and uploads it to act_{id}/adimages
  *   tiktok      TikTok Business API v1.3 call (allowed paths only)
  *   whatsapp    one WhatsApp text through Evolution
+ *   ai          one OpenAI call with a strict JSON answer (Auto comment); the key stays in n8n
  *
  * Env: FEEDER_ADS_N8N_URL (the webhook) and FEEDER_ADS_N8N_KEY (header X-Retexia-Key,
  * the value of the n8n Header Auth credential on that webhook).
@@ -20,7 +21,8 @@ export type GatewayCall =
   | { action: "meta_page"; method: "GET" | "POST"; page_id: string; path: string; params?: Record<string, unknown> }
   | { action: "meta_image"; account: string; image_url: string }
   | { action: "tiktok"; method: "GET" | "POST"; path: string; params?: Record<string, unknown> }
-  | { action: "whatsapp"; to: string; text: string };
+  | { action: "whatsapp"; to: string; text: string }
+  | { action: "ai"; model: "gpt-5.4-mini" | "gpt-5.4-nano"; name: string; messages: { role: "system" | "user"; content: string }[]; schema: Record<string, unknown>; max_tokens?: number };
 
 export type GatewayReply = {
   ok: boolean;

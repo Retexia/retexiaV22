@@ -63,14 +63,15 @@ export type LogItem = {
   private_text: string | null;
   hidden_why: string | null;
   error: string | null;
-  status: "done" | "partly" | "failed" | "skipped";
+  status: "pending" | "done" | "partly" | "failed" | "skipped";
+  ai: boolean;
   created_at: string;
 };
 
 export async function listCommentLog(userId: string, limit = 50): Promise<LogItem[]> {
   const { data, error } = await feederDb()
     .from("comment_log")
-    .select("id, kind, post_kind, author, message, rule, done, reply, private_text, hidden_why, error, status, created_at")
+    .select("id, kind, post_kind, author, message, rule, done, reply, private_text, hidden_why, error, status, ai, created_at")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(limit);

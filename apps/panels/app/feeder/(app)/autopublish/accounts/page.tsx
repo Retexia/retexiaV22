@@ -1,18 +1,6 @@
-import { AccountsForm } from "@/components/feeder/autopublish/accounts-form";
-import { getAccount, requireAutopublishPage } from "@/lib/feeder/autopublish/data";
-import { gatewayReady } from "@/lib/feeder/autopublish/gateway";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Autopublish accounts" };
-
-export default async function AutopublishAccountsPage() {
-  const { user } = await requireAutopublishPage("/autopublish/accounts");
-  const account = await getAccount(user.id);
-  return (
-    <AccountsForm
-      account={account}
-      ready={gatewayReady()}
-      metaBusinessId={process.env.RETEXIA_META_BUSINESS_ID?.trim() || null}
-      tiktokBusinessCenterId={process.env.RETEXIA_TIKTOK_BC_ID?.trim() || null}
-    />
-  );
+/** Ad accounts moved to Connections (shared by Autopublish and Auto comment). */
+export default function AutopublishAccountsPage() {
+  redirect("/connections#facebook");
 }

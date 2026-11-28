@@ -3,7 +3,7 @@
 import { createBrowserClient } from "@retexia/supabase/browser";
 import { DropdownMenu, ThemeToggle } from "@retexia/ui";
 import { PanelShell, type PanelNavGroup } from "@retexia/ui/admin";
-import { Boxes, FileSpreadsheet, FileStack, LayoutDashboard, LogOut, Megaphone, MessageCircle, MessageCircleReply, Package, UserRound } from "lucide-react";
+import { Boxes, Cable, FileSpreadsheet, FileStack, LayoutDashboard, LogOut, Megaphone, MessageCircle, MessageCircleReply, Package, Store, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { toolFor } from "@/lib/feeder/tools";
 
@@ -30,6 +30,8 @@ export function FeederShell({
       items: [
         { href: "/", label: "Overview", icon: icon(LayoutDashboard), exact: true },
         { href: "/products", label: "My products", icon: icon(Boxes) },
+        { href: "/business", label: "Business details", icon: icon(Store) },
+        { href: "/connections", label: "Connections", icon: icon(Cable) },
       ],
     },
     {

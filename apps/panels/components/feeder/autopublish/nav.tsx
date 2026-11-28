@@ -7,7 +7,6 @@ const TABS = [
   { href: "/autopublish", label: "Launch", exact: true },
   { href: "/autopublish/launches", label: "Launches" },
   { href: "/autopublish/templates", label: "Templates" },
-  { href: "/autopublish/accounts", label: "Accounts" },
 ];
 
 /** Autopublish's own tabs (the URL is feeder.retexia.com/autopublish/…). */

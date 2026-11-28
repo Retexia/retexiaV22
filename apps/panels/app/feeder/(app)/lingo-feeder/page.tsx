@@ -11,9 +11,9 @@ export default async function LingoFeederHome() {
   const counts = { ...h.statuses, call: h.call } as Record<string, number>;
   const total = Object.entries(h.statuses).filter(([k]) => k !== "spam").reduce((a, [, n]) => a + Number(n), 0);
   const steps = [
-    { done: ctx.seller.business_name !== "My shop", label: "Business details", href: "/lingo-feeder/business" },
-    { done: Boolean(ctx.number), label: "Connect WhatsApp", href: "/lingo-feeder/whatsapp" },
-    { done: ctx.number?.status === "connected", label: "Test connection", href: "/lingo-feeder/whatsapp" },
+    { done: ctx.seller.business_name !== "My shop", label: "Business details", href: "/business" },
+    { done: Boolean(ctx.number), label: "Connect WhatsApp", href: "/connections#whatsapp" },
+    { done: ctx.number?.status === "connected", label: "Test connection", href: "/connections#whatsapp" },
     { done: ctx.seller.status === "live", label: "Switch Lingo on", href: "/lingo-feeder" },
   ];
   return (

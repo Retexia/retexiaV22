@@ -2,13 +2,13 @@
 
 import { Alert, Badge, Button, Card, Field, Input, Switch, Textarea } from "@retexia/ui";
 import { StatCard } from "@retexia/ui/admin";
-import { EyeOff, MessageCircleReply, MessageSquareText, Pin, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { EyeOff, MessageCircleReply, MessageSquareText, Pin, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition, type ReactNode } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
-import { checkNow, saveCommentSettings, setAutoComment } from "@/app/feeder/(app)/auto-comment/actions";
+import { checkNow, saveCommentSettings, setAutoComment, tryComment, type TryResult } from "@/app/feeder/(app)/auto-comment/actions";
 import type { CommentStatus, LogItem } from "@/lib/feeder/auto-comment/data";
-import { decide, LIMITS, type CommentSettings, type Rule } from "@/lib/feeder/auto-comment/rules";
+import { LIMITS, type CommentSettings, type Rule } from "@/lib/feeder/auto-comment/rules";
 
 type Result = { ok: true; message?: string } | { ok: false; message: string; fieldErrors?: Record<string, string> };
 
@@ -61,12 +61,19 @@ export function AutoCommentPanel({ status, log, stats }: { status: CommentStatus
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [tryText, setTryText] = useState("Price kiyada? Colombo walata delivery thiyenawada");
   const [tryName, setTryName] = useState("Nimal Perera");
+  const [tryPost, setTryPost] = useState("");
+  const [trial, setTrial] = useState<TryResult | null>(null);
+  const [trying, startTry] = useTransition();
   const set = <K extends keyof CommentSettings>(k: K, v: CommentSettings[K]) => setS((x) => ({ ...x, [k]: v }));
   const setRule = (i: number, r: Partial<Rule>) => set("rules", s.rules.map((x, j) => (j === i ? { ...x, ...r } : x)));
   // What the customer typed in the word fields (commas and spaces kept while typing).
   const [raw, setRaw] = useState(() => s.rules.map((r) => r.words.join(", ")));
-  const [hideRaw, setHideRaw] = useState(() => s.hide_words.join(", "));
-  const trial = useMemo(() => decide(s, { id: "try", message: tryText, author: tryName }), [s, tryText, tryName]);
+  const runTry = () =>
+    startTry(async () => {
+      const r = await tryComment({ text: tryText, name: tryName, post: tryPost, settings: s });
+      if (r.ok && r.data) setTrial(r.data);
+      else if (!r.ok) toast.error(r.message);
+    });
   const connected = status.page.id && status.page.status === "connected";
   const on = status.settings.enabled;
 
@@ -87,7 +94,7 @@ export function AutoCommentPanel({ status, log, stats }: { status: CommentStatus
               {on ? <Badge tone="brand">Answering comments</Badge> : null}
             </div>
             <p className="type-small text-ink-muted">
-              {status.page.id ? `${status.page.name ?? "Page"} · ID ${status.page.id}` : "Uses the Page from Autopublish → Accounts."}
+              {status.page.id ? `${status.page.name ?? "Page"} · ID ${status.page.id}` : "Uses the Page from Connections."}
               {on ? ` · last check ${ago(status.last_checked_at)}` : ""}
             </p>
           </div>
@@ -103,11 +110,11 @@ export function AutoCommentPanel({ status, log, stats }: { status: CommentStatus
           </div>
         </div>
         {!connected ? (
-          <Alert tone="info" title="Connect your Facebook Page first" action={<Button size="sm" href="/autopublish/accounts">Open Accounts</Button>}>
-            Auto comment uses the Page you share with Retexia in Autopublish → Accounts. It starts once Retexia confirms it.
+          <Alert tone="info" title="Connect your Facebook Page first" action={<Button size="sm" href="/connections">Open Connections</Button>}>
+            Auto comment uses the Page you share with Retexia in Connections (the same one Autopublish uses). It starts once Retexia confirms it.
           </Alert>
         ) : null}
-        {on && status.problem ? <Alert tone="warning" title="Facebook needs attention">{status.problem}</Alert> : null}
+        {on && status.problem ? <Alert tone="warning" title="Needs attention">{status.problem}</Alert> : null}
         {on && !status.problem ? <p className="type-small text-ink-muted">Only comments written after you switched it on ({ago(status.started_at)}) are answered. Checks run every minute.</p> : null}
       </Card>
 
@@ -123,9 +130,26 @@ export function AutoCommentPanel({ status, log, stats }: { status: CommentStatus
         {/* Settings */}
         <div className="flex flex-col gap-6">
           <Section
-            title="Replies under comments"
-            description="The first rule whose words are in the comment answers it. Otherwise one of your replies, a different one each time. {name} becomes the commenter's first name."
-            aside={<Switch checked={s.reply_on} onCheckedChange={(v) => set("reply_on", v)} label="Reply" />}
+            title="AI"
+            description="The AI reads every comment with your products (My products) and your business details, then hides what you describe below, writes the reply and the private message. Write in your own words, in English, Sinhala or Singlish."
+            aside={<Switch checked={s.ai_on} onCheckedChange={(v) => set("ai_on", v)} label="Use AI" />}
+          >
+            <Field label="What to hide" optionalLabel="" hint="Which comments should disappear. Real questions and complaints are answered, not hidden." error={errors.hide_rules}>
+              <Textarea rows={6} maxLength={LIMITS.instructions} value={s.hide_rules} disabled={!s.ai_on} onChange={(e) => set("hide_rules", e.target.value)} />
+            </Field>
+            <Field label="How to reply" optionalLabel="" hint="Tone, what to say in public and what in the private message." error={errors.reply_style}>
+              <Textarea rows={5} maxLength={LIMITS.instructions} value={s.reply_style} disabled={!s.ai_on} onChange={(e) => set("reply_style", e.target.value)} />
+            </Field>
+            <div className="flex flex-wrap gap-6">
+              <Switch checked={s.reply_on} onCheckedChange={(v) => set("reply_on", v)} label="Reply under comments" />
+              <Switch checked={s.private_on} onCheckedChange={(v) => set("private_on", v)} label="Send a private message" />
+              <Switch checked={s.hide_on} onCheckedChange={(v) => set("hide_on", v)} label="Hide comments" />
+            </div>
+          </Section>
+
+          <Section
+            title="Backup replies"
+            description="Used when the AI is off or can't answer. The first rule whose words are in the comment answers it; otherwise one of your default replies. {name} becomes the commenter's first name."
           >
             <div className="flex flex-col gap-3">
               {s.rules.map((r, i) => (
@@ -172,9 +196,8 @@ export function AutoCommentPanel({ status, log, stats }: { status: CommentStatus
           </Section>
 
           <Section
-            title="Private message"
-            description="Facebook lets a Page send one private message (Messenger) to each commenter, within 7 days. Hidden comments get it too, so a customer who left their number still hears from you."
-            aside={<Switch checked={s.private_on} onCheckedChange={(v) => set("private_on", v)} label="Send" />}
+            title="Backup private message"
+            description="Facebook lets a Page send one private message (Messenger) to each commenter, within 7 days. The AI writes its own with your product's details; this one is used when it can't."
           >
             <Field label="Message" optionalLabel="" error={errors.private_text}>
               <Textarea rows={3} maxLength={LIMITS.text} value={s.private_text} onChange={(e) => set("private_text", e.target.value)} />
@@ -197,23 +220,13 @@ export function AutoCommentPanel({ status, log, stats }: { status: CommentStatus
           </Section>
 
           <Section
-            title="Hide comments"
-            description="Hidden comments stay visible to the person who wrote them and their friends, so nobody notices. Phone numbers are hidden to protect your customers and to stop competitors."
-            aside={<Switch checked={s.hide_on} onCheckedChange={(v) => set("hide_on", v)} label="Hide" />}
+            title="Always hide"
+            description="Hidden straight away, with or without AI. Hidden comments stay visible to the person who wrote them and their friends, so nobody notices. The customer still gets the private message."
           >
             <div className="flex flex-wrap gap-6">
-              <Switch checked={s.hide_phones} onCheckedChange={(v) => set("hide_phones", v)} label="Phone numbers" />
-              <Switch checked={s.hide_links} onCheckedChange={(v) => set("hide_links", v)} label="Links" />
+              <Switch checked={s.hide_phones} disabled={!s.hide_on} onCheckedChange={(v) => set("hide_phones", v)} label="Phone numbers" />
+              <Switch checked={s.hide_links} disabled={!s.hide_on} onCheckedChange={(v) => set("hide_links", v)} label="Links" />
             </div>
-            <Field label="Words to hide" hint="Separate with commas, e.g. scam, boru, fake, බොරු.">
-              <Input
-                value={hideRaw}
-                onChange={(e) => {
-                  setHideRaw(e.target.value);
-                  set("hide_words", toWords(e.target.value).slice(0, LIMITS.hideWords));
-                }}
-              />
-            </Field>
           </Section>
 
           <div className="flex justify-end">
@@ -223,31 +236,41 @@ export function AutoCommentPanel({ status, log, stats }: { status: CommentStatus
 
         {/* Try + activity */}
         <div className="flex flex-col gap-6">
-          <Section title="Try a comment" description="See what Auto comment does with a comment, using the settings on this page (saved or not). Nothing is sent.">
+          <Section title="Try a comment" description="See what Auto comment does with a comment, using the settings on this page (saved or not). Nothing is sent to Facebook.">
             <Field label="Comment" optionalLabel="">
-              <Textarea rows={2} value={tryText} onChange={(e) => setTryText(e.target.value)} />
+              <Textarea rows={2} value={tryText} onChange={(e) => setTryText(e.target.value)} maxLength={800} />
             </Field>
             <Field label="Commenter's name">
-              <Input value={tryName} onChange={(e) => setTryName(e.target.value)} />
+              <Input value={tryName} onChange={(e) => setTryName(e.target.value)} maxLength={60} />
             </Field>
-            <div className="flex flex-col gap-2 rounded-md border border-line bg-surface-sunk p-3">
-              {trial.hide ? (
-                <p className="flex items-center gap-2 type-small text-warning"><EyeOff aria-hidden size={14} strokeWidth={1.75} /> Hidden ({trial.hide})</p>
-              ) : null}
-              {trial.reply ? (
-                <div className="flex flex-col gap-1">
-                  <p className="type-caption text-ink-muted">Reply under the comment{trial.rule && trial.rule !== "default" ? ` · rule: ${trial.rule}` : ""}</p>
-                  <p className="type-body text-ink">{trial.reply}</p>
-                </div>
-              ) : null}
-              {trial.private ? (
-                <div className="flex flex-col gap-1">
-                  <p className="type-caption text-ink-muted">Private message</p>
-                  <p className="type-body text-ink">{trial.private}</p>
-                </div>
-              ) : null}
-              {!trial.hide && !trial.reply && !trial.private ? <p className="type-small text-ink-muted">Nothing: replies and private messages are off.</p> : null}
-            </div>
+            <Field label="The ad's text" hint="Helps the AI know which product it's about.">
+              <Textarea rows={2} value={tryPost} onChange={(e) => setTryPost(e.target.value)} maxLength={600} />
+            </Field>
+            <Button size="sm" variant="secondary" className="self-start" disabled={trying || !tryText.trim()} onClick={runTry}>
+              <Sparkles aria-hidden size={14} strokeWidth={1.75} /> {trying ? "Thinking…" : "Try it"}
+            </Button>
+            {trial ? (
+              <div className="flex flex-col gap-2 rounded-md border border-line bg-surface-sunk p-3">
+                <div className="flex flex-wrap gap-1.5">{trial.ai ? <Badge tone="brand">AI</Badge> : <Badge tone="neutral">Backup reply</Badge>}</div>
+                {trial.aiNote ? <p className="type-small text-ink-muted">{trial.aiNote}</p> : null}
+                {trial.hide ? (
+                  <p className="flex items-center gap-2 type-small text-warning"><EyeOff aria-hidden size={14} strokeWidth={1.75} /> Hidden ({trial.hide})</p>
+                ) : null}
+                {trial.reply ? (
+                  <div className="flex flex-col gap-1">
+                    <p className="type-caption text-ink-muted">Reply under the comment{trial.rule && !["default", "AI"].includes(trial.rule) ? ` · rule: ${trial.rule}` : ""}</p>
+                    <p className="type-body text-ink">{trial.reply}</p>
+                  </div>
+                ) : null}
+                {trial.private ? (
+                  <div className="flex flex-col gap-1">
+                    <p className="type-caption text-ink-muted">Private message</p>
+                    <p className="type-body whitespace-pre-wrap text-ink">{trial.private}</p>
+                  </div>
+                ) : null}
+                {!trial.hide && !trial.reply && !trial.private ? <p className="type-small text-ink-muted">Nothing: this comment needs no answer, or replies and private messages are off.</p> : null}
+              </div>
+            ) : null}
           </Section>
 
           <Section title="What it did" description="The newest first.">
@@ -257,6 +280,7 @@ export function AutoCommentPanel({ status, log, stats }: { status: CommentStatus
                   <li key={l.id} className="flex flex-col gap-1.5 border-b border-line pb-3 last:border-b-0 last:pb-0">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <Badge tone="neutral">{l.post_kind === "ad" ? "Ad" : "Post"}</Badge>
+                      {l.ai ? <Badge tone="brand">AI</Badge> : null}
                       {l.kind === "first_comment" ? <Badge tone={l.status === "done" ? "brand" : "danger"}>First comment</Badge> : null}
                       {l.done.includes("replied") ? <Badge tone="success">Replied</Badge> : null}
                       {l.done.includes("private") ? <Badge tone="success">Messaged</Badge> : null}

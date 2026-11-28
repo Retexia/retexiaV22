@@ -55,19 +55,19 @@ export default async function LingoFeederLayout({ children }: { children: ReactN
         actions={number?.status === "connected" || on ? <LingoSwitch on={on} /> : null}
       />
       {noBusiness ? (
-        <Alert tone="info" title="Start with your business details" action={<Button href="/lingo-feeder/business" size="sm">Add details</Button>}>
+        <Alert tone="info" title="Start with your business details" action={<Button href="/business" size="sm">Add details</Button>}>
           Lingo introduces herself with your shop&apos;s name and tells customers where you are and when you call.
         </Alert>
       ) : !number ? (
-        <Alert tone="info" title="Connect your WhatsApp number" action={<Button href="/lingo-feeder/whatsapp" size="sm">Connect</Button>}>
+        <Alert tone="info" title="Connect your WhatsApp number" action={<Button href="/connections#whatsapp" size="sm">Connect</Button>}>
           Lingo answers on your own number through Meta&apos;s official WhatsApp Cloud API. Until then, try her in Try Lingo.
         </Alert>
       ) : number.status === "problem" ? (
-        <Alert tone="danger" title="Your WhatsApp number has a problem" action={<Button href="/lingo-feeder/whatsapp" size="sm" variant="secondary">Fix it</Button>}>
+        <Alert tone="danger" title="Your WhatsApp number has a problem" action={<Button href="/connections#whatsapp" size="sm" variant="secondary">Fix it</Button>}>
           {number.problem ?? "WhatsApp didn't answer the last check."}
         </Alert>
       ) : number.status === "pending" ? (
-        <Alert tone="warning" title="Test your connection" action={<Button href="/lingo-feeder/whatsapp" size="sm" variant="secondary">Open</Button>}>
+        <Alert tone="warning" title="Test your connection" action={<Button href="/connections#whatsapp" size="sm" variant="secondary">Open</Button>}>
           Your number is saved. Press Test connection, then switch Lingo on.
         </Alert>
       ) : !on && seller.status !== "blocked" ? (

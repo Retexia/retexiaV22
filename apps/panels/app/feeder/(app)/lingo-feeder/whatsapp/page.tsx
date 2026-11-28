@@ -1,11 +1,6 @@
-import { ConnectForm } from "@/components/feeder/lingo-feeder/connect-form";
-import { lingoFeederContext } from "@/lib/feeder/lingo-feeder/data";
-import { webhookUrl } from "@/lib/feeder/lingo-feeder/engine";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "WhatsApp · Lingo Feeder" };
-
-export default async function WhatsAppPage() {
-  const { ctx } = await lingoFeederContext("/lingo-feeder/whatsapp");
-  if (!ctx) return null;
-  return <ConnectForm number={ctx.number} webhookUrl={webhookUrl()} />;
+/** The WhatsApp number moved to Connections (one place for every account). */
+export default function WhatsAppPage() {
+  redirect("/connections#whatsapp");
 }
