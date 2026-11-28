@@ -18,7 +18,12 @@ function useAct() {
   const go = (fn: () => Promise<Result>) =>
     new Promise<Result>((resolve) =>
       start(async () => {
-        const r = await fn();
+        let r: Result;
+        try {
+          r = await fn();
+        } catch {
+          r = { ok: false, message: "Retexia couldn't finish that. Reload the page (a new version may be out) and try again." };
+        }
         if (r.ok) {
           if (r.message) toast.success(r.message);
           router.refresh();

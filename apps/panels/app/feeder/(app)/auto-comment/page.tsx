@@ -4,6 +4,8 @@ import { AutoCommentPanel } from "@/components/feeder/auto-comment/auto-comment-
 import { commentStats, getCommentStatus, listCommentLog, requireAutoCommentPage } from "@/lib/feeder/auto-comment/data";
 
 export const metadata = { title: "Auto comment" };
+/** Its buttons talk to Facebook (and the AI) several times: give them time. */
+export const maxDuration = 60;
 
 /** feeder.retexia.com/auto-comment: replies to, hides and messages the comments on the customer's ads and Page posts (free). */
 export default async function AutoCommentPage() {

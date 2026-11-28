@@ -66,7 +66,13 @@ export function MetaConnection({ conn, assets, owns, lacks }: Props) {
 
   const act = (fn: () => Promise<{ ok: boolean; message?: string; fieldErrors?: Record<string, string> }>, after?: () => void) =>
     start(async () => {
-      const r = await fn();
+      let r: { ok: boolean; message?: string; fieldErrors?: Record<string, string> };
+      try {
+        r = await fn();
+      } catch {
+        // The request itself failed (a new version was deployed, the network, a timeout): say so, don't crash the page.
+        r = { ok: false, message: "Retexia couldn't finish that. Reload the page (a new version may be out) and try again." };
+      }
       if (r.ok) {
         setErrors({});
         if (r.message) toast.success(r.message);

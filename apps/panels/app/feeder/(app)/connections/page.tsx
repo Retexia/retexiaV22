@@ -13,6 +13,8 @@ import { webhookUrl } from "@/lib/feeder/lingo-feeder/engine";
 import { USES, ownsAny, requireSharedPage, toolsUsing } from "@/lib/feeder/shared";
 
 export const metadata = { title: "Connections" };
+/** Its buttons talk to Facebook (and the AI) several times: give them time. */
+export const maxDuration = 60;
 
 function Locked({ title, tools, fallback, buy }: { title: string; tools: { slug: string; name: string }[]; fallback: string; buy: (slug: string) => string }) {
   return (
