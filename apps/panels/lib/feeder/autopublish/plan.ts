@@ -110,7 +110,7 @@ export type CompileInput = {
   template: TemplateData;
   creatives: CompileCreative[];
   /** form_name: the name every lead form and campaign is named after (one of the product's form names). */
-  product: { name: string; form_name: string; price?: number | null };
+  product: { name: string; form_name: string; price?: number | null; details?: string | null; about?: string | null };
   currency: string;
   /** Launch day (YYYY-MM-DD), for names. */
   date: string;
@@ -284,7 +284,8 @@ export function defaultTemplate(): TemplateData {
     audiences: [defaultAudience()],
     schedule: { start: "immediate", hours: null, duration_days: null },
     copy: {
-      primary_text: "{product} — cash on delivery anywhere in Sri Lanka. Fill in the form and we'll call you to confirm.",
+      // {details}: the product's description from Lingo Feeder's product details (lingo_feeder.products).
+      primary_text: "{details}\n\n🚚 Cash on delivery anywhere in Sri Lanka. Fill in the form and we'll call you to confirm.",
       headline: "{product}",
       description: "Cash on delivery",
       cta: "LEARN_MORE",
@@ -404,9 +405,14 @@ export function shortDate(date: string) {
 
 const clip = (s: string, n = LIMITS.name) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 
-/** {product} and {price} in ad text. */
-export function fillCopy(text: string, product: { name: string; form_name?: string; price?: number | null }, currency = "LKR") {
+/**
+ * {product}, {price}, {form} in ad text, and from Lingo Feeder's product knowledge (lingo_feeder.products):
+ * {details} = the full description, {about} = the short description.
+ */
+export function fillCopy(text: string, product: { name: string; form_name?: string; price?: number | null; details?: string | null; about?: string | null }, currency = "LKR") {
   return text
+    .replace(/\{details\}/gi, product.details || product.about || product.name)
+    .replace(/\{about\}/gi, product.about || product.name)
     .replace(/\{product\}/gi, product.name)
     .replace(/\{form\}/gi, product.form_name || product.name)
     .replace(/\{price\}/gi, product.price != null ? money(product.price, currency) : "")

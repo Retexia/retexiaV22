@@ -143,7 +143,7 @@ async function processLaunch(launch: LaunchRow, deadline: number): Promise<strin
 
   const ctx = await loadCtx(launch);
   if (!ctx.account) {
-    await release({ state: "blocked", next_run_at: null, problem: { message: "This account's ad settings are missing. Open Autopublish → Accounts.", fix_field: "account" } });
+    await release({ state: "blocked", next_run_at: null, problem: { message: "This account's ad settings are missing. Open Connections.", fix_field: "account" } });
     return "blocked";
   }
   if (launch.state === "queued") {
@@ -470,7 +470,7 @@ export function deriveState(ctx: AnyCtx): { state: LaunchState; problem: LaunchR
 }
 
 const accountProblem = (held: Platform[]) => ({
-  message: `Waiting for your ${held.map((p) => PLATFORM_LABEL[p]).join(" and ")} connection: Retexia needs to confirm access (Autopublish → Accounts).`,
+  message: `Waiting for your ${held.map((p) => PLATFORM_LABEL[p]).join(" and ")} connection: Retexia needs to confirm access (Connections).`,
   fix_field: "account",
 });
 

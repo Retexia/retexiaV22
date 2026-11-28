@@ -130,7 +130,7 @@ async function form(n: NodeRow, ctx: StepCtx): Promise<StepResult> {
   }
 
   const privacy = ctx.account.privacy_policy_url;
-  if (!privacy) return fix(`There is no Instant Form named "${n.name}" on your Page yet. Add your privacy policy link (Autopublish → Accounts) so Retexia can make it, then press Retry.`, "account.privacy_policy_url");
+  if (!privacy) return fix(`There is no Instant Form named "${n.name}" on your Page yet. Add your privacy policy link (Connections) so Retexia can make it, then press Retry.`, "account.privacy_policy_url");
   const lf = ctx.snap.template.destination.lead_form;
   const questions: Record<string, unknown>[] = [{ type: "FULL_NAME" }, { type: "PHONE" }, { type: "STREET_ADDRESS" }];
   if (lf.city) questions.push({ type: "CITY" });
@@ -270,7 +270,7 @@ async function adset(n: NodeRow, ctx: StepCtx): Promise<StepResult> {
       break;
     case "messages":
       if (t.destination.message_app === "whatsapp") {
-        if (!ctx.account.meta_whatsapp) return fix("Add the WhatsApp number linked to your Page (Autopublish → Accounts).", "account.meta_whatsapp");
+        if (!ctx.account.meta_whatsapp) return fix("Add the WhatsApp number linked to your Page (Connections).", "account.meta_whatsapp");
         Object.assign(params, { optimization_goal: "CONVERSATIONS", destination_type: "WHATSAPP", promoted_object: { page_id: page, whatsapp_phone_number: ctx.account.meta_whatsapp } });
       } else {
         Object.assign(params, { optimization_goal: "CONVERSATIONS", destination_type: "MESSENGER", promoted_object: { page_id: page } });
@@ -280,7 +280,7 @@ async function adset(n: NodeRow, ctx: StepCtx): Promise<StepResult> {
       Object.assign(params, { optimization_goal: n.platform_extra.use_link_clicks ? "LINK_CLICKS" : "LANDING_PAGE_VIEWS", destination_type: "WEBSITE" });
       break;
     case "sales":
-      if (!ctx.account.meta_pixel_id) return fix("Website sales need your Meta Pixel ID (Autopublish → Accounts).", "account.meta_pixel_id");
+      if (!ctx.account.meta_pixel_id) return fix("Website sales need your Meta Pixel ID (Connections).", "account.meta_pixel_id");
       Object.assign(params, { optimization_goal: "OFFSITE_CONVERSIONS", destination_type: "WEBSITE", promoted_object: { pixel_id: ctx.account.meta_pixel_id, custom_event_type: t.destination.pixel_event } });
       break;
   }

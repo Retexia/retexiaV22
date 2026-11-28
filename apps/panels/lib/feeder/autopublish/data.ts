@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getFeeder, requireFeederPage } from "../access";
 import { mySetup } from "../data";
 import { feederDb } from "../db";
+import { lfDb } from "../lingo-feeder/db";
 import { readTemplate, type TemplateData } from "./plan";
 import { BUCKET } from "./runner";
 import type { AccountRow, CreativeRow, EventRow, LaunchRow, NodeRow } from "./types";
@@ -82,8 +83,26 @@ export async function getLaunch(userId: string, ref: string) {
   };
 }
 
-/** The customer's Feeder products with their form names and selling price (launch screen). */
+/** WhatsApp formatting (*bold*, _italic_, ~strike~) → plain text: Facebook and TikTok would show the marks. */
+const plain = (t: string | null) => t?.replace(/\*([^*\n]+)\*/g, "$1").replace(/_([^_\n]+)_/g, "$1").replace(/~([^~\n]+)~/g, "$1").trim() || null;
+
+/**
+ * The customer's Feeder products with their form names and selling price (launch screen), and what
+ * Lingo Feeder knows about each (lingo_feeder.products, same product IDs) for the ad text:
+ * details = the full description, about = the short description.
+ */
 export async function launchProducts(userId: string) {
   const { products } = await mySetup(userId);
-  return products.map((p) => ({ product_id: p.product_id, name: p.product_name, form_names: p.form_names, price: p.my_price ?? p.price }));
+  const facts = new Map<number, { details: string | null; about: string | null }>();
+  if (products.length) {
+    try {
+      const { data } = await lfDb().from("products").select("product_id, short_description, long_description").in("product_id", products.map((p) => p.product_id));
+      for (const r of (data ?? []) as { product_id: number; short_description: string | null; long_description: string | null }[]) {
+        facts.set(r.product_id, { details: plain(r.long_description), about: plain(r.short_description) });
+      }
+    } catch {
+      // Lingo Feeder's schema isn't exposed: the template's text is used as it is.
+    }
+  }
+  return products.map((p) => ({ product_id: p.product_id, name: p.product_name, form_names: p.form_names, price: p.my_price ?? p.price, details: facts.get(p.product_id)?.details ?? null, about: facts.get(p.product_id)?.about ?? null }));
 }

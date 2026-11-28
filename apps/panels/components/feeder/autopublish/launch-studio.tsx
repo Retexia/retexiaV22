@@ -26,7 +26,7 @@ import {
 } from "@/lib/feeder/autopublish/plan";
 
 export type StudioTemplate = { id: string; data: TemplateData };
-export type StudioProduct = { product_id: number; name: string; form_names: string[]; price: number };
+export type StudioProduct = { product_id: number; name: string; form_names: string[]; price: number; details?: string | null; about?: string | null };
 export type StudioAccount = {
   currency: string;
   meta: boolean;
@@ -158,8 +158,13 @@ export function LaunchStudio({ templates, products, account, initialTemplate }: 
   const [metaForm, setMetaForm] = useState("");
   const [ttForm, setTtForm] = useState("");
   const adAccounts = account.adAccounts ?? [];
-  const [adAccount, setAdAccount] = useState(adAccounts.find((a) => a.isDefault)?.id ?? adAccounts[0]?.id ?? "");
-  const pickedAd = adAccounts.find((a) => a.id === adAccount) ?? null;
+  // Several ad accounts at once: one launch each (TikTok only with the first).
+  const [adIds, setAdIds] = useState<string[]>(() => {
+    const d = adAccounts.find((a) => a.isDefault)?.id ?? adAccounts[0]?.id;
+    return d ? [d] : [];
+  });
+  const toggleAd = (id: string) => setAdIds((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id]));
+  const otherCurrency = adAccounts.filter((a) => adIds.includes(a.id) && a.currency && a.currency !== account.currency);
   const [busy, setBusy] = useState(false);
   const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
   const [drag, setDrag] = useState(false);
@@ -173,6 +178,19 @@ export function LaunchStudio({ templates, products, account, initialTemplate }: 
     const p = products.find((x) => x.product_id === Number(value));
     setProductId(p ? p.product_id : "");
     setFormName(p ? (p.form_names[0] ?? p.name) : "");
+    // The ad text from Lingo Feeder's product details (lingo_feeder.products), when the template lets it change.
+    const tplNow = templates.find((t) => t.id === templateId)?.data;
+    if (p && tplNow?.overridable.includes("copy") && (p.details || p.about)) {
+      setO((x) => ({
+        ...x,
+        copy: {
+          ...x.copy,
+          primary_text: (p.details || p.about || "").slice(0, 2000),
+          headline: p.name.slice(0, 40),
+          ...(p.about ? { description: p.about.slice(0, 255) } : {}),
+        },
+      }));
+    }
   };
 
   const pickedMeta = account.metaForms.find((f) => f.id === metaForm) ?? null;
@@ -191,16 +209,17 @@ export function LaunchStudio({ templates, products, account, initialTemplate }: 
     });
     const extra: Issue[] = [];
     for (const p of template.platforms) {
-      if (!(p === "meta" ? account.meta : account.tiktok)) extra.push({ field: "account", platform: p, message: `${PLATFORM_LONG[p]} isn't connected yet (Accounts).` });
+      if (!(p === "meta" ? account.meta : account.tiktok)) extra.push({ field: "account", platform: p, message: `${PLATFORM_LONG[p]} isn't connected yet (Connections).` });
+      if (p === "meta" && adAccounts.length > 1 && !adIds.length) extra.push({ field: "meta_ad_account_id", platform: p, message: "Tick at least one ad account." });
     }
     if (template.objective === "leads" && template.platforms.includes("meta")) {
       if (template.destination.lead_form.mode === "pick" && !pickedMeta) extra.push({ field: "meta_form", message: "Pick the Instant Form." });
       if (template.destination.lead_form.mode === "product" && !pickedMeta && !account.privacy && !account.metaForms.some((f) => key(f.name) === key(usedName))) {
-        extra.push({ field: "account.privacy_policy_url", message: `No form named "${usedName}" on your Page yet: add your privacy policy link in Accounts so Retexia can make it.` });
+        extra.push({ field: "account.privacy_policy_url", message: `No form named "${usedName}" on your Page yet: add your privacy policy link in Connections so Retexia can make it.` });
       }
     }
     return { template, ...r, errors: [...extra, ...r.errors], warnings: [...warnings, ...r.warnings] };
-  }, [tpl, product, o, items, usedName, account, pickedMeta]);
+  }, [tpl, product, o, items, usedName, account, pickedMeta, adAccounts.length, adIds.length]);
 
   const formOnPage = account.metaForms.find((f) => key(f.name) === key(usedName) && (!f.status || f.status === "ACTIVE"));
   const ttAuto = account.tiktokForms.find((f) => product && [usedName, ...product.form_names].some((n) => key(n) === key(f.name)));
@@ -248,7 +267,7 @@ export function LaunchStudio({ templates, products, account, initialTemplate }: 
       overrides: o,
       meta_form: pickedMeta ? { id: pickedMeta.id, name: pickedMeta.name } : null,
       tiktok_form: pickedTt ? { id: pickedTt.id, name: pickedTt.name } : null,
-      meta_ad_account_id: pickedAd?.id ?? null,
+      meta_ad_account_ids: adAccounts.length ? adIds : undefined,
     });
     setBusy(false);
     if (!r.ok) {
@@ -298,14 +317,38 @@ export function LaunchStudio({ templates, products, account, initialTemplate }: 
             <Field label="Product" error={fe("product_id") ?? fe("product")} required>
               <Select value={String(productId)} onChange={(e) => pickProduct(e.target.value)} placeholder="Choose a product" options={products.map((p) => ({ value: String(p.product_id), label: p.name }))} />
             </Field>
-            <Field label="Form name" error={fe("form_name")} required>
-              <Select value={formName} onChange={(e) => setFormName(e.target.value)} disabled={!product || Boolean(pickedMeta)} options={names.map((n) => ({ value: n, label: n }))} />
-            </Field>
+            {pickedMeta ? null : (
+              <Field label="Form name" error={fe("form_name")} required>
+                <Select value={formName} onChange={(e) => setFormName(e.target.value)} disabled={!product} options={names.map((n) => ({ value: n, label: n }))} />
+              </Field>
+            )}
           </div>
-          <p className="type-small text-ink-muted">The lead form, campaign, ad sets and ads are named after the form name, so Bulk create puts every lead on this product.</p>
+          <p className="type-small text-ink-muted">
+            {pickedMeta
+              ? `Everything is named after the Instant Form "${pickedMeta.name}", so Bulk create puts every lead on this product.`
+              : "The lead form, campaign, ad sets and ads are named after the form name, so Bulk create puts every lead on this product."}
+          </p>
           {adAccounts.length > 1 && tpl?.platforms.includes("meta") ? (
-            <Field label="Ad account (Facebook)" hint={pickedAd?.currency && pickedAd.currency !== account.currency ? `This account is in ${pickedAd.currency}: budgets are in ${pickedAd.currency}.` : "From your Business portfolio (Connections)."} error={fe("meta_ad_account_id")}>
-              <Select value={adAccount} onChange={(e) => setAdAccount(e.target.value)} options={adAccounts.map((a) => ({ value: a.id, label: `${a.name}${a.isDefault ? " (default)" : ""}` }))} />
+            <Field
+              label="Ad accounts (Facebook)"
+              labelAs="legend"
+              hint={
+                otherCurrency.length
+                  ? `${otherCurrency.map((a) => a.name).join(", ")} ${otherCurrency.length === 1 ? "is" : "are"} in another currency: the budget is in each account's currency.`
+                  : `One launch on each ticked account${tpl.platforms.includes("tiktok") ? " (TikTok only once)" : ""}. From your Business portfolio (Connections).`
+              }
+              error={fe("meta_ad_account_id")}
+            >
+              <div className="flex flex-col gap-2 rounded-md border border-line p-3">
+                {adAccounts.map((a) => (
+                  <label key={a.id} className="flex items-center gap-2 type-body text-ink">
+                    <input type="checkbox" className="size-4 accent-[var(--rx-brand)]" checked={adIds.includes(a.id)} onChange={() => toggleAd(a.id)} />
+                    {a.name}
+                    {a.isDefault ? <span className="type-small text-ink-muted">(default)</span> : null}
+                    {a.currency && a.currency !== account.currency ? <span className="type-small text-ink-muted">· {a.currency}</span> : null}
+                  </label>
+                ))}
+              </div>
             </Field>
           ) : null}
           {tpl?.objective === "leads" && tpl.platforms.includes("meta") && product ? (
@@ -319,7 +362,7 @@ export function LaunchStudio({ templates, products, account, initialTemplate }: 
                       ? `"${formOnPage.name}" is on your Page: it will be used.`
                       : account.privacy
                         ? `Retexia will make a form named "${usedName}".`
-                        : "Pick a form, or add a privacy policy link in Accounts so Retexia can make one."
+                        : "Pick a form, or add a privacy policy link in Connections so Retexia can make one."
                 }
                 error={fe("meta_form")}
                 required={tpl.destination.lead_form.mode === "pick"}
@@ -509,7 +552,10 @@ export function LaunchStudio({ templates, products, account, initialTemplate }: 
                 <div key={p.platform} className="flex flex-col gap-2">
                   <div className="flex items-center justify-between gap-2">
                     <Badge tone={p.skipped ? "neutral" : "brand"}>{PLATFORM_LONG[p.platform]}</Badge>
-                    <span className="type-label text-ink">{p.daily > 0 ? `${money(p.daily, account.currency)}/day` : ""}</span>
+                    <span className="type-label text-ink">
+                      {p.daily > 0 ? `${money(p.daily, account.currency)}/day` : ""}
+                      {p.platform === "meta" && adIds.length > 1 && p.daily > 0 ? ` × ${adIds.length} accounts` : ""}
+                    </span>
                   </div>
                   <p className="type-small text-ink-muted">{p.summary}</p>
                   {!p.skipped && items.length ? <Tree nodes={preview.nodes} platform={p.platform} currency={account.currency} /> : null}
@@ -518,7 +564,7 @@ export function LaunchStudio({ templates, products, account, initialTemplate }: 
               {items.length && product ? (
                 <div className="rounded-md bg-surface-sunk p-3">
                   <p className="type-caption text-ink-muted">Ad text</p>
-                  <p className="line-clamp-4 type-small whitespace-pre-line text-ink">{fillCopy(preview.template.copy.primary_text, { name: product.name, form_name: usedName, price: product.price }, account.currency)}</p>
+                  <p className="line-clamp-4 type-small whitespace-pre-line text-ink">{fillCopy(preview.template.copy.primary_text, { name: product.name, form_name: usedName, price: product.price, details: product.details, about: product.about }, account.currency)}</p>
                 </div>
               ) : null}
             </>

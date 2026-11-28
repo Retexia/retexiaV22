@@ -347,7 +347,8 @@ const formPick = z.object({ id: z.string().regex(/^\d{3,30}$/), name: z.string()
 const launchInput = z.object({
   template_id: z.uuid(),
   product_id: z.number().int().positive(),
-  form_name: z.string().trim().min(1, "Pick the form name").max(120),
+  /** Not needed when an Instant Form is picked (its name is used). */
+  form_name: z.string().trim().max(120).default(""),
   creatives: z.array(creativeInput).min(1, "Add at least one video or image").max(10, "Up to 10 creatives"),
   overrides: z
     .object({
@@ -362,6 +363,8 @@ const launchInput = z.object({
   tiktok_form: formPick,
   /** One of the seller's portfolio ad accounts (Connections); empty = the default. */
   meta_ad_account_id: z.string().regex(/^\d{5,25}$/).nullable().optional(),
+  /** Several at once: one launch per ad account (TikTok only with the first). */
+  meta_ad_account_ids: z.array(z.string().regex(/^\d{5,25}$/)).max(25).optional(),
 });
 
 const REF_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -404,32 +407,43 @@ export async function submitLaunch(input: z.input<typeof launchInput>): Promise<
     for (const p of t0.platforms) {
       if (!accountReady(account, p)) {
         const s = p === "meta" ? account?.meta_status : account?.tiktok_status;
-        errors.push({ field: "account", platform: p, message: s === "requested" ? `${PLATFORM_LABEL[p]}: Retexia is still confirming access to your account (usually within a day).` : s === "problem" ? `${PLATFORM_LABEL[p]}: your account connection needs attention (Accounts).` : `Connect your ${PLATFORM_LABEL[p]} account first (Accounts).` });
+        errors.push({ field: "account", platform: p, message: s === "requested" ? `${PLATFORM_LABEL[p]}: Retexia is still confirming access to your account (usually within a day).` : s === "problem" ? `${PLATFORM_LABEL[p]}: your account connection needs attention (Connections).` : `Connect your ${PLATFORM_LABEL[p]} account first (Connections).` });
       }
     }
     if (errors.length) return failWith(errors);
-    let a = account!;
+    const base = account!;
 
-    // Another ad account of their Business portfolio (own token only, ticked for Autopublish in Connections).
-    let pickedAccount: { id: string; name: string | null } | null = null;
-    if (d.meta_ad_account_id && t0.platforms.includes("meta") && d.meta_ad_account_id !== a.meta_ad_account_id) {
-      if (a.meta_via !== "token") return { ok: false, message: "Pick an ad account from Connections.", fieldErrors: { meta_ad_account_id: "Not available" } };
-      const { data: asset } = await feederDb().from("meta_assets").select("asset_id, name, info, status").eq("user_id", u.id).eq("kind", "ad_account").eq("asset_id", d.meta_ad_account_id).eq("for_autopublish", true).maybeSingle();
-      if (!asset || asset.status !== "ok") return { ok: false, message: "That ad account isn't ready (Connections → Check again).", fieldErrors: { meta_ad_account_id: "Not ready" } };
-      const info = (asset.info ?? {}) as { currency?: string | null; timezone?: string | null };
-      pickedAccount = { id: String(asset.asset_id), name: (asset.name as string | null) ?? null };
-      a = { ...a, meta_ad_account_id: pickedAccount.id, currency: info.currency && /^[A-Z]{3}$/.test(info.currency) ? info.currency : a.currency, timezone: info.timezone || a.timezone };
+    // Which ad accounts: several of their Business portfolio at once (own token, ticked in Connections), or the default.
+    const wanted = t0.platforms.includes("meta") ? [...new Set([...(d.meta_ad_account_ids ?? []), ...(d.meta_ad_account_id ? [d.meta_ad_account_id] : [])])] : [];
+    type Target = { a: AccountRow; picked: { id: string; name: string | null } | null };
+    const targets: Target[] = [];
+    if (!wanted.length) targets.push({ a: base, picked: null });
+    else {
+      if (base.meta_via !== "token" && wanted.some((id) => id !== base.meta_ad_account_id)) return { ok: false, message: "Pick ad accounts from Connections.", fieldErrors: { meta_ad_account_id: "Not available" } };
+      const { data: assets } = await feederDb().from("meta_assets").select("asset_id, name, info, status, for_autopublish").eq("user_id", u.id).eq("kind", "ad_account").in("asset_id", wanted);
+      for (const id of wanted) {
+        const asset = (assets ?? []).find((x) => x.asset_id === id);
+        if (base.meta_via === "token" && (!asset || asset.status !== "ok" || !asset.for_autopublish)) {
+          return { ok: false, message: `Ad account ${asset?.name ?? id} isn't ready (Connections → Check again).`, fieldErrors: { meta_ad_account_id: "Not ready" } };
+        }
+        const info = (asset?.info ?? {}) as { currency?: string | null; timezone?: string | null };
+        targets.push({
+          a: { ...base, meta_ad_account_id: id, currency: info.currency && /^[A-Z]{3}$/.test(info.currency) ? info.currency : base.currency, timezone: info.timezone || base.timezone },
+          picked: { id, name: (asset?.name as string | null) ?? null },
+        });
+      }
     }
+    const a = targets[0]!.a;
 
-    // Forms picked at launch must be ones Retexia found on the account.
+    // Forms picked at launch must be ones Retexia found on the account (one Page for every ad account).
     const metaForm = d.meta_form ? (a.meta_info.forms ?? []).find((f) => f.id === d.meta_form!.id) : null;
-    if (d.meta_form && !metaForm) return { ok: false, message: "That Instant Form wasn't found on your Page. Press \"Check again\" in Accounts.", fieldErrors: { meta_form: "Not found" } };
+    if (d.meta_form && !metaForm) return { ok: false, message: "That Instant Form wasn't found on your Page. Press \"Check again\" in Connections.", fieldErrors: { meta_form: "Not found" } };
     const ttForm = d.tiktok_form ? (a.tiktok_info.forms ?? []).find((f) => f.id === d.tiktok_form!.id) : null;
-    if (d.tiktok_form && !ttForm) return { ok: false, message: "That TikTok Instant Form wasn't found. Press \"Check again\" in Accounts.", fieldErrors: { tiktok_form: "Not found" } };
+    if (d.tiktok_form && !ttForm) return { ok: false, message: "That TikTok Instant Form wasn't found. Press \"Check again\" in Connections.", fieldErrors: { tiktok_form: "Not found" } };
     const leadsMeta = t0.objective === "leads" && t0.platforms.includes("meta");
     if (leadsMeta && t0.destination.lead_form.mode === "pick" && !metaForm) return { ok: false, message: "Pick the Instant Form for these ads.", fieldErrors: { meta_form: "Pick a form" } };
-    // The name everything is called: the picked form's name, else the chosen form name.
-    const formName = (metaForm?.name ?? d.form_name).trim();
+    // The name everything is called: the picked Instant Form's name, else the chosen form name.
+    const formName = (metaForm?.name ?? d.form_name ?? "").trim() || product.name;
     if (!metaForm && ![product.name, ...product.form_names].some((n) => nameKey(n) === nameKey(formName))) {
       return { ok: false, message: "Pick one of this product's form names (or add it in My products).", fieldErrors: { form_name: "Not one of the product's form names" } };
     }
@@ -440,29 +454,42 @@ export async function submitLaunch(input: z.input<typeof launchInput>): Promise<
     const missing = d.creatives.filter((c) => !(found ?? []).some((f) => f.path === c.path && f.signedUrl && !f.error));
     if (missing.length) return { ok: false, message: `${missing.map((m) => m.name).join(", ")} didn't finish uploading. Remove and add ${missing.length === 1 ? "it" : "them"} again.`, fieldErrors: { creatives: "Upload again" } };
 
-    // Template + allowed changes → snapshot → plan.
-    const { template, warnings } = applyOverrides(t0, d.overrides ?? {});
+    // Template + allowed changes → snapshot → plan, once per ad account (TikTok only with the first).
+    const applied = applyOverrides(t0, d.overrides ?? {});
+    const warnings = applied.warnings;
     const creatives = d.creatives.map((c, i) => ({ position: i + 1, kind: c.kind, name: c.name }));
-    const today = localDate(a.timezone);
-    const plan = compile({ template, creatives, product: { name: product.name, form_name: formName, price: product.price }, currency: a.currency, date: today });
-    errors.push(...plan.errors);
-    warnings.push(...plan.warnings);
+    const productFacts = { details: product.details, about: product.about };
+    const plans = targets.map((t, i) => {
+      const template = i === 0 ? applied.template : { ...applied.template, platforms: applied.template.platforms.filter((p) => p === "meta") };
+      const today = localDate(t.a.timezone);
+      return { ...t, template, today, plan: compile({ template, creatives, product: { name: product.name, form_name: formName, price: product.price, ...productFacts }, currency: t.a.currency, date: today }) };
+    });
+    for (const x of plans) {
+      errors.push(...x.plan.errors);
+      for (const w of x.plan.warnings) if (!warnings.some((y) => y.message === w.message)) warnings.push(w);
+    }
+    const template = applied.template;
 
     // Account-specific checks.
-    if (template.objective === "messages" && template.destination.message_app === "whatsapp" && !a.meta_whatsapp) errors.push({ field: "account.meta_whatsapp", message: "Add the WhatsApp number linked to your Page in Accounts." });
-    if (template.objective === "sales" && !a.meta_pixel_id) errors.push({ field: "account.meta_pixel_id", message: "Website sales need your Meta Pixel ID (Accounts)." });
+    if (template.objective === "messages" && template.destination.message_app === "whatsapp" && !a.meta_whatsapp) errors.push({ field: "account.meta_whatsapp", message: "Add the WhatsApp number linked to your Page in Connections." });
+    if (template.objective === "sales" && !a.meta_pixel_id) errors.push({ field: "account.meta_pixel_id", message: "Website sales need your Meta Pixel ID (Connections)." });
     if (template.objective === "sales" && a.meta_info.problems?.some((p) => /Pixel/.test(p))) warnings.push({ field: "account.meta_pixel_id", message: "Retexia couldn't check your Pixel; make sure it's shared and firing." });
     if (leadsMeta && !metaForm && !a.privacy_policy_url && !(a.meta_info.forms ?? []).some((f) => nameKey(f.name) === nameKey(formName) && (!f.status || f.status === "ACTIVE"))) {
-      errors.push({ field: "account.privacy_policy_url", message: `There's no Instant Form named "${formName}" on your Page yet. Add your privacy policy link in Accounts so Retexia can make it, or pick an existing form.` });
+      errors.push({ field: "account.privacy_policy_url", message: `There's no Instant Form named "${formName}" on your Page yet. Add your privacy policy link in Connections so Retexia can make it, or pick an existing form.` });
     }
     if (template.objective === "leads" && template.platforms.includes("tiktok") && !ttForm && !(a.tiktok_info.forms ?? []).some((f) => [formName, ...product.form_names].some((n) => nameKey(n) === nameKey(f.name)))) {
       warnings.push({ field: "tiktok_form", platform: "tiktok", message: `No TikTok Instant Form named "${formName}" was found. Pick one, or make one with that name in TikTok Ads Manager before the ads are built.` });
     }
-    // Spend limit (both platforms, everything Autopublish has switched on).
-    const newDaily = plan.platforms.reduce((s, p) => s + p.daily, 0);
-    if (a.max_daily_spend != null) {
+    // Spend limit (both platforms, every ad account in this launch, everything Autopublish has switched on).
+    const newDaily = plans.reduce((s, x) => s + x.plan.platforms.reduce((t, p) => t + p.daily, 0), 0);
+    if (base.max_daily_spend != null) {
       const on = await activeSpend(u.id, "AP-NONE00");
-      if (on + newDaily > Number(a.max_daily_spend) + 0.001) errors.push({ field: "budget", message: `This launch adds ${money(newDaily, a.currency)} a day; with what's already running that's ${money(on + newDaily, a.currency)}, over your limit of ${money(Number(a.max_daily_spend), a.currency)} (Accounts).` });
+      if (on + newDaily > Number(base.max_daily_spend) + 0.001) {
+        errors.push({
+          field: "budget",
+          message: `${plans.length > 1 ? `These ${plans.length} launches add` : "This launch adds"} ${money(newDaily, a.currency)} a day${on ? ` (with what's already running: ${money(on + newDaily, a.currency)})` : ""}, over your daily spend limit of ${money(Number(base.max_daily_spend), a.currency)}. Raise or clear the limit in Connections → Safety and messages, or lower the budget.`,
+        });
+      }
     }
     if (errors.length) return failWith(errors);
 
@@ -473,64 +500,69 @@ export async function submitLaunch(input: z.input<typeof launchInput>): Promise<
       if (problem) return { ok: false, message: problem, fieldErrors: { form_name: problem } };
     }
 
-    const times = startTimes(template.schedule, a.timezone);
-    const snapshot: Snapshot = {
-      template,
-      product: { id: product.product_id, name: product.name, form_name: formName, form_names: [...new Set([...product.form_names, formName])], price: product.price },
-      currency: a.currency,
-      timezone: a.timezone,
-      ...times,
-      forms: { meta: metaForm ? { id: metaForm.id, name: metaForm.name } : null, tiktok: ttForm ? { id: ttForm.id, name: ttForm.name } : null },
-      date: today,
-      meta_ad_account: pickedAccount,
-    };
-    const approval = template.require_approval ?? a.approval_required;
+    const approval = template.require_approval ?? base.approval_required;
     const db = feederDb();
-    let ref = "";
-    for (let i = 0; i < 5 && !ref; i++) {
-      const tryRef = `AP-${code(6)}`;
-      const { error } = await db.from("ad_launches").insert({
-        ref: tryRef,
-        user_id: u.id,
-        template_id: tpl.id,
-        template_version: tpl.version,
-        template_name: t0.name,
-        product_id: product.product_id,
-        product_name: product.name,
-        form_name: formName,
-        snapshot,
-        overrides: d.overrides ?? {},
-        summary: plan.summary,
-        totals: Object.fromEntries(plan.platforms.map((p) => [p.platform, p.daily])),
-        warnings,
-        state: approval ? "awaiting_approval" : "queued",
-        approval_code: approval ? code(4) : null,
-        approval_requested_at: approval ? new Date().toISOString() : null,
-        approval_expires_at: approval ? new Date(Date.now() + (Number(process.env.APPROVAL_EXPIRE_HOURS) || 48) * 3600_000).toISOString() : null,
-        next_run_at: approval ? new Date(Date.now() + 6 * 3600_000).toISOString() : new Date().toISOString(),
-        created_by: u.id,
-      });
-      if (!error) ref = tryRef;
-      else if (error.code !== "23505") return { ok: false, message: dbMessage(error) };
+    const refs: string[] = [];
+    for (const x of plans) {
+      const times = startTimes(x.template.schedule, x.a.timezone);
+      const snapshot: Snapshot = {
+        template: x.template,
+        product: { id: product.product_id, name: product.name, form_name: formName, form_names: [...new Set([...product.form_names, formName])], price: product.price, ...productFacts },
+        currency: x.a.currency,
+        timezone: x.a.timezone,
+        ...times,
+        forms: { meta: metaForm ? { id: metaForm.id, name: metaForm.name } : null, tiktok: x.template.platforms.includes("tiktok") && ttForm ? { id: ttForm.id, name: ttForm.name } : null },
+        date: x.today,
+        meta_ad_account: x.picked,
+      };
+      let ref = "";
+      for (let i = 0; i < 5 && !ref; i++) {
+        const tryRef = `AP-${code(6)}`;
+        const { error } = await db.from("ad_launches").insert({
+          ref: tryRef,
+          user_id: u.id,
+          template_id: tpl.id,
+          template_version: tpl.version,
+          template_name: t0.name,
+          product_id: product.product_id,
+          product_name: product.name,
+          form_name: formName,
+          snapshot,
+          overrides: d.overrides ?? {},
+          summary: x.picked?.name ? `${x.plan.summary} · ${x.picked.name}` : x.plan.summary,
+          totals: Object.fromEntries(x.plan.platforms.map((p) => [p.platform, p.daily])),
+          warnings,
+          state: approval ? "awaiting_approval" : "queued",
+          approval_code: approval ? code(4) : null,
+          approval_requested_at: approval ? new Date().toISOString() : null,
+          approval_expires_at: approval ? new Date(Date.now() + (Number(process.env.APPROVAL_EXPIRE_HOURS) || 48) * 3600_000).toISOString() : null,
+          next_run_at: approval ? new Date(Date.now() + 6 * 3600_000).toISOString() : new Date().toISOString(),
+          created_by: u.id,
+        });
+        if (!error) ref = tryRef;
+        else if (error.code !== "23505") return { ok: false, message: dbMessage(error) };
+      }
+      if (!ref) return { ok: false, message: "Please try again." };
+      const c1 = await db.from("ad_creatives").insert(
+        d.creatives.map((c, i) => ({ launch_ref: ref, position: i + 1, name: c.name, storage_path: c.path, kind: c.kind, mime: c.mime, size_bytes: c.size, width: c.width ?? null, height: c.height ?? null, duration_s: c.duration ?? null })),
+      );
+      const c2 = await db.from("ad_nodes").insert(x.plan.nodes.map((n) => ({ ...n, launch_ref: ref, user_id: u.id })));
+      if (c1.error || c2.error) {
+        await db.from("ad_launches").delete().eq("ref", ref);
+        return { ok: false, message: dbMessage(c1.error ?? c2.error) };
+      }
+      refs.push(ref);
+      await logEvent({ userId: u.id, ref, type: "launch.submitted", actor: "customer", message: `Launch submitted: ${product.name}${x.picked?.name ? ` on ${x.picked.name}` : ""} with ${d.creatives.length} creative${d.creatives.length === 1 ? "" : "s"} · ${x.plan.summary}` });
+      if (approval) {
+        const { data: l } = await db.from("ad_launches").select("ref, last_notified_at, product_name, approval_code").eq("ref", ref).single();
+        await logEvent({ userId: u.id, ref, type: "approval.requested", message: "Waiting for approval before anything is published." });
+        if (l) await notifyLaunch(l as LaunchRow, x.a, "approval", `New ads wait for your OK (${ref}, code ${l.approval_code}):\n${product.name} · ${x.plan.summary}\nCreatives: ${d.creatives.map((c, i) => `#${i + 1} ${c.name}`).join(", ")}\nApprove or reject them in Retexia:`);
+      } else {
+        after(() => runTick({ ref, budgetMs: 50_000, worker: "submit" }).catch((e) => console.error("[autopublish] kick", e)));
+      }
     }
-    if (!ref) return { ok: false, message: "Please try again." };
-    const c1 = await db.from("ad_creatives").insert(
-      d.creatives.map((c, i) => ({ launch_ref: ref, position: i + 1, name: c.name, storage_path: c.path, kind: c.kind, mime: c.mime, size_bytes: c.size, width: c.width ?? null, height: c.height ?? null, duration_s: c.duration ?? null })),
-    );
-    const c2 = await db.from("ad_nodes").insert(plan.nodes.map((n) => ({ ...n, launch_ref: ref, user_id: u.id })));
-    if (c1.error || c2.error) {
-      await db.from("ad_launches").delete().eq("ref", ref);
-      return { ok: false, message: dbMessage(c1.error ?? c2.error) };
-    }
-    await logEvent({ userId: u.id, ref, type: "launch.submitted", actor: "customer", message: `Launch submitted: ${product.name} with ${d.creatives.length} creative${d.creatives.length === 1 ? "" : "s"} · ${plan.summary}` });
-    if (approval) {
-      const { data: l } = await db.from("ad_launches").select("ref, last_notified_at, product_name, approval_code").eq("ref", ref).single();
-      await logEvent({ userId: u.id, ref, type: "approval.requested", message: "Waiting for approval before anything is published." });
-      if (l) await notifyLaunch(l as LaunchRow, a, "approval", `New ads wait for your OK (${ref}, code ${l.approval_code}):\n${product.name} · ${plan.summary}\nCreatives: ${d.creatives.map((c, i) => `#${i + 1} ${c.name}`).join(", ")}\nApprove or reject them in Retexia:`);
-    } else {
-      after(() => runTick({ ref, budgetMs: 50_000, worker: "submit" }).catch((e) => console.error("[autopublish] kick", e)));
-    }
-    return done(approval ? "Sent for approval" : "Launched: building your ads now", { ref });
+    const many = refs.length > 1 ? ` on ${refs.length} ad accounts` : "";
+    return done(approval ? `Sent for approval${many}` : `Launched${many}: building your ads now`, { ref: refs[0]! });
   });
 }
 
@@ -627,7 +659,7 @@ export async function resubmitAd(input: { ref: string; node_id: string; copy: { 
     if (n.resubmits >= MAX_RESUBMITS) return { ok: false, message: "This ad was already resubmitted twice. Talk to the Retexia team so the account stays in good standing." };
     const old = launch.snapshot.template.copy;
     if (copy.primary_text === old.primary_text && copy.headline === old.headline && copy.description === old.description) return { ok: false, message: "Change the text first: an unchanged ad would be rejected again." };
-    if (!ctx.account || !accountReady(ctx.account, "meta")) return { ok: false, message: "Your Meta connection needs attention (Accounts)." };
+    if (!ctx.account || !accountReady(ctx.account, "meta")) return { ok: false, message: "Your Meta connection needs attention (Connections)." };
     const fill = (s: string) => s.replace(/\{product\}/gi, ctx.snap.product.name);
     const made = await buildCreative({ ...ctx, account: ctx.account }, n.creative_positions[0]!, `${n.name} · fix ${n.resubmits + 1}`, { message: fill(copy.primary_text), headline: fill(copy.headline), description: fill(copy.description) });
     if (made.kind !== "done" || !made.platform_id) {

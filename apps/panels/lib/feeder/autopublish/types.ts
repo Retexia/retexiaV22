@@ -79,7 +79,7 @@ export type LaunchState =
 
 export type Snapshot = {
   template: TemplateData;
-  product: { id: number | null; name: string; form_name: string; form_names: string[]; price: number | null };
+  product: { id: number | null; name: string; form_name: string; form_names: string[]; price: number | null; details?: string | null; about?: string | null };
   currency: string;
   timezone: string;
   /** UTC ISO; null = as soon as it is approved and built. */

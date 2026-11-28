@@ -38,7 +38,7 @@ export const nameKey = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase(
 /** The evergreen slot row for this customer × platform × objective × product × budget level (reserved first). */
 export async function slotRow(ctx: StepCtx, n: NodeRow) {
   const db = feederDb();
-  const key = { user_id: ctx.launch.user_id, platform: n.platform, objective: ctx.snap.template.objective, product_key: nameKey(ctx.snap.product.form_name).slice(0, 200), budget_level: ctx.snap.template.structure.budget.level };
+  const key = { user_id: ctx.launch.user_id, platform: n.platform, objective: ctx.snap.template.objective, product_key: `${nameKey(ctx.snap.product.form_name).slice(0, 170)}${n.platform === "meta" && ctx.account.meta_ad_account_id ? `|act_${ctx.account.meta_ad_account_id}` : ""}`, budget_level: ctx.snap.template.structure.budget.level };
   await db.from("ad_slots").upsert(key, { onConflict: "user_id,platform,objective,product_key,budget_level", ignoreDuplicates: true });
   const { data, error } = await db.from("ad_slots").select("id, campaign_id, launches").match(key).single();
   if (error || !data) throw new Error(`slot: ${error?.message ?? "missing"}`);
