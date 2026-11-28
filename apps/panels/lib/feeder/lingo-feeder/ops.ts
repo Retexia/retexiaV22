@@ -85,6 +85,40 @@ export async function replyToChat(userId: string, input: { phone: string; text: 
 }
 
 // ---------------------------------------------------------------------------
+// An order taken by phone (the customer didn't text their details back)
+// ---------------------------------------------------------------------------
+const slPhone = z.string().trim().transform((v) => v.replace(/[^\d+]/g, "")).refine((v) => v === "" || /^(\+?94|0)\d{9}$/.test(v), "Enter a Sri Lankan phone number (07X XXX XXXX)");
+const phoneOrderSchema = z.object({
+  phone: phoneKey,
+  product_id: z.coerce.number().int().positive("Pick the product"),
+  qty: z.coerce.number().int().min(1).max(20),
+  name: text(80).min(2, "Enter the name"),
+  address: text(300).min(8, "Enter the full address (house, street, town)"),
+  phone1: slPhone.refine((v) => v !== "", "Enter a phone number"),
+  phone2: slPhone,
+});
+export type PhoneOrderInput = z.input<typeof phoneOrderSchema>;
+
+/** Saves the order as confirmed and sends the customer a thank-you with their details (when WhatsApp's 24 hours allow it). */
+export async function addPhoneOrder(userId: string, input: PhoneOrderInput): Promise<ActionResult<{ sent: boolean }>> {
+  const d = phoneOrderSchema.parse(input);
+  const local = (v: string) => (v ? (v.startsWith("+94") ? `0${v.slice(3)}` : v.startsWith("94") ? `0${v.slice(2)}` : v) : "");
+  const { data, error } = await lfDb().rpc("panel_add_order", { p_user: userId, p: { ...d, phone1: local(d.phone1), phone2: local(d.phone2) } });
+  if (error) return { ok: false, message: dbMessage(error) };
+  const r = data as { ok: boolean; error?: string; order_id?: number; message?: string; window_open?: boolean };
+  if (!r.ok) return { ok: false, message: r.error === "product" ? "That product isn't in your list." : r.error === "chat" ? "This chat doesn't exist." : "Fill in the name, address and phone number." };
+  if (!r.window_open || !r.message) {
+    return { ok: true, message: `Order #${r.order_id} saved. WhatsApp doesn't allow a free message more than 24 hours after their last message, so it wasn't sent.`, data: { sent: false } };
+  }
+  const s = await engine<{ ok: boolean; wa_id?: string | null; error?: string | null }>("send", userId, { to: d.phone, text: r.message });
+  if (!s.ok || !s.data.ok) return { ok: true, message: `Order #${r.order_id} saved, but WhatsApp didn't send the message: ${s.ok ? (s.data.error ?? "unknown error") : s.error}`, data: { sent: false } };
+  const now = new Date().toISOString();
+  await lfDb().from("messages").insert({ user_id: userId, phone: d.phone, role: "s", content: r.message, wa_id: s.data.wa_id, status: "sent", route: "human" });
+  await lfDb().from("chats").update({ last_msg_at: now, last_out_at: now }).eq("user_id", userId).eq("phone", d.phone);
+  return { ok: true, message: `Order #${r.order_id} saved, and the customer got a thank-you with their details.`, data: { sent: true } };
+}
+
+// ---------------------------------------------------------------------------
 // Orders
 // ---------------------------------------------------------------------------
 const orderId = z.coerce.number().int().positive();

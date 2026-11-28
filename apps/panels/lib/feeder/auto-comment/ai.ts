@@ -7,30 +7,49 @@ import { AI_BATCH, buildAiRequest, readAiAnswer, type AiBusiness, type AiComment
 import type { CommentSettings } from "./rules";
 
 /**
- * What the AI knows about a seller: the shared business details (feeder.customers,
- * the same ones Lingo Feeder uses) and their products (My products, with what
- * Lingo Feeder knows about each product when it's there).
+ * What the AI knows about a seller: the shared business details (feeder.customers, the same ones
+ * Lingo Feeder uses), and the products: their own (My products) plus the ones the ads / posts are
+ * about (matched from the post text), with everything Lingo Feeder knows (lingo_feeder.catalog:
+ * the seller's price and delivery fee, description, benefits, how to use, FAQs). And their Lingo
+ * Feeder WhatsApp number, so the private message can send the customer to Lingo to order.
  */
-export async function sellerFacts(userId: string): Promise<{ business: AiBusiness; products: AiProduct[] }> {
+export async function sellerFacts(userId: string, postTexts: string[] = []): Promise<{ business: AiBusiness; products: AiProduct[]; likely: Map<string, number>; whatsapp: string | null }> {
   const db = feederDb();
-  const [{ data: c }, { data: mine }] = await Promise.all([
+  const lf = lfDb();
+  const [{ data: c }, { data: mine }, cat, num] = await Promise.all([
     db.from("customers").select("business_name, location, phone, delivery_days, call_hours, about").eq("user_id", userId).maybeSingle(),
-    db.from("customer_products").select("product_id, price, form_names, products(product_name, price, delivery_fee, aliases)").eq("user_id", userId).limit(60),
+    db.from("customer_products").select("product_id").eq("user_id", userId).limit(60),
+    lf.rpc("catalog", { p_user: userId }).then((r) => r, () => ({ data: null, error: true })),
+    lf.from("numbers").select("display_phone, status").eq("user_id", userId).maybeSingle().then((r) => r.data, () => null),
   ]);
-  type Row = { product_id: number; price: number | null; form_names: string[] | null; products: { product_name: string; price: number; delivery_fee: number; aliases: string[] | null } | null };
-  const rows = ((mine ?? []) as unknown as Row[]).filter((r) => r.products);
-  // Lingo Feeder's product knowledge (the same catalogue IDs); optional.
-  const about = new Map<number, string>();
-  if (rows.length) {
-    try {
-      const { data } = await lfDb().from("products").select("product_id, short_description, benefits").in("product_id", rows.map((r) => r.product_id));
-      for (const p of (data ?? []) as { product_id: number; short_description: string | null; benefits: string | null }[]) {
-        about.set(p.product_id, [p.short_description, p.benefits].filter(Boolean).join(" "));
-      }
-    } catch {
-      // Lingo Feeder's schema isn't exposed: names and prices are enough.
-    }
+  type Cat = { id: number; name: string; price: number; delivery_fee: number; enabled: boolean; short_description: string | null; benefits: string | null; how_to_use: string | null; aliases: string | null; faqs: { q: string; a: string }[] | null };
+  const catalog = ((cat as { data: Cat[] | null }).data ?? []).filter((p) => p.enabled);
+  // Which product each ad / post is about (Lingo Feeder's own matcher).
+  const likely = new Map<string, number>();
+  for (const t of [...new Set(postTexts.map((x) => x.trim()).filter(Boolean))].slice(0, 10)) {
+    const { data } = await lf.rpc("match_products", { p_user: userId, p_text: t.slice(0, 1000), p_limit: 1 }).then((r) => r, () => ({ data: null }));
+    const top = Array.isArray(data) ? (data[0] as { id?: number } | undefined) : undefined;
+    if (top?.id) likely.set(t, top.id);
   }
+  const ids = new Set<number>([...((mine ?? []) as { product_id: number }[]).map((r) => r.product_id), ...likely.values()]);
+  const cut = (t: string | null | undefined, n: number) => (t ?? "").replace(/\*([^*\n]+)\*/g, "$1").replace(/\s+/g, " ").trim().slice(0, n) || null;
+  const products: AiProduct[] = catalog
+    .filter((p) => ids.has(p.id))
+    .slice(0, 25)
+    .map((p) => ({
+      product_id: p.id,
+      name: p.name,
+      price: Number(p.price),
+      delivery_fee: Number(p.delivery_fee),
+      aliases: (p.aliases ?? "").split(",").map((x) => x.trim()).filter(Boolean).slice(0, 8),
+      about: cut(p.short_description, 300),
+      benefits: cut(p.benefits, 400),
+      how_to_use: cut(p.how_to_use, 300),
+      faqs: (p.faqs ?? []).slice(0, 4).map((f) => ({ q: cut(f.q, 120) ?? "", a: cut(f.a, 240) ?? "" })),
+    }));
+  const n = num as { display_phone?: string | null; status?: string } | null;
+  const digits = n?.status === "connected" ? String(n.display_phone ?? "").replace(/\D/g, "") : "";
+  const whatsapp = digits.length >= 9 ? (digits.startsWith("0") ? `94${digits.slice(1)}` : digits) : null;
   return {
     business: {
       business_name: (c?.business_name as string | null) ?? null,
@@ -40,15 +59,16 @@ export async function sellerFacts(userId: string): Promise<{ business: AiBusines
       call_hours: (c?.call_hours as string | null) ?? null,
       about: (c?.about as string | null) ?? null,
     },
-    products: rows.map((r) => ({
-      product_id: r.product_id,
-      name: r.products!.product_name,
-      price: r.price != null ? Number(r.price) : Number(r.products!.price),
-      delivery_fee: Number(r.products!.delivery_fee),
-      aliases: [...(r.products!.aliases ?? []), ...(r.form_names ?? [])],
-      about: about.get(r.product_id) ?? null,
-    })),
+    products,
+    likely,
+    whatsapp,
   };
+}
+
+/** The WhatsApp link to the seller's Lingo Feeder number, with the product name ready to send (Lingo finds the product from it). */
+export function lingoLink(whatsapp: string | null, productName: string | null) {
+  if (!whatsapp) return null;
+  return `https://wa.me/${whatsapp}${productName ? `?text=${encodeURIComponent(`${productName} gena details ona`)}` : ""}`;
 }
 
 export type AiOutcome = { results: Map<string, AiResult>; tokens: number; error: string | null };

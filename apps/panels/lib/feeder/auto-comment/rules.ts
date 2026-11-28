@@ -52,9 +52,10 @@ export const DEFAULT_HIDE_RULES = [
 
 export const DEFAULT_REPLY_STYLE = [
   "Short and friendly, like a real shop owner. Thank them by first name.",
-  "Use the language the customer used: Sinhala, Singlish or English.",
-  "Don't write the price in public: say we sent the details in a message.",
-  "In the private message give the price, cash on delivery and how to order.",
+  "Reply in the customer's language: Sinhala, Singlish or English (Sinhala when unsure).",
+  "When they ask the price, give the price of that product with delivery, and say it's cash on delivery.",
+  "Answer what they asked from the product's details; then say we sent the details in a message.",
+  "In the private message: the price, what it's for, cash on delivery, and how to order on WhatsApp.",
 ].join("\n");
 
 /** Good starting settings for a Feeder reseller (Sinhala, Singlish and English questions). */

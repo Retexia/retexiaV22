@@ -5,9 +5,10 @@ import { Alert, Badge, Button, Card, Field, Input, Select, Textarea } from "@ret
 import { CheckCircle2, CircleAlert, FileVideo, ImageIcon, LoaderCircle, Rocket, Upload, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { createUpload, submitLaunch } from "@/app/feeder/(app)/autopublish/actions";
+import { clearDraft, saveDraft } from "@/app/feeder/(app)/drafts/actions";
 import {
   applyOverrides,
   compile,
@@ -42,7 +43,10 @@ export type StudioAccount = {
 
 type Item = {
   id: string;
-  file: File;
+  /** null for a file restored from the draft (already uploaded). */
+  file: File | null;
+  mime: string;
+  size: number;
   name: string;
   kind: "video" | "image";
   preview: string;
@@ -148,21 +152,64 @@ function Tree({ nodes, platform, currency }: { nodes: PlanNode[]; platform: Plat
  * live preview of exactly what will be made — computed by the same compiler
  * the server uses — then Launch.
  */
-export function LaunchStudio({ templates, products, account, initialTemplate }: { templates: StudioTemplate[]; products: StudioProduct[]; account: StudioAccount; initialTemplate: string | null }) {
+export type StudioDraft = {
+  templateId?: string; productId?: number | ""; formName?: string; o?: Overrides; metaForm?: string; ttForm?: string; adIds?: string[];
+  creatives?: { path: string; name: string; kind: "video" | "image"; mime: string; size: number; width: number | null; height: number | null; duration: number | null; preview: string }[];
+};
+
+export function LaunchStudio({
+  templates, products, account, initialTemplate, draft = null,
+}: { templates: StudioTemplate[]; products: StudioProduct[]; account: StudioAccount; initialTemplate: string | null; draft?: StudioDraft | null }) {
   const router = useRouter();
-  const [templateId, setTemplateId] = useState(initialTemplate && templates.some((t) => t.id === initialTemplate) ? initialTemplate : (templates[0]?.id ?? ""));
-  const [productId, setProductId] = useState<number | "">(products.length === 1 ? products[0]!.product_id : "");
-  const [formName, setFormName] = useState(products.length === 1 ? (products[0]!.form_names[0] ?? products[0]!.name) : "");
-  const [items, setItems] = useState<Item[]>([]);
-  const [o, setO] = useState<Overrides>({});
-  const [metaForm, setMetaForm] = useState("");
-  const [ttForm, setTtForm] = useState("");
+  const d0 = draft ?? {};
+  const [templateId, setTemplateId] = useState(
+    initialTemplate && templates.some((t) => t.id === initialTemplate) ? initialTemplate : d0.templateId && templates.some((t) => t.id === d0.templateId) ? d0.templateId : (templates[0]?.id ?? ""),
+  );
+  const [productId, setProductId] = useState<number | "">(
+    d0.productId && products.some((p) => p.product_id === d0.productId) ? d0.productId : products.length === 1 ? products[0]!.product_id : "",
+  );
+  const [formName, setFormName] = useState(d0.formName ?? (products.length === 1 ? (products[0]!.form_names[0] ?? products[0]!.name) : ""));
+  const [items, setItems] = useState<Item[]>(() =>
+    (d0.creatives ?? []).map((c) => ({ id: crypto.randomUUID(), file: null, mime: c.mime, size: c.size, name: c.name, kind: c.kind, preview: c.preview, width: c.width, height: c.height, duration: c.duration, status: "done" as const, path: c.path, error: null })),
+  );
+  const [o, setO] = useState<Overrides>(d0.o ?? {});
+  const [metaForm, setMetaForm] = useState(d0.metaForm ?? "");
+  const [ttForm, setTtForm] = useState(d0.ttForm ?? "");
   const adAccounts = account.adAccounts ?? [];
   // Several ad accounts at once: one launch each (TikTok only with the first).
   const [adIds, setAdIds] = useState<string[]>(() => {
+    const kept = (d0.adIds ?? []).filter((id) => adAccounts.some((a) => a.id === id));
+    if (kept.length) return kept;
     const d = adAccounts.find((a) => a.isDefault)?.id ?? adAccounts[0]?.id;
     return d ? [d] : [];
   });
+
+  // The draft: kept on Retexia while you work (a second after each change), cleared after a launch or "Start over".
+  const [savedAt, setSavedAt] = useState(Boolean(draft));
+  const skipFirst = useRef(true);
+  useEffect(() => {
+    if (skipFirst.current) {
+      skipFirst.current = false;
+      return;
+    }
+    const uploaded = items.filter((c) => c.status === "done" && c.path);
+    const t = setTimeout(() => {
+      void saveDraft({
+        tool: "autopublish",
+        data: {
+          templateId, productId, formName, o, metaForm, ttForm, adIds,
+          creatives: uploaded.map((c) => ({ path: c.path, name: c.name, kind: c.kind, mime: c.mime, size: c.size, width: c.width, height: c.height, duration: c.duration })),
+        },
+      }).then((r) => r.ok && setSavedAt(true));
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [templateId, productId, formName, o, metaForm, ttForm, adIds, items]);
+  const startOver = async () => {
+    await clearDraft({ tool: "autopublish" });
+    setProductId(""); setFormName(""); setItems([]); setO({}); setMetaForm(""); setTtForm(""); setSavedAt(false);
+    skipFirst.current = true;
+    toast.success("Started over.");
+  };
   const toggleAd = (id: string) => setAdIds((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id]));
   const otherCurrency = adAccounts.filter((a) => adIds.includes(a.id) && a.currency && a.currency !== account.currency);
   const [busy, setBusy] = useState(false);
@@ -240,7 +287,7 @@ export function LaunchStudio({ templates, products, account, initialTemplate }: 
       const id = crypto.randomUUID();
       const url = URL.createObjectURL(file);
       const meta = await readMeta(file, url);
-      const item: Item = { id, file, name: file.name.replace(/\.[^.]+$/, "").slice(0, 120), kind, preview: url, ...meta, status: "uploading", path: null, error: null };
+      const item: Item = { id, file, mime: file.type, size: file.size, name: file.name.replace(/\.[^.]+$/, "").slice(0, 120), kind, preview: url, ...meta, status: "uploading", path: null, error: null };
       setItems((x) => [...x, item]);
       void upload(item);
     }
@@ -248,6 +295,7 @@ export function LaunchStudio({ templates, products, account, initialTemplate }: 
 
   async function upload(item: Item) {
     const set = (p: Partial<Item>) => setItems((x) => x.map((i) => (i.id === item.id ? { ...i, ...p } : i)));
+    if (!item.file) return;
     const r = await createUpload({ name: item.file.name, type: item.file.type, size: item.file.size });
     if (!r.ok || !r.data) return set({ status: "error", error: r.ok ? "Upload failed" : r.message });
     const { error } = await createBrowserClient().storage.from("autopublish").uploadToSignedUrl(r.data.path, r.data.token, item.file, { contentType: item.file.type });
@@ -263,7 +311,7 @@ export function LaunchStudio({ templates, products, account, initialTemplate }: 
       template_id: templateId,
       product_id: product.product_id,
       form_name: usedName,
-      creatives: items.map((c) => ({ path: c.path!, name: c.name.trim() || "Creative", kind: c.kind, mime: c.file.type, size: c.file.size, width: c.width, height: c.height, duration: c.duration })),
+      creatives: items.map((c) => ({ path: c.path!, name: c.name.trim() || "Creative", kind: c.kind, mime: c.mime, size: c.size, width: c.width, height: c.height, duration: c.duration })),
       overrides: o,
       meta_form: pickedMeta ? { id: pickedMeta.id, name: pickedMeta.name } : null,
       tiktok_form: pickedTt ? { id: pickedTt.id, name: pickedTt.name } : null,
@@ -275,6 +323,7 @@ export function LaunchStudio({ templates, products, account, initialTemplate }: 
       return toast.error(r.message);
     }
     toast.success(r.message ?? "Launched");
+    await clearDraft({ tool: "autopublish" });
     router.push(`/autopublish/launches/${r.data!.ref}`);
   }
 
@@ -312,7 +361,17 @@ export function LaunchStudio({ templates, products, account, initialTemplate }: 
         ) : null}
 
         <Card className="flex flex-col gap-4">
-          <h2 className="type-h2 text-ink">1 · Product</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="type-h2 text-ink">1 · Product</h2>
+            <span className="flex items-center gap-2 type-small text-ink-muted">
+              {savedAt ? "Draft saved" : null}
+              {savedAt ? (
+                <Button size="sm" variant="ghost" onClick={startOver}>
+                  Start over
+                </Button>
+              ) : null}
+            </span>
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Product" error={fe("product_id") ?? fe("product")} required>
               <Select value={String(productId)} onChange={(e) => pickProduct(e.target.value)} placeholder="Choose a product" options={products.map((p) => ({ value: String(p.product_id), label: p.name }))} />
@@ -443,7 +502,7 @@ export function LaunchStudio({ templates, products, account, initialTemplate }: 
                       <p className="flex items-center gap-1.5 type-small text-ink-muted">
                         {c.kind === "video" ? <FileVideo aria-hidden size={14} /> : <ImageIcon aria-hidden size={14} />}
                         {c.width && c.height ? `${c.width}×${c.height}` : ""}
-                        {c.duration ? ` · ${c.duration}s` : ""} · {(c.file.size / 1024 / 1024).toFixed(1)} MB
+                        {c.duration ? ` · ${c.duration}s` : ""} · {(c.size / 1024 / 1024).toFixed(1)} MB
                       </p>
                       {c.status === "uploading" ? (
                         <p className="flex items-center gap-1.5 type-small text-brand">

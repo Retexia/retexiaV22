@@ -3,7 +3,7 @@ import "server-only";
 import { gateway, gatewayReady, type GatewayReply } from "../autopublish/gateway";
 import { asSeller, sellerToken } from "../meta-connection";
 import { feederDb } from "../db";
-import { askAi, sellerFacts } from "./ai";
+import { askAi, lingoLink, sellerFacts } from "./ai";
 import { combine, type AiResult } from "./ai-prompt";
 import { decide, readSettings, type CommentSettings } from "./rules";
 
@@ -161,12 +161,15 @@ async function checkPage(row: Record<string, unknown>, page: string, counts: Che
   let aiError: string | null = null;
   let aiTokens = 0;
   let ai = new Map<string, AiResult>();
-  if (s.ai_on && fresh.length) {
-    const facts = await sellerFacts(userId);
+  // The products (and which one each post is about) and the Lingo Feeder WhatsApp link, for the AI and for private messages.
+  const facts = fresh.length ? await sellerFacts(userId, unique.map((p) => p.message ?? "")) : null;
+  const likelyOf = (p: Post) => facts?.likely.get((p.message ?? "").trim()) ?? null;
+  if (s.ai_on && fresh.length && facts) {
     const out = await askAi({
       settings: s,
-      ...facts,
-      posts: unique.map((p) => ({ id: p.id, kind: p.kind, text: p.message ?? "" })),
+      business: facts.business,
+      products: facts.products,
+      posts: unique.map((p) => ({ id: p.id, kind: p.kind, text: p.message ?? "", likely_product_id: likelyOf(p) })),
       comments: fresh.map(({ c, post }) => ({ id: c.id, post_id: post.id, name: (c.from?.name ?? "").split(/\s+/)[0] ?? "", text: c.message ?? "" })),
     });
     ai = out.results;
@@ -177,6 +180,13 @@ async function checkPage(row: Record<string, unknown>, page: string, counts: Che
   for (const { c, post } of fresh) {
     if (actions >= MAX_ACTIONS) break;
     const d = combine(decide(s, { id: c.id, message: c.message, author: c.from?.name }), ai.get(c.id));
+    // The private message sends them to Lingo on WhatsApp (with the product named, so Lingo knows it).
+    if (d.private && facts) {
+      const pid = d.product_id ?? likelyOf(post);
+      const link = lingoLink(facts.whatsapp, facts.products.find((x) => x.product_id === pid)?.name ?? null);
+      if (link) d.private = `${d.private}\n\n💬 WhatsApp: ${link}`.slice(0, 990);
+      if (!d.product_id && pid) d.product_id = pid;
+    }
     const id = await claim({
       kind: "comment", dedupe: `c:${c.id}`, post_id: post.id, post_kind: post.kind, comment_id: c.id,
       author: c.from?.name?.slice(0, 120) ?? null, message: (c.message ?? "").slice(0, 2000), commented_at: c.created_time ?? null,

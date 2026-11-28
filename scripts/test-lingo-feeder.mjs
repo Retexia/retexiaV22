@@ -19,6 +19,7 @@ await q(`insert into public.products (slug, code, name, short_name, status) valu
 await db.exec(readFileSync(new URL("../supabase/migrations/0039_lingo_feeder.sql", import.meta.url), "utf8"));
 await db.exec(readFileSync(new URL("../supabase/migrations/0042_lingo_feeder_details_voice.sql", import.meta.url), "utf8"));
 await db.exec(readFileSync(new URL("../supabase/migrations/0043_lingo_feeder_human.sql", import.meta.url), "utf8"));
+await db.exec(readFileSync(new URL("../supabase/migrations/0051_lingo_feeder_win_back_phone_orders.sql", import.meta.url), "utf8"));
 // Follow-ups at any hour in tests.
 await q(`update lingo_feeder.settings set value = value || '{"followup_from": 0, "followup_to": 24}' where key = 'timing'`);
 
@@ -358,6 +359,28 @@ const search = (await as("service_role", null, `select lingo_feeder.panel_chats(
 ok(search.length === 1 && search[0].phone === C3, "search by name");
 ok(sentToWa.every((b) => b.messaging_product === "whatsapp" && (b.type !== "interactive" || b.interactive.body.text.length <= 1024)), "every WhatsApp message is valid (bodies within limits)");
 ok(sentToWa.filter((b) => b.type === "interactive" && b.interactive.type === "button").every((b) => b.interactive.action.buttons.every((x) => Array.from(x.reply.title).length <= 20)), "button titles fit WhatsApp's 20 characters");
+
+
+console.log("Lingo Feeder: a customer who backs off hears once why it suits them");
+const C9 = "94779990001";
+await wh(A, C9, text("Hello! Can I get more info on this?"), "Kamal Silva", AD);
+brainNext = [{ ...BLANK, intent: "not_interested", lang: "sg", memo: "Has gastritis for years; says too expensive", reply: "Therenawa dr 😊 Oyage gastric ekata meka godak udaw wei. Badu gedarata awama thamai gewanne. Order karannada?" }];
+r = await wh(A, C9, text("Ganan wadi, passe balannam"));
+ok(r.outs[0].kind === "buttons" && /udaw wei/.test(r.outs[0].text) && JSON.stringify(r.outs[0].body.interactive.action.buttons.map((b) => b.reply.id)) === '["ORDER","CALL"]', "the first no: why it suits them, pay at the door, with 🛒 Order and 📞 Call buttons");
+ok((await chatRow(A, C9)).status !== "not_interested", "…and the chat isn't marked not interested yet");
+brainNext = [{ ...BLANK, intent: "not_interested", lang: "sg", reply: "Ane meka gannako, godak hondai!" }];
+r = await wh(A, C9, text("Na epa"));
+ok(r.outs[0].kind === "text" && !/gannako/.test(r.outs[0].text) && (await chatRow(A, C9)).status === "not_interested", "the second no is accepted kindly (no more selling)");
+
+console.log("Lingo Feeder: the seller takes the order by phone");
+const po = (await as("service_role", null, `select lingo_feeder.panel_add_order($1, $2::jsonb) r`, [A, JSON.stringify({ phone: C9, product_id: GASTRIC, qty: 2, name: "Kamal Silva", address: "12, Temple Road, Galle", phone1: "0779990001" })])).rows[0].r;
+ok(po.ok && po.window_open && /Kamal/.test(po.message) && po.message.includes("12, Temple Road, Galle") && po.message.includes("× 2") && !/\{/.test(po.message), "it's saved, and the thank-you message has their details filled in (in their language)");
+const pord = await one(`select status, qty, total::float, product_id from lingo_feeder.orders where id = $1`, [po.order_id]);
+ok(pord.status === "confirmed" && pord.qty === 2 && pord.total === cat[GASTRIC].price * 2 + cat[GASTRIC].delivery_fee, "a confirmed order with the seller's price × qty + delivery");
+const pc = await chatRow(A, C9);
+ok(pc.status === "ordered" && pc.details.address === "12, Temple Road, Galle" && !pc.needs_call, "the chat is ordered, with their details for next time");
+ok(!(await as("service_role", null, `select lingo_feeder.panel_add_order($1, $2::jsonb) r`, [A, JSON.stringify({ phone: C9, product_id: GASTRIC, qty: 1, name: "", address: "x", phone1: "" })])).rows[0].r.ok, "missing details are refused");
+ok(!(await as("service_role", null, `select lingo_feeder.panel_add_order($1, $2::jsonb) r`, [Bu, JSON.stringify({ phone: C9, product_id: GASTRIC, qty: 1, name: "X Y", address: "Somewhere 1", phone1: "0771234567" })])).rows[0].r.ok, "another seller can't add an order to this chat");
 
 console.log("Lingo Feeder: profit report");
 const pkgId = (await one(`select k.id from public.packages k join public.products p on p.id = k.product_id where p.slug = 'feeder' and k.slug = 'lingo-feeder'`)).id;

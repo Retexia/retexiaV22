@@ -2,7 +2,8 @@ import { Alert, Button, Card } from "@retexia/ui";
 import { PageHeader } from "@retexia/ui/admin";
 import { Lock } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
-import { BulkImportV2 } from "@/components/feeder/bulk-import-v2";
+import { BulkImportV2, type BulkDraft } from "@/components/feeder/bulk-import-v2";
+import { getDraft } from "@/lib/feeder/drafts";
 import { requireFeederPage } from "@/lib/feeder/access";
 import { mySetup } from "@/lib/feeder/data";
 import { toolFor } from "@/lib/feeder/tools";
@@ -44,7 +45,7 @@ export default async function FeederPackagePage({ params }: { params: Promise<{ 
     <div className="flex flex-col gap-6">
       <PageHeader title={p.name} description={p.tagline ?? undefined} />
       {tool === "bulk-import-v2" ? (
-        <BulkImportV2 productCount={count} crmLinks={setup?.customer?.crm_links ?? []} />
+        <BulkImportV2 productCount={count} crmLinks={setup?.customer?.crm_links ?? []} draft={tool === "bulk-import-v2" ? ((await getDraft<BulkDraft>(user.id, "bulk_create").catch(() => null))?.data ?? null) : null} />
       ) : (
         <Alert tone="info" title="We're setting this up">
           {p.name} is on your account{p.orderRef ? ` (request ${p.orderRef})` : ""}. It opens here as soon as it&apos;s ready; we&apos;ll message you.

@@ -159,4 +159,14 @@ ok((await as("authenticated", admin, `select user_id from feeder.comment_setting
 await q(`delete from auth.users where id = $1`, [amaya]);
 ok((await q(`select count(*)::int n from feeder.comment_log where user_id = $1`, [amaya]))[0].n === 0, "deleting a customer removes their settings and log");
 
+
+console.log("Feeder drafts (0052)");
+const dUser = await user("drafts@example.com");
+await q(`insert into feeder.drafts (user_id, tool, data) values ($1, 'autopublish', '{"productId": 226}')`, [dUser]);
+await q(`insert into feeder.drafts (user_id, tool, data) values ($1, 'autopublish', '{"productId": 227}') on conflict (user_id, tool) do update set data = excluded.data`, [dUser]);
+ok((await q(`select count(*)::int n, max((data->>'productId')::int) p from feeder.drafts where user_id = $1`, [dUser]))[0].p === 227, "one draft per seller per tool (saving again replaces it)");
+await expectError(() => q(`insert into feeder.drafts (user_id, tool) values ($1, 'other')`, [dUser]), "only the known tools", /check/);
+ok((await as("authenticated", dUser, `select tool from feeder.drafts`)).rows.length === 1 && (await as("authenticated", kasun, `select tool from feeder.drafts`)).rows.length === 0, "a seller sees only their own drafts");
+await expectError(() => as("authenticated", dUser, `delete from feeder.drafts`), "drafts are changed through feeder.retexia.com only", /permission denied/);
+
 summary();

@@ -615,7 +615,7 @@ export function compile(input: CompileInput): CompileResult {
     // Meta creatives: one per creative, used by every ad that shows it.
     if (p === "meta") {
       for (const pos of positions) {
-        add({ key: `k${pos}`, level: "creative", parent_key: null, depends_on: [`m${pos}`, ...(form ? [form] : [])], action: "create", existing_id: null, creative_positions: [pos], audience_index: null, name: clip(`${F} · #${pos} ${nameOf(pos)}`), budget_daily: null, budget_lifetime: null });
+        add({ key: `k${pos}`, level: "creative", parent_key: null, depends_on: [`m${pos}`, ...(form ? [form] : [])], action: "create", existing_id: null, creative_positions: [pos], audience_index: null, name: clip(`${F} · #${pos}`), budget_daily: null, budget_lifetime: null });
       }
     }
 
@@ -639,7 +639,7 @@ export function compile(input: CompileInput): CompileResult {
     } else if (s.campaign.per === "creative") {
       positions.forEach((pos, i) => {
         const b = s.budget.level === "campaign" ? budgetNode(amount) : budgetNode(null);
-        camps.push({ key: add({ key: `c${i + 1}`, level: "campaign", parent_key: null, depends_on: [], action: "create", existing_id: null, creative_positions: [pos], audience_index: null, name: clip(`${F} · #${pos} ${nameOf(pos)} · ${D}`), ...b }), positions: [pos] });
+        camps.push({ key: add({ key: `c${i + 1}`, level: "campaign", parent_key: null, depends_on: [], action: "create", existing_id: null, creative_positions: [pos], audience_index: null, name: clip(`${F} · #${pos} · ${D}`), ...b }), positions: [pos] });
       });
     } else {
       const b = s.budget.level === "campaign" ? budgetNode(amount) : budgetNode(null);
@@ -685,7 +685,7 @@ export function compile(input: CompileInput): CompileResult {
             existing_id: null,
             creative_positions: [pos],
             audience_index: set.audience,
-            name: clip(`${F} · #${pos} ${nameOf(pos)}`),
+            name: clip(`${F} · #${pos}`),
             budget_daily: null,
             budget_lifetime: null,
           });

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { AccessError, dbMessage, run, type ActionResult } from "@/lib/action";
 import { autoCommentUser } from "@/lib/feeder/auto-comment/data";
-import { askAi, sellerFacts } from "@/lib/feeder/auto-comment/ai";
+import { askAi, lingoLink, sellerFacts } from "@/lib/feeder/auto-comment/ai";
 import { combine, type FinalDecision } from "@/lib/feeder/auto-comment/ai-prompt";
 import { decide, defaultSettings, LIMITS, readSettings } from "@/lib/feeder/auto-comment/rules";
 import { checkComments, commentPages, type CheckCounts } from "@/lib/feeder/auto-comment/runner";
@@ -130,16 +130,23 @@ export async function tryComment(input: z.input<typeof tryInput>): Promise<Actio
     const base = decide(s, { id: "try", message: v.text, author: v.name });
     let aiNote: string | null = null;
     let result: FinalDecision = combine(base, undefined);
+    const facts = await sellerFacts(u.id, v.post ? [v.post] : []);
+    const likely = v.post ? (facts.likely.get(v.post.trim()) ?? null) : null;
     if (s.ai_on) {
-      const facts = await sellerFacts(u.id);
       const out = await askAi({
         settings: s,
-        ...facts,
-        posts: [{ id: "try_post", kind: "ad", text: v.post }],
+        business: facts.business,
+        products: facts.products,
+        posts: [{ id: "try_post", kind: "ad", text: v.post, likely_product_id: likely }],
         comments: [{ id: "try", post_id: "try_post", name: v.name.split(/\s+/)[0] ?? "", text: v.text }],
       });
       result = combine(base, out.results.get("try"));
       if (!result.ai) aiNote = out.error ? `${out.error} This is the backup reply.` : "The AI didn't answer. This is the backup reply.";
+    }
+    if (result.private) {
+      const pid = result.product_id ?? likely;
+      const link = lingoLink(facts.whatsapp, facts.products.find((x) => x.product_id === pid)?.name ?? null);
+      if (link) result = { ...result, private: `${result.private}\n\n💬 WhatsApp: ${link}` };
     }
     return { ok: true, data: { ...result, aiNote } };
   });

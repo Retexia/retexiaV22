@@ -143,6 +143,15 @@ export async function replyToChat(input: { phone: string; text: string }) {
   });
 }
 
+/** An order taken by phone: saved as confirmed, and the customer gets a thank-you with their details. */
+export async function addPhoneOrder(input: ops.PhoneOrderInput) {
+  return run(async () => {
+    const { userId } = await actor();
+    const r = await ops.addPhoneOrder(userId, input);
+    return r.ok ? done(r.message ?? "Saved.", r.data) : r;
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Orders
 // ---------------------------------------------------------------------------

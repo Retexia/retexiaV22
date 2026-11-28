@@ -353,9 +353,16 @@ if (intent === 'spam') {
     needsCall = true; pause = true; callReason = `Complaint: "${cut(u.now, 100)}"`;
     step({ kind: 'text', text: T('complaint', V()) }); log.push('[complaint: the shop will call]');
   } else if (intent === 'not_interested' || (intent === 'no' && !chat.awaiting)) {
-    notInterested = true;
     const r = aiFrom ? aiReply() : '';
-    step({ kind: 'text', text: r || T('not_interested', V()) }); log.push('[not interested]');
+    const triedOnce = (ctx.history || []).some(h => /\[showed why it suits them\]/.test(String(h.c)));
+    if (!triedOnce && prod && status0 !== 'ordered' && !ctx.last_order) {
+      // They back off: once, a warm reason why it suits THEM (the AI, from the product's facts), no risk (pay at the door), and the Order button.
+      step({ kind: 'buttons', text: r || T('win_back', V()), buttons: [B('ORDER', 'btn_order'), B('CALL', 'btn_call')] });
+      log.push('[showed why it suits them]');
+    } else {
+      notInterested = true;
+      step({ kind: 'text', text: (triedOnce ? '' : r) || T('not_interested', V()) }); log.push('[not interested]');
+    }
   } else if (intent === 'opener' || (intent === 'greet' && firstContact)) {
     if (!firstContact && !needIntro) okReply();                 // the welcome is added below on the first message
   } else if (['thanks', 'ok', 'greet'].includes(intent) || (aiFrom && intent === 'chat' && !String(c.reply || '').trim())) {

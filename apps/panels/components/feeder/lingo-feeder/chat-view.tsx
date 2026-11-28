@@ -8,8 +8,9 @@ import { markCalled, replyToChat, setChatPaused, setChatStatus } from "@/app/fee
 import type { Chat, Message, Order } from "@/lib/feeder/lingo-feeder/data";
 import { LANG, SET_STATUSES, lkr, statusOf, showPhone, timeAgo, when, windowOpen } from "@/lib/feeder/lingo-feeder/labels";
 import { Bubble, StatusBadge, useAction } from "./common";
+import { PhoneOrder } from "./phone-order";
 
-export function ChatView({ chat, messages, orders, product }: { chat: Chat; messages: Message[]; orders: Order[]; product: { product_id: number; name: string; picture_url: string | null } | null }) {
+export function ChatView({ chat, messages, orders, product, catalog = [] }: { chat: Chat; messages: Message[]; orders: Order[]; product: { product_id: number; name: string; picture_url: string | null } | null; catalog?: { id: number; name: string; price: number; delivery_fee: number }[] }) {
   const { pending, go } = useAction();
   const [reply, setReply] = useState("");
   const end = useRef<HTMLDivElement>(null);
@@ -118,6 +119,7 @@ export function ChatView({ chat, messages, orders, product }: { chat: Chat; mess
             </div>
             {chat.memo ? <p className="type-small text-ink-muted">Lingo&apos;s note: {chat.memo}</p> : null}
           </Card>
+          <PhoneOrder phone={chat.phone} productId={chat.product_id ?? null} details={chat.details ?? null} profileName={chat.profile_name ?? null} catalog={catalog} windowOpen={open} />
           <Card className="flex flex-col gap-2">
             <h3 className="type-label text-ink">Orders</h3>
             {orders.length ? (

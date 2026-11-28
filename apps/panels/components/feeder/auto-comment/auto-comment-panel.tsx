@@ -135,14 +135,14 @@ export function AutoCommentPanel({ status, log, stats }: { status: CommentStatus
         {/* Settings */}
         <div className="flex flex-col gap-6">
           <Section
-            title="AI"
-            description="The AI reads every comment with your products (My products) and your business details, then hides what you describe below, writes the reply and the private message. Write in your own words, in English, Sinhala or Singlish."
+            title="How it behaves"
+            description="The AI reads every comment with your products (price, what it's for, how to use, from Lingo Feeder's product details) and your business details. It answers in the customer's language (Sinhala first), hides what you describe, and sends them to Lingo on WhatsApp to order. Change how it behaves in your own words, in English, Sinhala or Singlish."
             aside={<Switch checked={s.ai_on} onCheckedChange={(v) => set("ai_on", v)} label="Use AI" />}
           >
             <Field label="What to hide" optionalLabel="" hint="Which comments should disappear. Real questions and complaints are answered, not hidden." error={errors.hide_rules}>
               <Textarea rows={6} maxLength={LIMITS.instructions} value={s.hide_rules} disabled={!s.ai_on} onChange={(e) => set("hide_rules", e.target.value)} />
             </Field>
-            <Field label="How to reply" optionalLabel="" hint="Tone, what to say in public and what in the private message." error={errors.reply_style}>
+            <Field label="How to reply" optionalLabel="" hint="Tone, what to say in public, what in the private message, anything it should always or never say." error={errors.reply_style}>
               <Textarea rows={5} maxLength={LIMITS.instructions} value={s.reply_style} disabled={!s.ai_on} onChange={(e) => set("reply_style", e.target.value)} />
             </Field>
             <div className="flex flex-wrap gap-6">
@@ -152,6 +152,11 @@ export function AutoCommentPanel({ status, log, stats }: { status: CommentStatus
             </div>
           </Section>
 
+          <details className="group rounded-lg border border-line bg-surface-raised">
+            <summary className="cursor-pointer list-none px-5 py-4 type-label text-ink">
+              Backup replies <span className="type-small text-ink-muted">(only when the AI is off or can&apos;t answer) ▾</span>
+            </summary>
+            <div className="flex flex-col gap-6 border-t border-line p-4">
           <Section
             title="Backup replies"
             description="Used when the AI is off or can't answer. The first rule whose words are in the comment answers it; otherwise one of your default replies. {name} becomes the commenter's first name."
@@ -208,6 +213,9 @@ export function AutoCommentPanel({ status, log, stats }: { status: CommentStatus
               <Textarea rows={3} maxLength={LIMITS.text} value={s.private_text} onChange={(e) => set("private_text", e.target.value)} />
             </Field>
           </Section>
+
+            </div>
+          </details>
 
           <Section
             title="First comment"
@@ -278,38 +286,79 @@ export function AutoCommentPanel({ status, log, stats }: { status: CommentStatus
             ) : null}
           </Section>
 
-          <Section title="What it did" description="The newest first.">
-            {log.length ? (
-              <ul className="flex flex-col gap-3">
-                {log.map((l) => (
-                  <li key={l.id} className="flex flex-col gap-1.5 border-b border-line pb-3 last:border-b-0 last:pb-0">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Badge tone="neutral">{l.post_kind === "ad" ? "Ad" : "Post"}</Badge>
-                      {l.ai ? <Badge tone="brand">AI</Badge> : null}
-                      {l.kind === "first_comment" ? <Badge tone={l.status === "done" ? "brand" : "danger"}>First comment</Badge> : null}
-                      {l.done.includes("replied") ? <Badge tone="success">Replied</Badge> : null}
-                      {l.done.includes("private") ? <Badge tone="success">Messaged</Badge> : null}
-                      {l.done.includes("hidden") ? <Badge tone="warning">Hidden</Badge> : null}
-                      {l.status === "failed" && l.kind === "comment" ? <Badge tone="danger">Failed</Badge> : null}
-                      <span className="type-small text-ink-muted">{ago(l.created_at)}</span>
-                    </div>
-                    {l.kind === "comment" ? (
-                      <p className="type-small text-ink">
-                        <span className="text-ink-muted">{l.author ? `${l.author.split(/\s+/)[0]}: ` : ""}</span>
-                        {l.message || <em className="text-ink-muted">(a sticker or photo)</em>}
-                      </p>
-                    ) : null}
-                    {l.reply && l.done.some((d) => d === "replied" || d === "first_comment") ? <p className="type-small text-ink-muted">↳ {l.reply}</p> : null}
-                    {l.error ? <p className="type-small text-danger">{l.error}</p> : null}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="type-small text-ink-muted">Nothing yet. Switch Auto comment on, then comment on one of your ads to see it work.</p>
-            )}
-          </Section>
         </div>
       </div>
+
+      <Comments log={log} />
     </div>
+  );
+}
+
+/** The comments and what was answered, like a chat: the customer on the left, the Page on the right. */
+function Comments({ log }: { log: LogItem[] }) {
+  const [filter, setFilter] = useState<"all" | "replied" | "hidden" | "failed">("all");
+  const shown = log.filter((l) =>
+    filter === "all" ? true : filter === "replied" ? l.done.includes("replied") || l.done.includes("private") : filter === "hidden" ? l.done.includes("hidden") : l.status === "failed" || l.status === "partly",
+  );
+  const first = (n: string | null) => (n ?? "").split(/\s+/)[0] || "Someone";
+  return (
+    <Card className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <h2 className="type-h3 text-ink">Comments</h2>
+          <p className="type-small text-ink-muted">Every comment Auto comment handled, newest first, with what the Page said.</p>
+        </div>
+        <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Show">
+          {(["all", "replied", "hidden", "failed"] as const).map((f) => (
+            <button
+              key={f}
+              type="button"
+              role="tab"
+              aria-selected={filter === f}
+              onClick={() => setFilter(f)}
+              className={`rounded-full border px-3 py-1 type-small focus-visible:focus-ring ${filter === f ? "border-brand bg-brand-soft text-brand" : "border-line text-ink-muted hover:text-ink"}`}
+            >
+              {f === "all" ? "All" : f === "replied" ? "Answered" : f === "hidden" ? "Hidden" : "Problems"}
+            </button>
+          ))}
+        </div>
+      </div>
+      {shown.length ? (
+        <ul className="flex flex-col gap-3">
+          {shown.map((l) => (
+            <li key={l.id} className="flex flex-col gap-2 rounded-lg border border-line bg-surface-sunk p-3">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge tone="neutral">{l.post_kind === "ad" ? "Ad" : "Post"}</Badge>
+                {l.ai ? <Badge tone="brand">AI</Badge> : null}
+                {l.done.includes("hidden") ? <Badge tone="warning">Hidden{l.hidden_why ? ` · ${l.hidden_why}` : ""}</Badge> : null}
+                {l.status === "failed" ? <Badge tone="danger">Failed</Badge> : l.status === "partly" ? <Badge tone="warning">Partly done</Badge> : null}
+                <span className="type-small text-ink-muted">{ago(l.created_at)}</span>
+              </div>
+              {l.kind === "comment" ? (
+                <div className={`flex max-w-[85%] flex-col gap-0.5 self-start rounded-lg rounded-tl-sm border border-line bg-surface-raised px-3 py-2 ${l.done.includes("hidden") ? "opacity-60" : ""}`}>
+                  <span className="type-caption text-ink-muted">{first(l.author)}</span>
+                  <p className="type-body whitespace-pre-wrap break-words text-ink">{l.message || <em className="text-ink-muted">(a sticker or photo)</em>}</p>
+                </div>
+              ) : null}
+              {l.reply && l.done.some((d) => d === "replied" || d === "first_comment") ? (
+                <div className="flex max-w-[85%] flex-col gap-0.5 self-end rounded-lg rounded-tr-sm bg-brand-soft px-3 py-2">
+                  <span className="type-caption text-brand">{l.kind === "first_comment" ? "Page · first comment" : "Page · reply under the comment"}</span>
+                  <p className="type-body whitespace-pre-wrap break-words text-ink">{l.reply}</p>
+                </div>
+              ) : null}
+              {l.private_text && l.done.includes("private") ? (
+                <div className="flex max-w-[85%] flex-col gap-0.5 self-end rounded-lg rounded-tr-sm bg-success-soft px-3 py-2">
+                  <span className="type-caption text-success">Page · private message (Messenger)</span>
+                  <p className="type-body whitespace-pre-wrap break-words text-ink">{l.private_text}</p>
+                </div>
+              ) : null}
+              {l.error ? <p className="type-small text-danger">{l.error}</p> : null}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="type-small text-ink-muted">{log.length ? "Nothing here." : "Nothing yet. Switch Auto comment on, then comment on one of your ads to see it work."}</p>
+      )}
+    </Card>
   );
 }

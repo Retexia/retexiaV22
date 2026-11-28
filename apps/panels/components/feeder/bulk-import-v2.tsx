@@ -2,7 +2,8 @@
 
 import { Alert, Button, Card, Switch } from "@retexia/ui";
 import { FileSpreadsheet, Sheet, Upload, X } from "lucide-react";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { saveDraft } from "@/app/feeder/(app)/drafts/actions";
 import { FacebookIcon, TikTokIcon } from "@/components/post/brand-icons";
 import { ProductsCard, downloadCsv } from "./bulk-import";
 import { CrmLinks } from "./crm-links";
@@ -123,11 +124,23 @@ function DropZone({ source, files, onAdd, onRemove, disabled }: { source: Source
  * must be on and have something in it. Nothing is stored: files pass through
  * to the Feeder worker and the CSV downloads to this computer.
  */
-export function BulkImportV2({ productCount, crmLinks }: { productCount: number; crmLinks: string[] }) {
-  const [useImport, setUseImport] = useState(true);
-  const [useCrm, setUseCrm] = useState(crmLinks.length > 0);
+export type BulkDraft = { useImport?: boolean; useCrm?: boolean; chosen?: string[] };
+
+export function BulkImportV2({ productCount, crmLinks, draft = null }: { productCount: number; crmLinks: string[]; draft?: BulkDraft | null }) {
+  const [useImport, setUseImport] = useState(draft?.useImport ?? true);
+  const [useCrm, setUseCrm] = useState(draft?.useCrm ?? crmLinks.length > 0);
   const [files, setFiles] = useState<Record<Source, File[]>>({ facebook: [], tiktok: [] });
-  const [chosen, setChosen] = useState<string[]>(crmLinks);
+  const [chosen, setChosen] = useState<string[]>(draft?.chosen ? draft.chosen.filter((l) => crmLinks.includes(l)) : crmLinks);
+  // The draft: your choices are kept on Retexia (lead files from your computer have to be added again).
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    const t = setTimeout(() => void saveDraft({ tool: "bulk_create", data: { useImport, useCrm, chosen } }), 800);
+    return () => clearTimeout(t);
+  }, [useImport, useCrm, chosen]);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Result>(null);
   const [error, setError] = useState<string | null>(null);
