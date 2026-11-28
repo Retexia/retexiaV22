@@ -5,7 +5,7 @@ import { CheckCircle2, CircleAlert, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { checkAccount, saveAccount } from "@/app/feeder/(app)/autopublish/actions";
+import { checkAccount, saveAccount, saveTiktokToken } from "@/app/feeder/(app)/autopublish/actions";
 import type { AccountRow } from "@/lib/feeder/autopublish/types";
 import { CONN_STATE, timeAgo } from "./labels";
 
@@ -94,6 +94,9 @@ export function AccountsForm({ account: a, metaBusinessId, tiktokBusinessCenterI
   const [busy, setBusy] = useState<string | null>(null);
   const set = (k: keyof typeof v) => (e: { target: { value: string } }) => setV((x) => ({ ...x, [k]: e.target.value }));
   const identities = a?.tiktok_info?.identities ?? [];
+  const ttOwn = a?.tiktok_via === "token";
+  const ttPartner = !ttOwn && Boolean(a?.tiktok_advertiser_id);
+  const [ttToken, setTtToken] = useState("");
   // Own Business portfolio (Connections → Facebook): the ad account and Page come from there.
   const own = a?.meta_via === "token";
   // The older way (shared with Retexia's business) only for sellers already set up like that.
@@ -210,13 +213,46 @@ export function AccountsForm({ account: a, metaBusinessId, tiktokBusinessCenterI
           </div>
           {status(a?.tiktok_status)}
         </div>
-        <Steps>
-          <li>
-            In <span className="text-ink">TikTok Business Center → Assets → Advertiser accounts</span>, share your advertiser account with Retexia&apos;s Business Center ID{" "}
-            <span className="type-code text-ink">{tiktokBusinessCenterId ?? "(ask the Retexia team)"}</span> as a partner (operator access).
-          </li>
-          <li>Enter the advertiser ID and press Save; after Retexia confirms, pick the TikTok account your ads show as.</li>
-        </Steps>
+        {ttPartner ? (
+          <Steps>
+            <li>
+              In <span className="text-ink">TikTok Business Center → Assets → Advertiser accounts</span>, share your advertiser account with Retexia&apos;s Business Center ID{" "}
+              <span className="type-code text-ink">{tiktokBusinessCenterId ?? "(ask the Retexia team)"}</span> as a partner (operator access).
+            </li>
+            <li>Enter the advertiser ID and press Save; after Retexia confirms, pick the TikTok account your ads show as.</li>
+          </Steps>
+        ) : (
+          <Steps>
+            <li>
+              In <span className="text-ink">TikTok for Business Developers</span> (business-api.tiktok.com), make an app with <span className="text-ink">Ads Management</span> access and authorise it for your advertiser account.
+            </li>
+            <li>Paste the <span className="text-ink">long-term access token</span> below, enter the advertiser ID and press Save. Retexia checks it straight away; then pick the TikTok account your ads show as.</li>
+          </Steps>
+        )}
+        {!ttPartner ? (
+          <Field label="Your TikTok access token" hint={ttOwn ? `Saved (••••${a?.tiktok_token_last4 ?? ""}). Paste a new one to replace it.` : "Kept encrypted; never shown again."}>
+            <div className="flex flex-wrap gap-2">
+              <Input className="min-w-0 flex-1" type="password" autoComplete="off" value={ttToken} onChange={(e) => setTtToken(e.target.value)} placeholder={ttOwn ? "••••••••" : "Paste the access token"} />
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={Boolean(busy) || !ttToken.trim()}
+                loading={busy === "tttoken"}
+                onClick={async () => {
+                  setBusy("tttoken");
+                  const r = await saveTiktokToken({ token: ttToken });
+                  setBusy(null);
+                  if (!r.ok) return toast.error(r.message);
+                  setTtToken("");
+                  (r.data?.ok === false ? toast.warning : toast.success)(r.message ?? "Saved");
+                  router.refresh();
+                }}
+              >
+                Save token
+              </Button>
+            </div>
+          </Field>
+        ) : null}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Advertiser ID" hint="TikTok Ads Manager → top right, under your account name" error={errors.tiktok_advertiser_id}>
             <Input inputMode="numeric" value={v.tiktok_advertiser_id} onChange={set("tiktok_advertiser_id")} />
@@ -234,7 +270,7 @@ export function AccountsForm({ account: a, metaBusinessId, tiktokBusinessCenterI
         {a?.tiktok_info?.checked_at ? <Found info={a.tiktok_info as Record<string, unknown>} platform="tiktok" /> : null}
         {a?.tiktok_advertiser_id ? (
           <div>
-            <Button variant="secondary" size="sm" onClick={() => check("tiktok")} loading={busy === "tiktok"} disabled={!ready || Boolean(busy)}>
+            <Button variant="secondary" size="sm" onClick={() => check("tiktok")} loading={busy === "tiktok"} disabled={(!ready && !ttOwn) || Boolean(busy)}>
               <RefreshCw aria-hidden size={14} strokeWidth={1.75} /> Check again
             </Button>
           </div>

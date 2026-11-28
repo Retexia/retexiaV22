@@ -1,12 +1,12 @@
 import "server-only";
 
 import { feederDb } from "../db";
-import { metaDirect } from "../meta-connection";
+import { currentSeller, metaDirect, sellerTiktokToken } from "../meta-connection";
 
 /**
  * The n8n workflow "Retexia — Feeder Autopublish" (n8n/feeder-autopublish.json)
- * makes the outside calls. It holds no credentials: the keys live in Vault
- * (admin → Settings → Integrations) and each call carries the one it needs.
+ * makes the outside calls. Its own n8n credentials: OpenAI (Auto comment) and Evolution
+ * (WhatsApp). Customer-dependent tokens (Meta, TikTok) travel with each call (body.auth).
  * The panel sends it one small call at a time:
  *
  *   meta        Graph API call (allowed paths only): { method, path, params }
@@ -43,40 +43,37 @@ const url = () => process.env.FEEDER_ADS_N8N_URL?.trim() || "";
 /** Only the webhook URL is needed; FEEDER_ADS_N8N_KEY is optional (sent as X-Retexia-Key when the webhook uses Header Auth). */
 export const gatewayReady = () => Boolean(url());
 
-// The keys the workflow needs (admin → Settings → Integrations, Vault), cached briefly.
-type Keys = Partial<Record<"openai" | "meta" | "tiktok" | "evolution_url" | "evolution_instance" | "evolution_key", string>>;
+// Customer-dependent credentials (Meta, TikTok) travel with each call; OpenAI and Evolution are n8n credentials.
+// Retexia's own Meta / TikTok tokens (admin → Settings → Integrations, Vault) are for sellers on the older partner way.
+type Keys = Partial<Record<"meta" | "tiktok", string>>;
 let keyCache: { at: number; keys: Keys } | null = null;
-async function gatewayKeys(): Promise<Keys> {
+async function retexiaKeys(): Promise<Keys> {
   if (keyCache && Date.now() - keyCache.at < 60_000) return keyCache.keys;
   const { data } = await feederDb().rpc("gateway_keys");
   keyCache = { at: Date.now(), keys: (data ?? {}) as Keys };
   return keyCache.keys;
 }
 
-/** Only the key this call needs travels with it; n8n stores none. */
+/** The token this call needs: the seller's own (TikTok) or Retexia's for partner sellers; {} when n8n has its own credential. */
 async function authFor(call: GatewayCall): Promise<Record<string, string> | null> {
-  const k = await gatewayKeys();
-  switch (call.action) {
-    case "meta":
-    case "meta_page":
-    case "meta_image":
-      return k.meta ? { meta: k.meta } : null;
-    case "tiktok":
-      return k.tiktok ? { tiktok: k.tiktok } : null;
-    case "ai":
-      return k.openai ? { openai: k.openai } : null;
-    case "whatsapp":
-      return k.evolution_url && k.evolution_key ? { evolution_url: k.evolution_url, evolution_instance: k.evolution_instance ?? "", evolution_key: k.evolution_key } : null;
+  if (call.action === "ai" || call.action === "whatsapp") return {};
+  if (call.action === "tiktok") {
+    const uid = await currentSeller();
+    const own = uid ? await sellerTiktokToken(uid) : null;
+    if (own) return { tiktok: own };
+    const k = await retexiaKeys();
+    return k.tiktok ? { tiktok: k.tiktok } : null;
   }
+  // Meta here = sellers on the partner way (own-portfolio sellers never reach n8n: see metaDirect).
+  const k = await retexiaKeys();
+  return k.meta ? { meta: k.meta } : null;
 }
 
 const MISSING: Record<string, string> = {
-  meta: "Retexia's Meta token isn't set (admin → Settings → Integrations)",
-  meta_page: "Retexia's Meta token isn't set (admin → Settings → Integrations)",
-  meta_image: "Retexia's Meta token isn't set (admin → Settings → Integrations)",
-  tiktok: "The TikTok token isn't set (admin → Settings → Integrations)",
-  ai: "The OpenAI key isn't set (admin → Settings → Integrations)",
-  whatsapp: "Evolution (WhatsApp) isn't set (admin → Settings → Integrations)",
+  meta: "Connect your Business portfolio in Connections (or Retexia's Meta token isn't set)",
+  meta_page: "Connect your Business portfolio in Connections (or Retexia's Meta token isn't set)",
+  meta_image: "Connect your Business portfolio in Connections (or Retexia's Meta token isn't set)",
+  tiktok: "Add your TikTok access token in Connections → TikTok",
 };
 
 export async function gateway(call: GatewayCall, timeoutMs = 90_000): Promise<GatewayReply> {

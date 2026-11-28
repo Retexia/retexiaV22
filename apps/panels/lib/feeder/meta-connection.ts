@@ -25,7 +25,7 @@ const als = new AsyncLocalStorage<{ userId: string }>();
 /** Runs fn as this seller: their Facebook calls use their own token (when they connected one). */
 export const asSeller = <T,>(userId: string, fn: () => Promise<T>) => als.run({ userId }, fn);
 
-async function currentSeller(): Promise<string | null> {
+export async function currentSeller(): Promise<string | null> {
   const s = als.getStore();
   if (s) return s.userId;
   try {
@@ -47,7 +47,21 @@ export async function sellerToken(userId: string): Promise<Conn | null> {
   cache.set(userId, { at: Date.now(), conn });
   return conn;
 }
-export const forgetToken = (userId: string) => cache.delete(userId);
+export const forgetToken = (userId: string) => {
+  cache.delete(userId);
+  ttCache.delete(userId);
+};
+
+/** The seller's own TikTok access token (Connections → TikTok, Vault), or null. */
+const ttCache = new Map<string, { at: number; token: string | null }>();
+export async function sellerTiktokToken(userId: string): Promise<string | null> {
+  const hit = ttCache.get(userId);
+  if (hit && Date.now() - hit.at < 60_000) return hit.token;
+  const { data, error } = await feederDb().rpc("tiktok_token", { p_user: userId });
+  const token = !error && typeof data === "string" && data ? data : null;
+  ttCache.set(userId, { at: Date.now(), token });
+  return token;
+}
 
 /** True when this seller's Facebook calls can go out (own token, or Retexia's gateway). */
 export async function metaReachable(userId: string, gatewayReady: boolean) {

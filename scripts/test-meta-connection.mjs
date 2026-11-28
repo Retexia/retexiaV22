@@ -102,23 +102,38 @@ const a2 = (await q(`select meta_via, meta_status, meta_ad_account_id from feede
 ok(a2.meta_via === "partner" && a2.meta_status === "none" && a2.meta_ad_account_id === null, "Autopublish stops using the account");
 
 
-console.log("Gateway keys: entered in admin, kept in Vault, the workflow holds none (0049)");
+console.log("Gateway: customer tokens travel with each call, OpenAI / Evolution stay in n8n (0049, 0050)");
 await db.exec(readFileSync(new URL("../supabase/migrations/0049_feeder_gateway_keys.sql", import.meta.url), "utf8"));
 const owner = await user("owner@retexia.test", "owner");
 const staffAdmin = await user("staff@retexia.test", "admin");
 await as("authenticated", owner, `select public.admin_set_gateway_key('openai', 'sk-test-1234567890abcdWXYZ')`);
-await as("authenticated", owner, `select public.admin_set_gateway_key('evolution_url', 'https://evo.example.com')`);
-const shown = (await as("authenticated", owner, `select public.admin_gateway_keys() k`)).rows[0].k;
-ok(shown.openai === "••••WXYZ" && shown.evolution_url === "https://evo.example.com", "the owner sees only the last 4 characters of a key (URLs in full)");
-ok((await q(`select feeder.gateway_keys() k`))[0].k.openai === "sk-test-1234567890abcdWXYZ", "feeder.retexia.com's server reads the key to send with a call");
-await expectError(() => as("authenticated", staffAdmin, `select public.admin_set_gateway_key('openai', 'sk-x')`), "only an owner changes them", /owner/);
-await expectError(() => as("authenticated", kasun, `select feeder.gateway_keys()`), "customers can't read them", /permission denied/);
-await expectError(() => as("authenticated", owner, `select public.admin_set_gateway_key('aws', 'x')`), "only the known keys", /Unknown key/);
-await expectError(() => as("authenticated", owner, `select public.admin_set_gateway_key('evolution_url', 'http://plain')`), "the Evolution URL must be https", /https/);
-ok((await q(`select count(*)::int n from public.audit_logs where table_name = 'feeder_gateway'`))[0].n >= 2, "every change is in the audit log");
-await as("authenticated", owner, `select public.admin_set_gateway_key('openai', '')`);
-ok(!("openai" in (await q(`select feeder.gateway_keys() k`))[0].k), "removing a key deletes it from Vault");
-const noCreds = wf.nodes.filter((n) => n.credentials || (n.parameters.authentication && n.parameters.authentication !== "none"));
-ok(noCreds.length === 0 && wf.settings.saveDataSuccessExecution === "none" && wf.settings.saveDataErrorExecution === "none", "the n8n workflow has no credentials and keeps no execution data");
+await db.exec(readFileSync(new URL("../supabase/migrations/0050_feeder_customer_tokens.sql", import.meta.url), "utf8"));
+ok((await q(`select count(*)::int n from vault.secrets where name = 'feeder_gateway_openai'`))[0].n === 0, "the OpenAI key isn't kept here any more (it's an n8n credential again)");
+await expectError(() => as("authenticated", owner, `select public.admin_set_gateway_key('openai', 'sk-x')`), "admin only keeps Meta and TikTok", /Unknown key/);
+await as("authenticated", owner, `select public.admin_set_gateway_key('meta', 'EAAretexia000000000000META')`);
+ok((await as("authenticated", owner, `select public.admin_gateway_keys() k`)).rows[0].k.meta === "••••META", "the owner sees only the last 4 characters");
+ok((await q(`select feeder.gateway_keys() k`))[0].k.meta === "EAAretexia000000000000META", "feeder.retexia.com's server reads Retexia's token for partner-way sellers");
+await expectError(() => as("authenticated", staffAdmin, `select public.admin_set_gateway_key('meta', 'x')`), "only an owner changes it", /owner/);
+await expectError(() => as("authenticated", kasun, `select feeder.gateway_keys()`), "customers can't read it", /permission denied/);
+ok((await q(`select count(*)::int n from public.audit_logs where table_name = 'feeder_gateway'`))[0].n >= 1, "every change is in the audit log");
 
+const tt = await user("tiktok@example.com");
+await q(`insert into feeder.ad_accounts (user_id, tiktok_advertiser_id, tiktok_status) values ($1, '7000000000009', 'connected')`, [tt]);
+ok((await q(`select tiktok_status from feeder.ad_accounts where user_id = $1`, [tt]))[0].tiktok_status === "requested", "without their own token, TikTok still waits for Retexia");
+await q(`select feeder.save_tiktok_token($1, 'act.ttTOKEN0000000000000000TTOK')`, [tt]);
+const t1 = (await q(`select tiktok_via, tiktok_token_last4 from feeder.ad_accounts where user_id = $1`, [tt]))[0];
+ok(t1.tiktok_via === "token" && t1.tiktok_token_last4 === "TTOK", "a seller's own TikTok token is saved (only its last 4 here)");
+ok((await q(`select feeder.tiktok_token($1) t`, [tt]))[0].t === "act.ttTOKEN0000000000000000TTOK", "the server reads it from Vault");
+await expectError(() => as("authenticated", tt, `select feeder.tiktok_token($1)`, [tt]), "customers can't read tokens", /permission denied/);
+await q(`update feeder.ad_accounts set tiktok_status = 'connected' where user_id = $1`, [tt]);
+ok((await q(`select tiktok_status from feeder.ad_accounts where user_id = $1`, [tt]))[0].tiktok_status === "connected", "with their own token the server connects it (no confirmation)");
+await q(`select feeder.save_tiktok_token($1, '')`, [tt]);
+const t2 = (await q(`select tiktok_via, tiktok_status, tiktok_token_secret_id from feeder.ad_accounts where user_id = $1`, [tt]))[0];
+ok(t2.tiktok_via === "partner" && t2.tiktok_status === "requested" && t2.tiktok_token_secret_id === null && (await q(`select count(*)::int n from vault.secrets where name like 'feeder_tiktok_%'`))[0].n === 0, "removing it deletes it from Vault (and it goes back to waiting for Retexia)");
+
+const node = (name) => wf.nodes.find((n) => n.name === name);
+const credsOf = (n) => n.credentials || (n.parameters.authentication && n.parameters.authentication !== "none" ? n.parameters.authentication : null);
+ok(["Meta GET", "Meta POST", "Page token", "Meta POST image", "TikTok GET", "TikTok POST"].every((n) => !credsOf(node(n))), "Meta and TikTok nodes have no credentials: the token comes with the call");
+ok(["Webhook: Autopublish", "OpenAI (Auto comment)", "WA · Send"].every((n) => credsOf(node(n))), "the webhook key, OpenAI and Evolution are n8n credentials");
+ok(wf.settings.saveDataSuccessExecution === "none" && wf.settings.saveDataErrorExecution === "none", "execution data isn't saved, so customer tokens aren't kept");
 summary();

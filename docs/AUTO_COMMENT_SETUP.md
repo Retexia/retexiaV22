@@ -26,24 +26,27 @@ With their own token, Autopublish is connected straight away (no confirmation in
 
 Sellers set up the older way (shared with Retexia's business) keep working as before.
 
-## 2. n8n (no credentials)
+## 2. n8n
 
-The workflow holds **no credentials**. feeder.retexia.com sends each call the one key it needs; the keys are entered once in **admin.retexia.com → Settings → Integrations → Feeder tools** and kept in Supabase Vault. Execution data isn't saved, so n8n keeps no keys either.
+Meta and TikTok tokens depend on the customer, so the workflow doesn't keep them: feeder.retexia.com sends the right token with each call (the seller's own from Connections, or Retexia's own for sellers on the older partner way, set in admin → Settings → Integrations). Execution data isn't saved, so those tokens aren't kept. Everything else is an n8n credential as usual.
 
-1. Deactivate / delete an older copy of "Retexia — Feeder Autopublish (gateway)" (two can't share the webhook path).
-2. **Import** `n8n/feeder-autopublish.json` and press **Publish**. Nothing to fill in.
-3. Copy the **Webhook: Autopublish** node's **Production URL**.
+1. Deactivate / delete an older copy of "Retexia — Feeder Autopublish (gateway)".
+2. **Import** `n8n/feeder-autopublish.json`. Credentials (all Header Auth):
 
-Admin → Settings → Integrations → **Feeder tools (n8n gateway)** (owner):
-- **OpenAI API key**: Auto comment's AI.
-- **Retexia's Meta System User token**: only for sellers on the older partner way.
-- **TikTok access token**, **Evolution URL / instance / key**: only if you use TikTok ads or WhatsApp launch notices.
+| Node | Credential | Header | Value |
+|---|---|---|---|
+| Webhook: Autopublish | Retexia key (Autopublish) | `X-Retexia-Key` | a long random value, the same as `FEEDER_ADS_N8N_KEY` on Vercel |
+| OpenAI (Auto comment) | OpenAI API key | `Authorization` | `Bearer sk-…` |
+| WA · Send | Evolution (Autopublish) | `apikey` | your Evolution API key (and `evolutionUrl` / `evolutionInstance` in **Config**) |
+| Meta GET / POST / POST image, Page token, Page GET / POST, TikTok GET / POST, Image: download | **none** | | the token comes with each call |
+
+3. **Publish**. Copy the Webhook node's **Production URL**.
 
 ## 3. Vercel (apps/panels)
 
 ```
 FEEDER_ADS_N8N_URL=<the Production URL of the webhook>
-# FEEDER_ADS_N8N_KEY is optional now (only if you put Header Auth back on the webhook)
+FEEDER_ADS_N8N_KEY=<the same value as the n8n Retexia key>
 RETEXIA_META_BUSINESS_ID=<your business ID>
 ```
 Redeploy **panels**.
@@ -54,7 +57,7 @@ SQL editor, in order (all safe to run again; 0049: the gateway keys in Vault):
 1. `supabase/migrations/0046_feeder_auto_comment.sql`: the free **Auto comment** package, its tables and the every-minute clock.
 2. `supabase/migrations/0047_feeder_shared_and_ai_comments.sql`: shared business details and prices, and Auto comment's AI settings.
 3. `supabase/migrations/0048_feeder_meta_connection.sql`: each seller's own Business portfolio (token in Vault), its ad accounts and Pages.
-4. `supabase/migrations/0049_feeder_gateway_keys.sql`: the gateway's keys (admin → Settings → Integrations).
+4. `supabase/migrations/0049_feeder_gateway_keys.sql` then `0050_feeder_customer_tokens.sql`: Retexia's own Meta / TikTok tokens (admin → Settings → Integrations) and each seller's own TikTok token (Connections).
 
 ## 5. Check (in this order)
 

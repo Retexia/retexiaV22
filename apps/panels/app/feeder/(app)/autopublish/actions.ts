@@ -26,7 +26,7 @@ import { nameKey } from "@/lib/feeder/autopublish/step";
 import { tiktokCheck } from "@/lib/feeder/autopublish/tiktok";
 import type { AccountRow, LaunchRow, NodeRow, Snapshot } from "@/lib/feeder/autopublish/types";
 import { feederDb } from "@/lib/feeder/db";
-import { metaReachable } from "@/lib/feeder/meta-connection";
+import { forgetToken, metaReachable } from "@/lib/feeder/meta-connection";
 import { refresh } from "@/lib/feeder/meta-portfolio";
 import { adsConnectionUser } from "@/lib/feeder/shared";
 import { addDays, localDate, zonedToUtc } from "@/lib/time";
@@ -175,8 +175,10 @@ async function runCheck(userId: string, platform: Platform) {
     const after = await getAccount(userId);
     return { ok: after?.meta_status === "connected", info: (after?.meta_info ?? {}) as Record<string, unknown> };
   }
-  const r = platform === "meta" ? await metaCheck(a) : await tiktokCheck(a.tiktok_advertiser_id);
+  const r = platform === "meta" ? await metaCheck(a) : await tiktokCheck(a.tiktok_advertiser_id, a.tiktok_via === "token" ? "token" : "partner");
   const patch: Record<string, unknown> = platform === "meta" ? { meta_info: r.info } : { tiktok_info: r.info };
+  // Their own TikTok token: the check itself connects it (no confirmation by Retexia).
+  if (platform === "tiktok" && a.tiktok_via === "token") patch.tiktok_status = r.ok ? "connected" : "problem";
   // The account's currency and time zone come from Meta (or TikTok) once known.
   const info = r.info as { currency?: string; timezone?: string };
   if (info.currency && /^[A-Z]{3}$/.test(info.currency) && (platform === "meta" || !a.meta_info?.currency)) patch.currency = info.currency;
@@ -200,6 +202,22 @@ export async function checkAccount(input: { platform: Platform }): Promise<Actio
     if (!(await metaReachable(u.id, gatewayReady()))) return { ok: false, message: "Autopublish is being set up by Retexia. Try again later." };
     const r = await runCheck(u.id, platform);
     return done(r.ok ? "Everything Retexia needs is there" : "Some things still need doing", { ok: r.ok, info: r.info as Record<string, unknown> });
+  });
+}
+
+/** The seller's own TikTok access token (kept in Vault); empty = remove it. Checked straight away. */
+export async function saveTiktokToken(input: { token: string }): Promise<ActionResult<{ ok: boolean }>> {
+  return run(async () => {
+    const u = await user();
+    const token = z.string().trim().max(500).refine((v) => v === "" || (v.length >= 20 && !/\s/.test(v)), "Paste the whole access token (no spaces)").parse(input.token);
+    const { error } = await feederDb().rpc("save_tiktok_token", { p_user: u.id, p_token: token });
+    if (error) return { ok: false, message: "Couldn't save the token. Please try again." };
+    forgetToken(u.id);
+    if (!token) return done("TikTok token removed.");
+    const a = await getAccount(u.id);
+    if (!a?.tiktok_advertiser_id) return done("Saved. Now enter your advertiser ID and press Save.", { ok: false });
+    const r = await runCheck(u.id, "tiktok");
+    return done(r.ok ? "TikTok connected." : "Saved, but TikTok needs attention (see below).", { ok: r.ok });
   });
 }
 

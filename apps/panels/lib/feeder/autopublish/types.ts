@@ -14,6 +14,9 @@ export type AccountRow = {
   meta_status: ConnStatus;
   /** partner = shared with Retexia's business; token = the seller's own Business portfolio (Connections). */
   meta_via?: "partner" | "token";
+  /** partner = shared with Retexia's Business Center; token = the seller's own TikTok access token (Connections). */
+  tiktok_via?: "partner" | "token";
+  tiktok_token_last4?: string | null;
   meta_info: MetaInfo;
   tiktok_advertiser_id: string | null;
   tiktok_identity_id: string | null;

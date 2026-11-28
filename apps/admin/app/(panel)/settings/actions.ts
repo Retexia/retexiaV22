@@ -303,18 +303,18 @@ export async function testNotificationsWebhook(): Promise<ActionResult<{ status:
 }
 
 // ---------------------------------------------------------------------------
-// Feeder gateway keys (owner): the n8n gateway workflow holds no credentials;
-// feeder.retexia.com sends each call the key it needs from Vault (0049).
+// Feeder gateway: Retexia's own Meta / TikTok tokens (owner), for partner-way sellers;
+// feeder.retexia.com sends them with each call (0049, 0050). OpenAI / Evolution are n8n credentials.
 // ---------------------------------------------------------------------------
 
-const GATEWAY_KEYS = ["openai", "meta", "tiktok", "evolution_url", "evolution_instance", "evolution_key"] as const;
+const GATEWAY_KEYS = ["meta", "tiktok"] as const;
 
 export async function saveGatewayKey(input: { key: string; value: string }): Promise<ActionResult> {
   return run(async () => {
     const staff = await requireRole("manageTeam");
     if (!(await rateLimit(`gateway-keys:${staff.user.id}`, 20, 60_000))) return { ok: false, message: "Too many changes. Wait a minute." };
     const d = z.object({ key: z.enum(GATEWAY_KEYS), value: z.string().trim().max(2000) }).parse(input);
-    if (d.value && /\s/.test(d.value) && d.key !== "evolution_instance") return { ok: false, message: "Keys have no spaces: copy it again." };
+    if (d.value && /\s/.test(d.value)) return { ok: false, message: "Keys have no spaces: copy it again." };
     const { error } = await staff.supabase.rpc("admin_set_gateway_key", { p_key: d.key, p_value: d.value });
     if (error) return { ok: false, message: dbMessage(error) };
     revalidatePath("/settings/integrations");
